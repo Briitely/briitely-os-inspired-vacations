@@ -32,11 +32,23 @@ export function LoginForm() {
         password,
       });
 
+      console.log("LOGIN_DIAGNOSTIC", {
+        signInAttempted: true,
+        signInSucceeded: !signInError,
+        errorCode: signInError?.status ?? null,
+        errorMessage: signInError?.message ?? null,
+        userIdPresent: !!data?.user?.id,
+        sessionPresent: !!data?.session,
+      });
+
       if (signInError) {
-        if (signInError.message.toLowerCase().includes("invalid login credentials")) {
+        const msg = signInError.message;
+        if (msg.toLowerCase().includes("invalid login credentials")) {
           setError("The email or password you entered is incorrect. Please try again.");
+        } else if (msg.toLowerCase().includes("email not confirmed")) {
+          setError("Email not confirmed. Please check your inbox and confirm your email before signing in.");
         } else {
-          setError("We couldn't sign you in right now. Please try again in a moment.");
+          setError(msg || "We couldn't sign you in right now. Please try again in a moment.");
         }
         return;
       }
@@ -51,6 +63,13 @@ export function LoginForm() {
         .select("id, is_active")
         .eq("id", data.user.id)
         .maybeSingle();
+
+      console.log("LOGIN_DIAGNOSTIC", {
+        stage: "profile_lookup",
+        profileFound: !!profile,
+        profileActive: profile?.is_active ?? null,
+        profileError: profileError?.message ?? null,
+      });
 
       if (profileError) {
         setError("We couldn't load your account. Please try again.");
@@ -69,9 +88,19 @@ export function LoginForm() {
         return;
       }
 
+      console.log("LOGIN_DIAGNOSTIC", {
+        stage: "redirect",
+        destination: redirectPath,
+      });
+
       router.push(redirectPath);
       router.refresh();
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.log("LOGIN_DIAGNOSTIC", {
+        stage: "exception",
+        errorMessage: message,
+      });
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
