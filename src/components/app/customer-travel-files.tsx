@@ -8,7 +8,7 @@ import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
 import { Loader2, Plane, Plus, AlertTriangle } from "lucide-react";
 import { formatStageLabel, formatStageBadgeVariant } from "@/lib/travel/stage-labels";
-import { formatReadableDate } from "@/lib/travel/format";
+import { formatDateOnly } from "@/lib/travel/format";
 import { CreateTravelFileModal } from "@/components/app/create-travel-file-modal";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 
@@ -195,7 +195,7 @@ export function CustomerTravelFiles({ customer }: CustomerTravelFilesProps) {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatStageLabel(file.stage as Parameters<typeof formatStageLabel>[0])}
-                        {file.departure_date && ` · Dep ${formatReadableDate(file.departure_date)}`}
+                        {file.departure_date && ` · Dep ${formatDateOnly(file.departure_date)}`}
                       </p>
                     </div>
                     <Link href={`/travel-files/${file.id}`} className="text-sm text-primary hover:underline shrink-0">
@@ -240,7 +240,7 @@ function TravelFileRow({ file }: { file: TravelFileSummary }) {
             {file.destination || "Trip details pending"}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {file.departure_date && <span>Dep {formatReadableDate(file.departure_date)}</span>}
+            {file.departure_date && <span>Dep {formatDateOnly(file.departure_date)}</span>}
             {file.current_action && (
               <span className="truncate">· {file.current_action.title}</span>
             )}

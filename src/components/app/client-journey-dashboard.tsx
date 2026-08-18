@@ -8,7 +8,7 @@ import { Button } from "@/components/core/ui/button";
 import { Search, Plane, AlertCircle, Clock, UserCheck, Inbox, CalendarClock, Plus } from "lucide-react";
 import type { DashboardTravelFile, TravelFileFilter } from "@/lib/travel/queries";
 import { formatStageLabel, formatStageBadgeVariant } from "@/lib/travel/stage-labels";
-import { formatDueOrWaiting, formatReadableDate, isOverdue } from "@/lib/travel/format";
+import { formatDueOrWaiting, formatDateOnly, parseDateOnly, isOverdue } from "@/lib/travel/format";
 import { sortDashboardFiles } from "@/lib/travel/sort";
 import type { TravelStage } from "@/lib/travel/types";
 
@@ -74,8 +74,8 @@ function applyFilter(files: DashboardTravelFile[], filter: TravelFileFilter, use
       return files.filter(
         (f) =>
           f.departure_date &&
-          new Date(f.departure_date) >= now &&
-          new Date(f.departure_date) <= thirtyDays
+          parseDateOnly(f.departure_date) >= now &&
+          parseDateOnly(f.departure_date) <= thirtyDays
       );
     }
     default:
@@ -245,7 +245,7 @@ export function ClientJourneyDashboard({ files, currentUserId }: ClientJourneyDa
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {file.trip_type}
                             {file.trip_type && file.departure_date && " · "}
-                            {file.departure_date && `Dep ${formatReadableDate(file.departure_date)}`}
+                            {file.departure_date && `Dep ${formatDateOnly(file.departure_date)}`}
                           </p>
                         )}
                       </div>

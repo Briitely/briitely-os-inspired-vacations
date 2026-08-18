@@ -1,3 +1,28 @@
+/**
+ * Parse a PostgreSQL DATE column (YYYY-MM-DD) into a local Date at midnight.
+ * Unlike new Date("2026-12-21"), which JavaScript interprets as UTC midnight,
+ * this constructs the date in local time so it never shifts by a day.
+ */
+export function parseDateOnly(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Format a PostgreSQL DATE column (YYYY-MM-DD) as a readable date string.
+ * Splits the string into calendar components directly — never creates a UTC
+ * Date from the ISO string, so the output is the same in every timezone.
+ */
+export function formatDateOnly(value: string | null): string {
+  if (!value) return "—";
+  const date = parseDateOnly(value);
+  return date.toLocaleDateString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function formatDueOrWaiting(
   dueAt: string | null,
   waitingSince: string | null

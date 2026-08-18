@@ -15,6 +15,7 @@ import {
   formatDueOrWaiting,
   formatReadableDate,
   formatReadableDateTime,
+  formatDateOnly,
   formatCurrency,
   formatBoolean,
   isOverdue,
@@ -210,11 +211,11 @@ export default async function TravelFilePage({
               <InfoRow label="Trip Type" value={file.trip_type} />
               <InfoRow
                 label="Departure"
-                value={file.departure_date ? formatReadableDate(file.departure_date) : "—"}
+                value={file.departure_date ? formatDateOnly(file.departure_date) : "—"}
               />
               <InfoRow
                 label="Return"
-                value={file.return_date ? formatReadableDate(file.return_date) : "—"}
+                value={file.return_date ? formatDateOnly(file.return_date) : "—"}
               />
               <InfoRow
                 label="Assigned Advisor"
@@ -297,22 +298,22 @@ export default async function TravelFilePage({
               <InfoRow label="Number of Travellers" value={file.number_of_travellers} />
               <InfoRow
                 label="Departure Date"
-                value={file.departure_date ? formatReadableDate(file.departure_date) : "—"}
+                value={file.departure_date ? formatDateOnly(file.departure_date) : "—"}
               />
               <InfoRow
                 label="Return Date"
-                value={file.return_date ? formatReadableDate(file.return_date) : "—"}
+                value={file.return_date ? formatDateOnly(file.return_date) : "—"}
               />
               <InfoRow label="Budget Range" value={file.budget_range} />
               <InfoRow label="TMF Amount" value={formatCurrency(file.tmf_amount)} />
               <InfoRow label="IVT / Custom" value={formatBoolean(file.ivt_custom)} />
               <InfoRow
                 label="Proposal Due Date"
-                value={file.proposal_due_date ? formatReadableDate(file.proposal_due_date) : "—"}
+                value={file.proposal_due_date ? formatDateOnly(file.proposal_due_date) : "—"}
               />
               <InfoRow
                 label="Date Booked"
-                value={file.date_booked ? formatReadableDate(file.date_booked) : "—"}
+                value={file.date_booked ? formatDateOnly(file.date_booked) : "—"}
               />
               <InfoRow
                 label="Total Booking Value"
@@ -451,7 +452,7 @@ export default async function TravelFilePage({
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        Due: {formatReadableDate(payment.due_date)}
+                        Due: {formatDateOnly(payment.due_date)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
