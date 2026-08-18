@@ -31,7 +31,7 @@ export function CustomerWorkspace({ initialCustomer }: CustomerWorkspaceProps) {
         onCustomerUpdated={setCustomer}
         onCreateInvoice={handleCreateInvoice}
       />
-      <CustomerTravelFiles customerId={customer.id} />
+      <CustomerTravelFiles customer={customer} />
       <CustomerInvoiceHistory
         customerId={customer.id}
         onInvoiceClick={handleInvoiceClick}

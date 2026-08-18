@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
-import { Search, Plane, AlertCircle, Clock, UserCheck, Inbox, CalendarClock } from "lucide-react";
+import { Search, Plane, AlertCircle, Clock, UserCheck, Inbox, CalendarClock, Plus } from "lucide-react";
 import type { DashboardTravelFile, TravelFileFilter } from "@/lib/travel/queries";
 import { formatStageLabel, formatStageBadgeVariant } from "@/lib/travel/stage-labels";
 import { formatDueOrWaiting, formatReadableDate, isOverdue } from "@/lib/travel/format";
@@ -15,7 +15,6 @@ import type { TravelStage } from "@/lib/travel/types";
 interface ClientJourneyDashboardProps {
   files: DashboardTravelFile[];
   currentUserId: string;
-  isAdmin: boolean;
 }
 
 const FILTER_TABS: { key: TravelFileFilter; label: string; icon: React.ReactNode }[] = [
@@ -84,7 +83,7 @@ function applyFilter(files: DashboardTravelFile[], filter: TravelFileFilter, use
   }
 }
 
-export function ClientJourneyDashboard({ files, currentUserId, isAdmin }: ClientJourneyDashboardProps) {
+export function ClientJourneyDashboard({ files, currentUserId }: ClientJourneyDashboardProps) {
   const [activeFilter, setActiveFilter] = useState<TravelFileFilter>("all_open");
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<TravelStage | "all">("all");
@@ -123,20 +122,6 @@ export function ClientJourneyDashboard({ files, currentUserId, isAdmin }: Client
     return sortDashboardFiles(result);
   }, [files, activeFilter, searchQuery, stageFilter, advisorFilter, currentUserId]);
 
-  async function handleCreateTestFile() {
-    try {
-      const res = await fetch("/api/travel-files/create-test", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || "Failed to create test Travel File.");
-        return;
-      }
-      window.location.reload();
-    } catch {
-      alert("Something went wrong creating the test Travel File.");
-    }
-  }
-
   if (files.length === 0) {
     return (
       <Card>
@@ -146,13 +131,11 @@ export function ClientJourneyDashboard({ files, currentUserId, isAdmin }: Client
           </div>
           <p className="text-lg font-medium text-foreground">No active Travel Files yet.</p>
           <p className="text-sm text-muted-foreground text-center max-w-sm">
-            Travel Files will appear here once inquiries come in. You can create a test file to validate the system.
+            Travel Files will appear here once inquiries come in. Create one from a customer&apos;s workspace.
           </p>
-          {isAdmin && (
-            <Button onClick={handleCreateTestFile}>
-              Create Test Travel File
-            </Button>
-          )}
+          <Button asChild>
+            <Link href="/customers"><Plus className="h-4 w-4" />Find a Customer</Link>
+          </Button>
         </CardContent>
       </Card>
     );
@@ -303,14 +286,6 @@ export function ClientJourneyDashboard({ files, currentUserId, isAdmin }: Client
           </table>
         </div>
       </Card>
-
-      {isAdmin && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={handleCreateTestFile}>
-            Create Test Travel File
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

@@ -118,7 +118,6 @@ export default async function DashboardPage() {
           <ClientJourneyDashboard
             files={files}
             currentUserId={user.id}
-            isAdmin={isAdmin}
           />
         </div>
       </main>
