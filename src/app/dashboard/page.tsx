@@ -93,7 +93,7 @@ export default async function DashboardPage() {
             icon={<MapPinned className="h-7 w-7" />}
             title="Client Journey"
             description="View and manage open Travel Files and their next actions."
-            href="/dashboard"
+            href="#client-journey"
             enabled
           />
           <WorkflowCard
@@ -107,18 +107,20 @@ export default async function DashboardPage() {
             <WorkflowCard
               icon={<ShieldCheck className="h-7 w-7" />}
               title="Admin"
-              description="Manage users, business settings, and invoice preferences."
+              description="Manage users, business settings, and system preferences."
               href="/admin"
               enabled
             />
           )}
         </div>
 
-        <ClientJourneyDashboard
-          files={files}
-          currentUserId={user.id}
-          isAdmin={isAdmin}
-        />
+        <div id="client-journey" className="scroll-mt-24">
+          <ClientJourneyDashboard
+            files={files}
+            currentUserId={user.id}
+            isAdmin={isAdmin}
+          />
+        </div>
       </main>
 
       <footer className="border-t border-border mt-16">
