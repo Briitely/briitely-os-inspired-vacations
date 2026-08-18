@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
+import { SharedFooter } from "@/components/app/shared-footer";
 import { ClientJourneyDashboard } from "@/components/app/client-journey-dashboard";
 import { WorkflowCard } from "@/components/app/workflow-card";
-import { getBusinessSettings } from "@/lib/briitely/client-settings";
 import { createClient } from "@/lib/supabase/server";
 import { UserSearch, ShieldCheck, MapPinned } from "lucide-react";
 import type { DashboardTravelFile } from "@/lib/travel/queries";
@@ -67,7 +67,6 @@ export default async function DashboardPage() {
     };
   });
 
-  const business = await getBusinessSettings();
   const isAdmin = user.role === "admin" || user.role === "super_admin";
 
   return (
@@ -122,11 +121,7 @@ export default async function DashboardPage() {
         </div>
       </main>
 
-      <footer className="border-t border-border mt-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{business.businessName} — Client Journey</span>
-        </div>
-      </footer>
+      <SharedFooter label="Client Journey" />
     </div>
   );
 }

@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
+import { SharedFooter } from "@/components/app/shared-footer";
 import { Card, CardContent } from "@/components/core/ui/card";
-import { Users, Settings, BarChart3, Activity, Building2, ArrowLeft, Lock } from "lucide-react";
+import { Users, Settings, BarChart3, Activity, ArrowLeft, Lock } from "lucide-react";
 
 export default async function AdminHomePage() {
   const { user, error } = await getAuthenticatedUser();
@@ -119,12 +120,7 @@ export default async function AdminHomePage() {
         </div>
       </main>
 
-      <footer className="border-t border-border mt-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2 className="h-4 w-4" />
-          <span>Briitely OS — Business Dashboard</span>
-        </div>
-      </footer>
+      <SharedFooter />
     </div>
   );
 }

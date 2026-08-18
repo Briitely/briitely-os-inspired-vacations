@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
+import { SharedFooter } from "@/components/app/shared-footer";
 import { UsersTable } from "@/components/app/users-table";
 import { getBriitelyUsersWithFallback, getBriitelyUserLabel } from "@/lib/briitely/users";
 import { Card, CardContent } from "@/components/core/ui/card";
-import { Building2, ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 import type { Profile } from "@/lib/supabase/types";
 
 export default async function AdminUsersPage() {
@@ -92,12 +93,7 @@ export default async function AdminUsersPage() {
         <UsersTable profiles={displayProfiles} isSuperAdmin={isSuperAdmin} />
       </main>
 
-      <footer className="border-t border-border mt-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2 className="h-4 w-4" />
-          <span>Briitely OS — Business Dashboard</span>
-        </div>
-      </footer>
+      <SharedFooter />
     </div>
   );
 }

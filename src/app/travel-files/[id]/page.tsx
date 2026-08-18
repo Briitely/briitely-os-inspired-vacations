@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Building2, MapPin, CalendarDays, UserRound, AlertCircle } from "lucide-react";
+import { ArrowLeft, MapPin, CalendarDays, UserRound, AlertCircle } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
+import { SharedFooter } from "@/components/app/shared-footer";
 import { DeleteTestFileButton } from "@/components/app/delete-test-file-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
@@ -537,12 +538,7 @@ export default async function TravelFilePage({
         </Card>
       </main>
 
-      <footer className="mt-16 border-t border-border">
-        <div className="mx-auto flex max-w-4xl items-center gap-2 px-4 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8">
-          <Building2 className="h-4 w-4" />
-          <span>Inspired Vacations — Travel File</span>
-        </div>
-      </footer>
+      <SharedFooter maxWidth="max-w-4xl" label="Travel File" />
     </div>
   );
 }
