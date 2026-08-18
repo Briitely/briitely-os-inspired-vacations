@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CustomerDetailsCard } from "@/components/core/customer-details-card";
 import { CustomerInvoiceHistory } from "@/components/core/customer-invoice-history";
+import { CustomerTravelFiles } from "@/components/app/customer-travel-files";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 import type { BriitelyInvoiceSummary } from "@/lib/briitely/payments";
 
@@ -30,6 +31,7 @@ export function CustomerWorkspace({ initialCustomer }: CustomerWorkspaceProps) {
         onCustomerUpdated={setCustomer}
         onCreateInvoice={handleCreateInvoice}
       />
+      <CustomerTravelFiles customerId={customer.id} />
       <CustomerInvoiceHistory
         customerId={customer.id}
         onInvoiceClick={handleInvoiceClick}
