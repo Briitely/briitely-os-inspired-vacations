@@ -118,6 +118,11 @@ export interface TravelFile {
   booking_registration_done_at: string | null;
   special_requests: string | null;
   internal_notes: string | null;
+  number_of_adults: number | null;
+  number_of_children: number | null;
+  children_ages: string | null;
+  travel_timeframe: string | null;
+  insurance_interest: string | null;
   lost_reason: string | null;
   closed_at: string | null;
   briitely_sync_status: BriitelySyncStatus;
