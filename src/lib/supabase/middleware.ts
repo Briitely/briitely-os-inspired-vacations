@@ -42,7 +42,10 @@ export async function updateSession(request: NextRequest) {
     pathname === "/reset-password" ||
     pathname === "/accept-invite";
 
-  if (!user && !isAuthPage) {
+  const isTrustedWebhook =
+    pathname === "/api/integrations/briitely/inquiry";
+
+  if (!user && !isAuthPage && !isTrustedWebhook) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
