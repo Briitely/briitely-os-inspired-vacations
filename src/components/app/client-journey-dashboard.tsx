@@ -241,11 +241,12 @@ export function ClientJourneyDashboard({ files, currentUserId }: ClientJourneyDa
                         <p className="text-foreground">
                           {file.destination || "Trip details pending"}
                         </p>
-                        {(file.trip_type || file.departure_date) && (
+                        {(file.trip_type || file.departure_date || file.travel_timeframe) && (
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {file.trip_type}
                             {file.trip_type && file.departure_date && " · "}
                             {file.departure_date && `Dep ${formatDateOnly(file.departure_date)}`}
+                            {!file.trip_type && !file.departure_date && file.travel_timeframe && file.travel_timeframe}
                           </p>
                         )}
                       </div>

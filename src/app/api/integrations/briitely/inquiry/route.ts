@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { logIntegration } from "@/lib/logging/integration";
+import {
+  getOpportunityWithRetry,
+  extractInquiryFields,
+  logEnrichmentDiagnostics,
+  type EnrichedInquiryFields,
+} from "@/lib/briitely/opportunities";
+import { getContact } from "@/lib/briitely/contacts";
 
 /**
  * Briitely Inquiry Intake Endpoint
@@ -9,9 +16,9 @@ import { logIntegration } from "@/lib/logging/integration";
  * Submitted" workflow after a valid (non-DNB) inquiry has been assigned and
  * the lead opportunity has been created.
  *
- * Creates or updates a Supabase Travel File with the inquiry details,
- * creates the initial blocking action ("Book initial consultation"), and
- * records activity entries.
+ * Uses the webhook as an event notification (contactId + opportunityId),
+ * then fetches the authoritative opportunity from the Briitely API to
+ * populate the Travel File with actual custom-field values.
  *
  * Authentication: shared secret via x-briitely-webhook-secret header.
  * Idempotency: lead_opportunity_id is the primary deduplication key.
@@ -130,9 +137,9 @@ function safeTimestamp(value: unknown): string | null {
   return parsed.toISOString();
 }
 
-// ── Normalizer ─────────────────────────────────────────────────
+// ── Normalizer (from webhook payload, fallback source) ─────────
 
-function normalizeInquiry(body: Record<string, unknown>): NormalizedInquiry {
+function normalizeWebhookPayload(body: Record<string, unknown>): NormalizedInquiry {
   const cd = (body.customData && typeof body.customData === "object")
     ? body.customData as Record<string, unknown>
     : {};
@@ -156,31 +163,20 @@ function normalizeInquiry(body: Record<string, unknown>): NormalizedInquiry {
     pickString(opportunity, "id") ??
     pickString(opportunity, "opportunityId");
 
-  const clientName =
+  let clientName =
     pickString(body, "clientName") ??
     pickString(cd, "clientName") ??
     pickString(contact, "fullName") ??
     pickString(contact, "name") ??
-    pickString(contact, "firstName") ??
     "";
 
-  // If only firstName was found, try to append lastName
   if (!clientName) {
     const firstName = pickString(contact, "firstName");
     const lastName = pickString(contact, "lastName");
     if (firstName && lastName) {
-      // handled below
-    }
-  }
-  // Build full name from firstName + lastName if no direct full name
-  let resolvedName = clientName;
-  if (!resolvedName) {
-    const firstName = pickString(contact, "firstName");
-    const lastName = pickString(contact, "lastName");
-    if (firstName && lastName) {
-      resolvedName = `${firstName} ${lastName}`;
+      clientName = `${firstName} ${lastName}`;
     } else if (firstName) {
-      resolvedName = firstName;
+      clientName = firstName;
     }
   }
 
@@ -194,52 +190,44 @@ function normalizeInquiry(body: Record<string, unknown>): NormalizedInquiry {
     pickString(cd, "inquirySource") ??
     "web";
 
-  const destination =
-    pickString(body, "destination") ??
-    pickString(cd, "destination");
-
-  const travelTimeframe =
-    pickString(body, "travelTimeframe") ??
-    pickString(cd, "travelTimeframe");
-
-  const numberOfAdults =
-    safeInt(body.numberOfAdults) ??
-    safeInt(cd.numberOfAdults);
-
-  const numberOfChildren =
-    safeInt(body.numberOfChildren) ??
-    safeInt(cd.numberOfChildren);
-
-  const childrenAges =
-    pickString(body, "childrenAges") ??
-    pickString(cd, "childrenAges");
-
-  const travelBudget =
-    pickString(body, "travelBudget") ??
-    pickString(cd, "travelBudget");
-
-  const travelInsuranceInterest =
-    pickString(body, "travelInsuranceInterest") ??
-    pickString(cd, "travelInsuranceInterest");
-
-  const specialConsiderations =
-    pickString(body, "specialConsiderations") ??
-    pickString(cd, "specialConsiderations");
-
   return {
     contactId,
     opportunityId,
-    clientName: resolvedName,
+    clientName,
     submittedAt: submittedAt ?? new Date().toISOString(),
     inquirySource,
-    destination,
-    travelTimeframe,
-    numberOfAdults,
-    numberOfChildren,
-    childrenAges,
-    travelBudget,
-    travelInsuranceInterest,
-    specialConsiderations,
+    destination: pickString(body, "destination") ?? pickString(cd, "destination"),
+    travelTimeframe: pickString(body, "travelTimeframe") ?? pickString(cd, "travelTimeframe"),
+    numberOfAdults: safeInt(body.numberOfAdults) ?? safeInt(cd.numberOfAdults),
+    numberOfChildren: safeInt(body.numberOfChildren) ?? safeInt(cd.numberOfChildren),
+    childrenAges: pickString(body, "childrenAges") ?? pickString(cd, "childrenAges"),
+    travelBudget: pickString(body, "travelBudget") ?? pickString(cd, "travelBudget"),
+    travelInsuranceInterest: pickString(body, "travelInsuranceInterest") ?? pickString(cd, "travelInsuranceInterest"),
+    specialConsiderations: pickString(body, "specialConsiderations") ?? pickString(cd, "specialConsiderations"),
+  };
+}
+
+// ── Source precedence: opportunity > webhook > null ───────────
+
+function applySourcePrecedence(
+  webhookFields: NormalizedInquiry,
+  opportunityFields: EnrichedInquiryFields | null
+): NormalizedInquiry {
+  if (!opportunityFields) return webhookFields;
+
+  const pick = (opp: string | null, web: string | null): string | null => opp ?? web;
+  const pickInt = (opp: number | null, web: number | null): number | null => opp ?? web;
+
+  return {
+    ...webhookFields,
+    destination: pick(opportunityFields.destination, webhookFields.destination),
+    travelTimeframe: pick(opportunityFields.travelTimeframe, webhookFields.travelTimeframe),
+    numberOfAdults: pickInt(opportunityFields.numberOfAdults, webhookFields.numberOfAdults),
+    numberOfChildren: pickInt(opportunityFields.numberOfChildren, webhookFields.numberOfChildren),
+    childrenAges: pick(opportunityFields.childrenAges, webhookFields.childrenAges),
+    travelBudget: pick(opportunityFields.travelBudget, webhookFields.travelBudget),
+    travelInsuranceInterest: pick(opportunityFields.travelInsuranceInterest, webhookFields.travelInsuranceInterest),
+    specialConsiderations: pick(opportunityFields.specialConsiderations, webhookFields.specialConsiderations),
   };
 }
 
@@ -278,23 +266,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload structure." }, { status: 400 });
   }
 
-  // ── 4. Normalize into internal contract ──────────────────────
-  const inquiry = normalizeInquiry(rawBody as Record<string, unknown>);
+  // ── 4. Normalize webhook payload ────────────────────────────
+  const webhookInquiry = normalizeWebhookPayload(rawBody as Record<string, unknown>);
 
-  if (!inquiry.contactId) {
+  if (!webhookInquiry.contactId) {
     log("validation_failed", { reason: "missing_contactId" });
     return NextResponse.json({ error: "contactId is required." }, { status: 400 });
   }
 
-  if (!inquiry.clientName) {
+  if (!webhookInquiry.clientName) {
     log("validation_failed", { reason: "missing_clientName", contactIdPresent: true });
     return NextResponse.json({ error: "clientName is required." }, { status: 400 });
   }
 
   log("request_received", {
     contactIdPresent: true,
-    opportunityIdPresent: Boolean(inquiry.opportunityId),
-    clientName: inquiry.clientName,
+    opportunityIdPresent: Boolean(webhookInquiry.opportunityId),
+    clientName: webhookInquiry.clientName,
   });
 
   // ── 5. Get service client ─────────────────────────────────────
@@ -304,9 +292,62 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
 
-  const { contactId, opportunityId, clientName, submittedAt, inquirySource,
+  // ── 6. Fetch opportunity and enrich ─────────────────────────
+  let enrichedFields: EnrichedInquiryFields | null = null;
+  let retryCount = 0;
+
+  if (webhookInquiry.opportunityId) {
+    const { opportunity, attempts } = await getOpportunityWithRetry(webhookInquiry.opportunityId);
+    retryCount = attempts - 1;
+
+    if (opportunity) {
+      enrichedFields = extractInquiryFields(opportunity);
+
+      // If clientName was missing from webhook, try contact record
+      if (!webhookInquiry.clientName && opportunity.contactId) {
+        try {
+          const contact = await getContact(opportunity.contactId);
+          if (contact.name) {
+            webhookInquiry.clientName = contact.name;
+          } else if (contact.firstName || contact.lastName) {
+            webhookInquiry.clientName = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
+          }
+        } catch {
+          // Contact fetch is best-effort
+        }
+      }
+    }
+  }
+
+  // Apply source precedence: opportunity > webhook > null
+  const inquiry = applySourcePrecedence(webhookInquiry, enrichedFields);
+
+  // Log enrichment diagnostics
+  if (webhookInquiry.opportunityId) {
+    logEnrichmentDiagnostics(
+      webhookInquiry.opportunityId,
+      enrichedFields !== null,
+      enrichedFields ? 0 : 0, // customFieldCount logged inside extractInquiryFields context
+      {
+        destination: inquiry.destination,
+        travelTimeframe: inquiry.travelTimeframe,
+        numberOfAdults: inquiry.numberOfAdults,
+        numberOfChildren: inquiry.numberOfChildren,
+        childrenAges: inquiry.childrenAges,
+        travelBudget: inquiry.travelBudget,
+        travelInsuranceInterest: inquiry.travelInsuranceInterest,
+        specialConsiderations: inquiry.specialConsiderations,
+      },
+      "pending",
+      retryCount
+    );
+  }
+
+  const {
+    contactId, opportunityId, clientName, submittedAt, inquirySource,
     destination, travelTimeframe, numberOfAdults, numberOfChildren,
-    childrenAges, travelBudget, travelInsuranceInterest, specialConsiderations } = inquiry;
+    childrenAges, travelBudget, travelInsuranceInterest, specialConsiderations,
+  } = inquiry;
 
   // Compute number_of_travellers from adults + children
   let numberOfTravellers: number | null = null;
@@ -317,7 +358,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // ── 6. Idempotency check ───────────────────────────────────
+    // ── 7. Idempotency check ───────────────────────────────────
     let existingFile: { id: string } | null = null;
 
     if (opportunityId) {
@@ -352,10 +393,11 @@ export async function POST(request: Request) {
 
     log("idempotency_check", { matchingTravelFileFound: Boolean(existingFile) });
 
-    // ── 7a. Update existing Travel File ────────────────────────
+    // ── 8a. Update existing Travel File ────────────────────────
     if (existingFile) {
       const updateData: Record<string, unknown> = {};
 
+      // Only set fields that have values — don't overwrite existing with blank
       if (opportunityId) updateData.lead_opportunity_id = opportunityId;
       if (destination) updateData.destination = destination;
       if (travelTimeframe) updateData.travel_timeframe = travelTimeframe;
@@ -404,7 +446,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // ── 7b. Create new Travel File ──────────────────────────────
+    // ── 8b. Create new Travel File ──────────────────────────────
     const fileInsert: Record<string, unknown> = {
       briitely_contact_id: contactId,
       client_name: clientName,
@@ -446,7 +488,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create Travel File." }, { status: 500 });
     }
 
-    // ── 8. Create initial blocking action ───────────────────────
+    // ── 9. Create initial blocking action ───────────────────────
     const { data: action, error: actionError } = await supabase
       .from("travel_actions")
       .insert({
@@ -476,7 +518,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create initial action." }, { status: 500 });
     }
 
-    // ── 9. Link current_action_id ───────────────────────────────
+    // ── 10. Link current_action_id ──────────────────────────────
     const { error: linkError } = await supabase
       .from("travel_files")
       .update({ current_action_id: action.id })
@@ -498,7 +540,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to link current action." }, { status: 500 });
     }
 
-    // ── 10. Create activity entries ─────────────────────────────
+    // ── 11. Create activity entries ─────────────────────────────
     const { error: activityError } = await supabase.from("travel_activity").insert([
       {
         travel_file_id: file.id,

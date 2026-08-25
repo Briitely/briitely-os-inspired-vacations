@@ -323,6 +323,26 @@ export default async function TravelFilePage({
           </CardContent>
         </Card>
 
+        {/* Inquiry Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Inquiry Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <InfoRow label="Travel Timeframe" value={file.travel_timeframe} />
+              <InfoRow label="Adults" value={file.number_of_adults} />
+              <InfoRow label="Children" value={file.number_of_children} />
+              <InfoRow label="Ages of Children" value={file.children_ages} />
+              <InfoRow label="Travel Budget" value={file.budget_range} />
+              <InfoRow label="Insurance Interest" value={file.insurance_interest} />
+              <div className="sm:col-span-2 lg:col-span-3">
+                <InfoRow label="Special Considerations" value={file.special_requests} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Booking References */}
         <Card>
           <CardHeader>
