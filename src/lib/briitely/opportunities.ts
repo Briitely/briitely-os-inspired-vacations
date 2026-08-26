@@ -15,10 +15,10 @@ import {
 /** Raw customField from the opportunity endpoint: { id, field_value } */
 interface RawOpportunityCustomField {
   id: string;
-  field_value?: string | number | boolean | null;
+  field_value?: unknown;
   // Some API versions may use alternate keys — we check all known ones
-  value?: string | number | boolean | null;
-  fieldValueString?: string | number | boolean | null;
+  value?: unknown;
+  fieldValueString?: unknown;
   name?: string;
 }
 
@@ -138,6 +138,20 @@ export async function getOpportunityFieldDefinitions(): Promise<{
       definitions.set(def.id, def.name);
     }
 
+    const travellerCountDefs = [...definitions.entries()]
+      .filter(([, name]) =>
+        name === "How many adults in your party?" ||
+        name === "How many children in your party?" ||
+        name.toLowerCase().includes("adults in your party") ||
+        name.toLowerCase().includes("children in your party")
+      )
+      .map(([id, name]) => ({ id, name }));
+
+    console.info("BRIITELY_TRAVELLER_COUNT_FIELD_DEFINITIONS", {
+      totalDefinitions: definitions.size,
+      travellerCountDefinitions: travellerCountDefs,
+    });
+
     cachedFieldDefinitions = definitions;
     cachedFieldDefinitionsExpiry = now + FIELD_DEFINITION_CACHE_MS;
 
@@ -157,12 +171,65 @@ export async function getOpportunityFieldDefinitions(): Promise<{
 
 // ── Opportunity mapping ──────────────────────────────────────
 
-function extractRawValue(raw: RawOpportunityCustomField): string {
-  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
+function primitiveToString(v: unknown): string | null {
   if (typeof v === "string") return v;
   if (typeof v === "number") return String(v);
   if (typeof v === "boolean") return String(v);
+  return null;
+}
+
+function extractRawValue(raw: RawOpportunityCustomField): string {
+  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
+
+  const direct = primitiveToString(v);
+  if (direct !== null) return direct;
+
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const obj = v as Record<string, unknown>;
+    for (const key of ["value", "field_value", "fieldValueString", "fieldValue", "val", "data"]) {
+      if (key in obj) {
+        const nested = primitiveToString(obj[key]);
+        if (nested !== null) return nested;
+      }
+    }
+    const firstStr = Object.values(obj).find((val) => primitiveToString(val) !== null);
+    if (firstStr !== undefined) return primitiveToString(firstStr) ?? "";
+  }
   return "";
+}
+
+function describeRawValue(raw: RawOpportunityCustomField): {
+  valueType: string;
+  objectKeys?: string[];
+  nestedValueProperty?: string | null;
+  nestedValueType?: string | null;
+} {
+  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
+  if (v === null) return { valueType: "null" };
+  if (typeof v === "string") return { valueType: "string" };
+  if (typeof v === "number") return { valueType: "number" };
+  if (typeof v === "boolean") return { valueType: "boolean" };
+  if (Array.isArray(v)) return { valueType: "array" };
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    let nestedProp: string | null = null;
+    let nestedType: string | null = null;
+    for (const key of ["value", "field_value", "fieldValueString", "fieldValue", "val", "data"]) {
+      if (key in obj) {
+        nestedProp = key;
+        nestedType = typeof obj[key];
+        break;
+      }
+    }
+    return {
+      valueType: "object",
+      objectKeys: keys,
+      nestedValueProperty: nestedProp,
+      nestedValueType: nestedType,
+    };
+  }
+  return { valueType: "unknown" };
 }
 
 function mapOpportunity(
@@ -174,6 +241,15 @@ function mapOpportunity(
     name: cf.name ?? fieldDefinitions.get(cf.id) ?? null,
     value: extractRawValue(cf),
   }));
+
+  console.info("BRIITELY_OPPORTUNITY_RAW_FIELD_SHAPES", {
+    opportunityId: raw.id,
+    customFields: (raw.customFields ?? []).map((cf) => ({
+      id: cf.id,
+      name: cf.name ?? fieldDefinitions.get(cf.id) ?? null,
+      ...describeRawValue(cf),
+    })),
+  });
 
   return {
     id: raw.id,
@@ -544,6 +620,40 @@ export function logCustomFieldShapeDiagnostics(opportunity: BriitelyOpportunity)
     opportunityId: opportunity.id,
     customFieldCount: shapes.length,
     shapes,
+  });
+}
+
+export function logTravellerCountFieldDiagnostics(
+  opportunity: BriitelyOpportunity,
+  fieldDefinitions: FieldDefinitionMap
+): void {
+  const targetNames = [
+    "How many adults in your party?",
+    "How many children in your party?",
+  ];
+
+  const matches = opportunity.customFields.filter(
+    (f) =>
+      (f.name && targetNames.includes(f.name)) ||
+      (f.name && targetNames.some((t) => f.name!.toLowerCase() === t.toLowerCase()))
+  );
+
+  const fieldDefMatches = [...fieldDefinitions.entries()]
+    .filter(([, name]) => targetNames.includes(name))
+    .map(([id, name]) => ({ id, name }));
+
+  console.info("BRIITELY_TRAVELLER_COUNT_FIELDS", {
+    opportunityId: opportunity.id,
+    targetNames,
+    matchedCustomFields: matches.map((f) => ({
+      id: f.id,
+      name: f.name,
+      hasValue: Boolean(f.value?.trim()),
+      parsedValue: f.value?.trim() || null,
+    })),
+    fieldDefinitionMatches: fieldDefMatches,
+    allReturnedFieldNames: opportunity.customFields.map((f) => f.name ?? "(unnamed)"),
+    allReturnedFieldIds: opportunity.customFields.map((f) => f.id),
   });
 }
 

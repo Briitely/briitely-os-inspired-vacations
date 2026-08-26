@@ -7,6 +7,7 @@ import {
   extractInquiryFields,
   logFieldMappingDiagnostics,
   logCustomFieldShapeDiagnostics,
+  logTravellerCountFieldDiagnostics,
   logEnrichmentDiagnostics,
   getMatchedLogicalFields,
   getMatchedFieldIds,
@@ -432,6 +433,7 @@ export async function POST(request: Request) {
   if (resolvedOpportunity) {
     logCustomFieldShapeDiagnostics(resolvedOpportunity);
     logFieldMappingDiagnostics(resolvedOpportunity);
+    logTravellerCountFieldDiagnostics(resolvedOpportunity, fieldDefsResult.definitions);
     enrichedFields = extractInquiryFields(resolvedOpportunity);
     customFieldCount = resolvedOpportunity.customFields.length;
     matchedLogicalFields = getMatchedLogicalFields(resolvedOpportunity);
