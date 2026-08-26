@@ -1,21 +1,72 @@
-export const inspiredVacationsOpportunityFields = {
-  inquiryDestination: "rI8N2cF9j3xKQD7avW1o",
-  travelTimeframe: "qY4M7bV2n6pLZC8wXf0r",
-  numberOfAdults: "tG5P9dE3s7aHBJ6mKn1",
-  numberOfChildren: "uH6Q1eR4f8bIcL7oPj2",
-  childrenAges: "vI7R2fS5g9cJdM8pQk3",
-  travelBudget: "wJ8S3gT6h0dKeN9qRl4",
-  travelInsuranceInterest: "xK9T4hU7i1eLfO0rSm5",
-  specialConsiderations: "yL0U5iV8j2fMgP1sTn6",
-  confirmedTripType: "zM1V6jW9k3gNhQ2tUo7",
-  confirmedDestination: "aN2W7kX0l4hOiR3uVp8",
-  departureDate: "bO3X8lY1m5iPjS4vWq9",
-  returnDate: "cP4Y9mZ2n6jQkT5wXr0",
-} as const;
+/**
+ * Inspired Vacations opportunity custom-field mapping.
+ *
+ * The Briitely (HighLevel) opportunity API returns custom fields as
+ * { id, name, value }. Custom-field IDs are account-specific and cannot be
+ * guessed. Instead of hardcoding IDs, we resolve fields by their exact
+ * Briitely field names.
+ *
+ * If a real field ID is later confirmed for a field, it can be set in the
+ * optional `fieldId` property. Resolution preference is:
+ *   1. configured real field ID (if present)
+ *   2. exact field-name match
+ *
+ * No placeholder/generated IDs are stored here.
+ */
 
-export type OpportunityFieldKey = keyof typeof inspiredVacationsOpportunityFields;
+export interface OpportunityFieldDefinition {
+  /** Exact Briitely custom-field name to match against. */
+  name: string;
+  /** Optional real field ID. Leave empty to resolve by name. */
+  fieldId?: string;
+}
 
-export const requiredIntakeFieldKeys: OpportunityFieldKey[] = [
+export const inspiredVacationsIntakeFields = {
+  inquiryDestination: {
+    name: "Where do you want to go?",
+  },
+  travelTimeframe: {
+    name: "Travel Dates or Timeframe",
+  },
+  numberOfAdults: {
+    name: "How many adults?",
+  },
+  numberOfChildren: {
+    name: "How many children?",
+  },
+  childrenAges: {
+    name: "Ages of Children",
+  },
+  travelBudget: {
+    name: "Travel Budget",
+  },
+  travelInsuranceInterest: {
+    name: "Travel Insurance Quote",
+  },
+  specialConsiderations: {
+    name: "Special Considerations",
+  },
+} as const satisfies Record<string, OpportunityFieldDefinition>;
+
+export const inspiredVacationsConfirmedFields = {
+  confirmedTripType: {
+    name: "Trip Type",
+  },
+  confirmedDestination: {
+    name: "Destination",
+  },
+  departureDate: {
+    name: "Departure Date",
+  },
+  returnDate: {
+    name: "Return Date",
+  },
+} as const satisfies Record<string, OpportunityFieldDefinition>;
+
+export type IntakeFieldKey = keyof typeof inspiredVacationsIntakeFields;
+export type ConfirmedFieldKey = keyof typeof inspiredVacationsConfirmedFields;
+
+export const requiredIntakeFieldKeys: IntakeFieldKey[] = [
   "inquiryDestination",
   "travelTimeframe",
   "numberOfAdults",

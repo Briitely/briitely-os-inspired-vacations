@@ -4,6 +4,7 @@ import { logIntegration } from "@/lib/logging/integration";
 import {
   getOpportunityWithRetry,
   extractInquiryFields,
+  logFieldMappingDiagnostics,
   logEnrichmentDiagnostics,
   type EnrichedInquiryFields,
 } from "@/lib/briitely/opportunities";
@@ -295,13 +296,16 @@ export async function POST(request: Request) {
   // ── 6. Fetch opportunity and enrich ─────────────────────────
   let enrichedFields: EnrichedInquiryFields | null = null;
   let retryCount = 0;
+  let customFieldCount = 0;
 
   if (webhookInquiry.opportunityId) {
     const { opportunity, attempts } = await getOpportunityWithRetry(webhookInquiry.opportunityId);
     retryCount = attempts - 1;
 
     if (opportunity) {
+      logFieldMappingDiagnostics(opportunity);
       enrichedFields = extractInquiryFields(opportunity);
+      customFieldCount = opportunity.customFields.length;
 
       // If clientName was missing from webhook, try contact record
       if (!webhookInquiry.clientName && opportunity.contactId) {
@@ -327,7 +331,7 @@ export async function POST(request: Request) {
     logEnrichmentDiagnostics(
       webhookInquiry.opportunityId,
       enrichedFields !== null,
-      enrichedFields ? 0 : 0, // customFieldCount logged inside extractInquiryFields context
+      customFieldCount,
       {
         destination: inquiry.destination,
         travelTimeframe: inquiry.travelTimeframe,

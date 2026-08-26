@@ -1,7 +1,12 @@
 import "server-only";
 
 import { briitelyRequest, getLocationId } from "./client";
-import { inspiredVacationsOpportunityFields, requiredIntakeFieldKeys } from "@/config/inspired-vacations.config";
+import {
+  inspiredVacationsIntakeFields,
+  inspiredVacationsConfirmedFields,
+  type IntakeFieldKey,
+  type ConfirmedFieldKey,
+} from "@/config/inspired-vacations.config";
 
 interface HighLevelCustomField {
   id: string;
@@ -43,6 +48,13 @@ export interface EnrichedInquiryFields {
   specialConsiderations: string | null;
 }
 
+export interface EnrichedConfirmedFields {
+  tripType: string | null;
+  destination: string | null;
+  departureDate: string | null;
+  returnDate: string | null;
+}
+
 function mapOpportunity(raw: HighLevelOpportunity): BriitelyOpportunity {
   return {
     id: raw.id,
@@ -79,16 +91,29 @@ function safeInt(value: unknown): number | null {
   return null;
 }
 
-function getCustomFieldValue(opportunity: BriitelyOpportunity, fieldId: string): string | null {
-  const field = opportunity.customFields.find((f) => f.id === fieldId);
+type FieldDefinition = { name: string; fieldId?: string };
+
+function resolveCustomField(
+  opportunity: BriitelyOpportunity,
+  definition: FieldDefinition
+): HighLevelCustomField | undefined {
+  if (definition.fieldId) {
+    const byId = opportunity.customFields.find((f) => f.id === definition.fieldId);
+    if (byId) return byId;
+  }
+  return opportunity.customFields.find((f) => f.name === definition.name);
+}
+
+function getFieldValue(opportunity: BriitelyOpportunity, definition: FieldDefinition): string | null {
+  const field = resolveCustomField(opportunity, definition);
   if (!field) return null;
   const value = field.value?.trim();
   return value || null;
 }
 
 export function extractInquiryFields(opportunity: BriitelyOpportunity): EnrichedInquiryFields {
-  const get = (key: keyof typeof inspiredVacationsOpportunityFields) =>
-    getCustomFieldValue(opportunity, inspiredVacationsOpportunityFields[key]);
+  const get = (key: IntakeFieldKey) =>
+    getFieldValue(opportunity, inspiredVacationsIntakeFields[key]);
 
   return {
     destination: get("inquiryDestination"),
@@ -99,6 +124,18 @@ export function extractInquiryFields(opportunity: BriitelyOpportunity): Enriched
     travelBudget: get("travelBudget"),
     travelInsuranceInterest: get("travelInsuranceInterest"),
     specialConsiderations: get("specialConsiderations"),
+  };
+}
+
+export function extractConfirmedFields(opportunity: BriitelyOpportunity): EnrichedConfirmedFields {
+  const get = (key: ConfirmedFieldKey) =>
+    getFieldValue(opportunity, inspiredVacationsConfirmedFields[key]);
+
+  return {
+    tripType: get("confirmedTripType"),
+    destination: get("confirmedDestination"),
+    departureDate: get("departureDate"),
+    returnDate: get("returnDate"),
   };
 }
 
@@ -133,6 +170,34 @@ export async function getOpportunityWithRetry(
     }
   }
   return { opportunity: null, attempts: maxAttempts };
+}
+
+/**
+ * Logs a diagnostic mapping of custom fields discovered on a fetched
+ * opportunity. Logs only the field name, field ID, and whether a value was
+ * present — never the value itself.
+ */
+export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): void {
+  const allDefinitions: Record<string, FieldDefinition> = {
+    ...inspiredVacationsIntakeFields,
+    ...inspiredVacationsConfirmedFields,
+  };
+
+  const mappings = Object.entries(allDefinitions).map(([key, def]) => {
+    const field = resolveCustomField(opportunity, def);
+    return {
+      logicalKey: key,
+      customFieldName: def.name,
+      customFieldId: field?.id ?? null,
+      hasValue: Boolean(field?.value?.trim()),
+    };
+  });
+
+  console.info("BRIITELY_OPPORTUNITY_FIELD_MAPPING", {
+    opportunityId: opportunity.id,
+    customFieldCount: opportunity.customFields.length,
+    mappings,
+  });
 }
 
 export function logEnrichmentDiagnostics(
