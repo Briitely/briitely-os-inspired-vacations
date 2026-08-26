@@ -45,6 +45,7 @@ export const clientConfig = {
   },
   defaultInvoiceSenderUserId: "",
   defaultInvoiceSenderEmail: "",
+  defaultConsultationOwnerId: "",
   invoiceGoLiveDate: "",
   taxConfig: clientTaxConfig,
   features: {

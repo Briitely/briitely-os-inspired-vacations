@@ -43,7 +43,8 @@ export async function updateSession(request: NextRequest) {
     pathname === "/accept-invite";
 
   const isTrustedWebhook =
-    pathname === "/api/integrations/briitely/inquiry";
+    pathname === "/api/integrations/briitely/inquiry" ||
+    pathname === "/api/integrations/briitely/consultation-booked";
 
   if (!user && !isAuthPage && !isTrustedWebhook) {
     const url = request.nextUrl.clone();
