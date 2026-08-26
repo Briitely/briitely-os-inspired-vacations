@@ -484,10 +484,14 @@ export async function POST(request: Request) {
   // Use resolvedOpportunityId if webhook didn't provide one
   const effectiveOpportunityId = opportunityId ?? resolvedOpportunityId;
 
+  // Normalize children: if adults are present but children is null/blank,
+  // treat children as 0 (the form field is optional)
+  const normalizedChildren = numberOfChildren ?? (numberOfAdults !== null ? 0 : null);
+
   // Compute number_of_travellers from adults + children
   let numberOfTravellers: number | null = null;
-  if (numberOfAdults !== null && numberOfChildren !== null) {
-    numberOfTravellers = numberOfAdults + numberOfChildren;
+  if (numberOfAdults !== null && normalizedChildren !== null) {
+    numberOfTravellers = numberOfAdults + normalizedChildren;
   } else if (numberOfAdults !== null) {
     numberOfTravellers = numberOfAdults;
   }
@@ -560,7 +564,7 @@ export async function POST(request: Request) {
       if (destination) updateData.destination = destination;
       if (travelTimeframe) updateData.travel_timeframe = travelTimeframe;
       if (numberOfAdults !== null) updateData.number_of_adults = numberOfAdults;
-      if (numberOfChildren !== null) updateData.number_of_children = numberOfChildren;
+      if (normalizedChildren !== null) updateData.number_of_children = normalizedChildren;
       if (childrenAges) updateData.children_ages = childrenAges;
       if (numberOfTravellers !== null) updateData.number_of_travellers = numberOfTravellers;
       if (travelBudget) updateData.budget_range = travelBudget;
@@ -791,7 +795,7 @@ export async function POST(request: Request) {
     if (destination) fileInsert.destination = destination;
     if (travelTimeframe) fileInsert.travel_timeframe = travelTimeframe;
     if (numberOfAdults !== null) fileInsert.number_of_adults = numberOfAdults;
-    if (numberOfChildren !== null) fileInsert.number_of_children = numberOfChildren;
+    if (normalizedChildren !== null) fileInsert.number_of_children = normalizedChildren;
     if (childrenAges) fileInsert.children_ages = childrenAges;
     if (numberOfTravellers !== null) fileInsert.number_of_travellers = numberOfTravellers;
     if (travelBudget) fileInsert.budget_range = travelBudget;

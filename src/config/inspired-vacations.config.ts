@@ -29,10 +29,10 @@ export const inspiredVacationsIntakeFields = {
     name: "Travel Dates or Timeframe",
   },
   numberOfAdults: {
-    name: "How many adults?",
+    name: "How many adults in your party?",
   },
   numberOfChildren: {
-    name: "How many children?",
+    name: "How many children in your party?",
   },
   childrenAges: {
     name: "Ages of Children",
