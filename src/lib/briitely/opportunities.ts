@@ -134,9 +134,22 @@ export async function getOpportunityFieldDefinitions(): Promise<{
     });
 
     const definitions: FieldDefinitionMap = new Map();
+    const rawDefList: Array<Record<string, unknown>> = [];
     for (const def of response.customFields ?? []) {
       definitions.set(def.id, def.name);
+      rawDefList.push({
+        id: def.id,
+        name: def.name,
+        fieldKey: def.fieldKey ?? null,
+        dataType: def.dataType ?? null,
+        model: def.model ?? null,
+      });
     }
+
+    console.info("BRIITELY_RAW_FIELD_DEFINITIONS", {
+      totalDefinitions: rawDefList.length,
+      definitions: rawDefList,
+    });
 
     const travellerCountDefs = [...definitions.entries()]
       .filter(([, name]) =>
@@ -198,58 +211,125 @@ function extractRawValue(raw: RawOpportunityCustomField): string {
   return "";
 }
 
-function describeRawValue(raw: RawOpportunityCustomField): {
-  valueType: string;
-  objectKeys?: string[];
-  nestedValueProperty?: string | null;
-  nestedValueType?: string | null;
-} {
-  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
-  if (v === null) return { valueType: "null" };
-  if (typeof v === "string") return { valueType: "string" };
-  if (typeof v === "number") return { valueType: "number" };
-  if (typeof v === "boolean") return { valueType: "boolean" };
-  if (Array.isArray(v)) return { valueType: "array" };
-  if (typeof v === "object") {
-    const obj = v as Record<string, unknown>;
-    const keys = Object.keys(obj);
-    let nestedProp: string | null = null;
-    let nestedType: string | null = null;
-    for (const key of ["value", "field_value", "fieldValueString", "fieldValue", "val", "data"]) {
-      if (key in obj) {
-        nestedProp = key;
-        nestedType = typeof obj[key];
+/** PII keys that must never be logged from raw API responses. */
+const PII_KEYS = new Set([
+  "firstName", "lastName", "fullName", "name", "email", "phone",
+  "address", "address1", "address2", "city", "state", "zip", "postalCode",
+  "country", "dateOfBirth", "dob",
+]);
+
+function safeSerializeValue(value: unknown, depth = 0): unknown {
+  if (depth > 3) return "[max depth]";
+  if (value === null) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map((v) => safeSerializeValue(v, depth + 1));
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (PII_KEYS.has(key)) {
+        result[key] = "[redacted]";
+      } else {
+        result[key] = safeSerializeValue(val, depth + 1);
+      }
+    }
+    return result;
+  }
+  return String(value);
+}
+
+function logRawCustomFields(
+  opportunityId: string,
+  rawCustomFields: unknown[],
+  fieldDefinitions: FieldDefinitionMap
+): void {
+  const fieldShapes = rawCustomFields.map((cf, index) => {
+    const allKeys = (cf && typeof cf === "object" && !Array.isArray(cf))
+      ? Object.keys(cf as Record<string, unknown>)
+      : [];
+
+    const obj = cf as Record<string, unknown> | null;
+
+    const idCandidate = obj?.id ?? obj?.fieldId ?? obj?.key ?? obj?._id ?? null;
+    const nameCandidate = obj?.name ?? obj?.label ?? obj?.fieldName ?? obj?.title ?? null;
+
+    let valueProp: string | null = null;
+    let actualValue: unknown = undefined;
+    let valueType: string = "absent";
+    let valueObjectKeys: string[] | null = null;
+    let serializedValue: unknown = undefined;
+
+    for (const key of allKeys) {
+      const lower = key.toLowerCase();
+      if (lower.includes("value") || lower === "val" || lower === "data") {
+        valueProp = key;
+        actualValue = (obj as Record<string, unknown>)[key];
+        valueType = actualValue === null ? "null"
+          : Array.isArray(actualValue) ? "array"
+          : typeof actualValue;
+        if (actualValue && typeof actualValue === "object" && !Array.isArray(actualValue)) {
+          valueObjectKeys = Object.keys(actualValue as Record<string, unknown>);
+          serializedValue = safeSerializeValue(actualValue);
+        } else if (typeof actualValue === "object" && actualValue !== null) {
+          serializedValue = safeSerializeValue(actualValue);
+        } else {
+          serializedValue = actualValue;
+        }
         break;
       }
     }
+
+    const defName = idCandidate && typeof idCandidate === "string"
+      ? fieldDefinitions.get(idCandidate) ?? null
+      : null;
+
     return {
-      valueType: "object",
-      objectKeys: keys,
-      nestedValueProperty: nestedProp,
-      nestedValueType: nestedType,
+      index,
+      allKeys,
+      idCandidate,
+      nameCandidate,
+      definitionName: defName,
+      valueProp,
+      valueType,
+      valueObjectKeys,
+      serializedValue,
     };
-  }
-  return { valueType: "unknown" };
+  });
+
+  console.info("BRIITELY_RAW_OPPORTUNITY_CUSTOM_FIELDS", {
+    opportunityId,
+    customFieldCount: fieldShapes.length,
+    fields: fieldShapes,
+  });
+
+  const correlation = fieldShapes.map((f) => ({
+    index: f.index,
+    fieldId: f.idCandidate,
+    fieldName: f.nameCandidate,
+    definitionName: f.definitionName,
+    matched: f.idCandidate !== null && f.definitionName !== null,
+  }));
+
+  console.info("BRIITELY_RAW_FIELD_CORRELATION", {
+    opportunityId,
+    correlation,
+  });
 }
 
 function mapOpportunity(
   raw: HighLevelOpportunity,
   fieldDefinitions: FieldDefinitionMap
 ): BriitelyOpportunity {
+  const rawCustomFields = (raw.customFields ?? []) as unknown[];
+  logRawCustomFields(raw.id, rawCustomFields, fieldDefinitions);
+
   const customFields: NormalizedCustomField[] = (raw.customFields ?? []).map((cf) => ({
     id: cf.id,
     name: cf.name ?? fieldDefinitions.get(cf.id) ?? null,
     value: extractRawValue(cf),
   }));
-
-  console.info("BRIITELY_OPPORTUNITY_RAW_FIELD_SHAPES", {
-    opportunityId: raw.id,
-    customFields: (raw.customFields ?? []).map((cf) => ({
-      id: cf.id,
-      name: cf.name ?? fieldDefinitions.get(cf.id) ?? null,
-      ...describeRawValue(cf),
-    })),
-  });
 
   return {
     id: raw.id,
