@@ -6,6 +6,7 @@ import {
   extractInquiryFields,
   logFieldMappingDiagnostics,
   logEnrichmentDiagnostics,
+  getMatchedLogicalFields,
   type EnrichedInquiryFields,
 } from "@/lib/briitely/opportunities";
 import { getContact } from "@/lib/briitely/contacts";
@@ -281,6 +282,7 @@ export async function POST(request: Request) {
   }
 
   log("request_received", {
+    opportunityIdReceived: webhookInquiry.opportunityId ?? null,
     contactIdPresent: true,
     opportunityIdPresent: Boolean(webhookInquiry.opportunityId),
     clientName: webhookInquiry.clientName,
@@ -289,7 +291,7 @@ export async function POST(request: Request) {
   // ── 5. Get service client ─────────────────────────────────────
   const supabase = createServiceClient();
   if (!supabase) {
-    log("config_error", { message: "Service client not configured" });
+    log("config_error", { message: "Service client not configured — SUPABASE_SERVICE_ROLE_KEY missing from environment" });
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
 
@@ -297,15 +299,47 @@ export async function POST(request: Request) {
   let enrichedFields: EnrichedInquiryFields | null = null;
   let retryCount = 0;
   let customFieldCount = 0;
+  let opportunityFetchHttpStatus: number | null = null;
+  let opportunityErrorMessage: string | null = null;
 
   if (webhookInquiry.opportunityId) {
-    const { opportunity, attempts } = await getOpportunityWithRetry(webhookInquiry.opportunityId);
+    const { opportunity, attempts, lastHttpStatus, lastErrorMessage } =
+      await getOpportunityWithRetry(webhookInquiry.opportunityId);
     retryCount = attempts - 1;
+    opportunityFetchHttpStatus = lastHttpStatus;
+    opportunityErrorMessage = lastErrorMessage;
+
+    log("opportunity_fetch_result", {
+      opportunityId: webhookInquiry.opportunityId,
+      fetchAttempted: true,
+      fetchSucceeded: opportunity !== null,
+      httpStatus: lastHttpStatus,
+      errorMessage: lastErrorMessage,
+      attempts,
+      retryCount,
+    });
 
     if (opportunity) {
       logFieldMappingDiagnostics(opportunity);
       enrichedFields = extractInquiryFields(opportunity);
       customFieldCount = opportunity.customFields.length;
+
+      log("opportunity_enrichment_extracted", {
+        opportunityId: opportunity.id,
+        customFieldCount,
+        returnedFieldNames: opportunity.customFields.map((f) => f.name),
+        matchedLogicalFields: getMatchedLogicalFields(opportunity),
+        enrichedFields: {
+          destination: Boolean(enrichedFields.destination),
+          travelTimeframe: Boolean(enrichedFields.travelTimeframe),
+          numberOfAdults: enrichedFields.numberOfAdults,
+          numberOfChildren: enrichedFields.numberOfChildren,
+          childrenAges: Boolean(enrichedFields.childrenAges),
+          travelBudget: Boolean(enrichedFields.travelBudget),
+          travelInsuranceInterest: Boolean(enrichedFields.travelInsuranceInterest),
+          specialConsiderations: Boolean(enrichedFields.specialConsiderations),
+        },
+      });
 
       // If clientName was missing from webhook, try contact record
       if (!webhookInquiry.clientName && opportunity.contactId) {
@@ -321,6 +355,8 @@ export async function POST(request: Request) {
         }
       }
     }
+  } else {
+    log("opportunity_fetch_skipped", { reason: "no_opportunity_id_in_webhook" });
   }
 
   // Apply source precedence: opportunity > webhook > null
@@ -364,6 +400,7 @@ export async function POST(request: Request) {
   try {
     // ── 7. Idempotency check ───────────────────────────────────
     let existingFile: { id: string } | null = null;
+    let matchedBy: "opportunity" | "contact" | null = null;
 
     if (opportunityId) {
       const { data: matchByOpp, error: oppError } = await supabase
@@ -375,7 +412,10 @@ export async function POST(request: Request) {
       if (oppError) {
         log("idempotency_query_error", { stage: "opportunity_lookup", error: oppError.message });
       }
-      existingFile = matchByOpp;
+      if (matchByOpp) {
+        existingFile = matchByOpp;
+        matchedBy = "opportunity";
+      }
     }
 
     // Fallback: contact + open status if no opportunity match
@@ -392,10 +432,19 @@ export async function POST(request: Request) {
       if (contactError) {
         log("idempotency_query_error", { stage: "contact_lookup", error: contactError.message });
       }
-      existingFile = matchByContact;
+      if (matchByContact) {
+        existingFile = matchByContact;
+        matchedBy = "contact";
+      }
     }
 
-    log("idempotency_check", { matchingTravelFileFound: Boolean(existingFile) });
+    log("idempotency_check", {
+      matchingTravelFileFound: Boolean(existingFile),
+      existingTravelFileId: existingFile?.id ?? null,
+      matchedBy,
+      opportunityIdUsed: opportunityId ?? null,
+      contactIdUsed: contactId,
+    });
 
     // ── 8a. Update existing Travel File ────────────────────────
     if (existingFile) {
@@ -413,13 +462,66 @@ export async function POST(request: Request) {
       if (travelInsuranceInterest) updateData.insurance_interest = travelInsuranceInterest;
       if (specialConsiderations) updateData.special_requests = specialConsiderations;
 
+      const updateFieldKeys = Object.keys(updateData);
+
+      log("update_attempted", {
+        travelFileId: existingFile.id,
+        updateFieldKeys,
+        fieldCount: updateFieldKeys.length,
+        enrichedFieldsAvailable: enrichedFields !== null,
+        normalizedEnrichment: {
+          destination: inquiry.destination ? "present" : "null",
+          travelTimeframe: inquiry.travelTimeframe ? "present" : "null",
+          numberOfAdults: inquiry.numberOfAdults,
+          numberOfChildren: inquiry.numberOfChildren,
+          childrenAges: inquiry.childrenAges ? "present" : "null",
+          travelBudget: inquiry.travelBudget ? "present" : "null",
+          travelInsuranceInterest: inquiry.travelInsuranceInterest ? "present" : "null",
+          specialConsiderations: inquiry.specialConsiderations ? "present" : "null",
+          numberOfTravellers,
+        },
+      });
+
+      if (updateFieldKeys.length === 0) {
+        log("update_skipped", { travelFileId: existingFile.id, reason: "no_fields_to_update" });
+        await logIntegration({
+          provider: "briitely",
+          operation: "inquiry_intake",
+          entityType: "travel_file",
+          externalId: contactId,
+          status: "success",
+          metadata: { result: "no_update_needed", travelFileId: existingFile.id },
+          completedAt: new Date().toISOString(),
+        });
+
+        return NextResponse.json({
+          success: true,
+          result: "no_update_needed",
+          travelFileId: existingFile.id,
+          diagnostics: {
+            opportunityIdReceived: opportunityId ?? null,
+            existingTravelFileFound: true,
+            existingTravelFileId: existingFile.id,
+            matchedBy,
+            opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+            opportunityFetchSucceeded: enrichedFields !== null,
+            opportunityFetchHttpStatus,
+            opportunityErrorMessage,
+            customFieldCount,
+            updateAttempted: false,
+            updateSucceeded: false,
+            finalResult: "no_update_needed",
+          },
+        });
+      }
+
       const { error: updateError } = await supabase
         .from("travel_files")
         .update(updateData)
         .eq("id", existingFile.id);
 
       if (updateError) {
-        log("update_failed", { travelFileId: existingFile.id, error: updateError.message });
+        log("update_failed", { travelFileId: existingFile.id, error: updateError.message, updateFieldKeys });
         await logIntegration({
           provider: "briitely",
           operation: "inquiry_intake",
@@ -432,14 +534,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Failed to update Travel File." }, { status: 500 });
       }
 
-      log("updated", { travelFileId: existingFile.id });
+      log("update_succeeded", { travelFileId: existingFile.id, updateFieldKeys });
       await logIntegration({
         provider: "briitely",
         operation: "inquiry_intake",
         entityType: "travel_file",
         externalId: contactId,
         status: "success",
-        metadata: { result: "updated", travelFileId: existingFile.id },
+        metadata: { result: "updated", travelFileId: existingFile.id, updateFieldKeys },
         completedAt: new Date().toISOString(),
       });
 
@@ -447,6 +549,21 @@ export async function POST(request: Request) {
         success: true,
         result: "updated",
         travelFileId: existingFile.id,
+        diagnostics: {
+          opportunityIdReceived: opportunityId ?? null,
+          existingTravelFileFound: true,
+          existingTravelFileId: existingFile.id,
+          matchedBy,
+          opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+          opportunityFetchSucceeded: enrichedFields !== null,
+          opportunityFetchHttpStatus,
+          opportunityErrorMessage,
+          customFieldCount,
+          updateAttempted: true,
+          updateSucceeded: true,
+          updateFields: updateFieldKeys,
+          finalResult: "updated",
+        },
       });
     }
 
@@ -583,6 +700,20 @@ export async function POST(request: Request) {
       success: true,
       result: "created",
       travelFileId: file.id,
+      diagnostics: {
+        opportunityIdReceived: opportunityId ?? null,
+        existingTravelFileFound: false,
+        existingTravelFileId: null,
+        matchedBy: null,
+        opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+        opportunityFetchSucceeded: enrichedFields !== null,
+        opportunityFetchHttpStatus,
+        opportunityErrorMessage,
+        customFieldCount,
+        updateAttempted: false,
+        updateSucceeded: false,
+        finalResult: "created",
+      },
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "unexpected error";

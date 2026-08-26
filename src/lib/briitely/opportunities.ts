@@ -1,6 +1,6 @@
 import "server-only";
 
-import { briitelyRequest, getLocationId } from "./client";
+import { briitelyRequest } from "./client";
 import {
   inspiredVacationsIntakeFields,
   inspiredVacationsConfirmedFields,
@@ -55,6 +55,12 @@ export interface EnrichedConfirmedFields {
   returnDate: string | null;
 }
 
+export interface OpportunityFetchResult {
+  opportunity: BriitelyOpportunity | null;
+  httpStatus: number | null;
+  errorMessage: string | null;
+}
+
 function mapOpportunity(raw: HighLevelOpportunity): BriitelyOpportunity {
   return {
     id: raw.id,
@@ -65,18 +71,36 @@ function mapOpportunity(raw: HighLevelOpportunity): BriitelyOpportunity {
   };
 }
 
-export async function getOpportunity(opportunityId: string): Promise<BriitelyOpportunity | null> {
-  const locationId = getLocationId();
+export async function getOpportunity(opportunityId: string): Promise<OpportunityFetchResult> {
   try {
     const response = await briitelyRequest<HighLevelOpportunityResponse>({
       method: "GET",
       path: `/opportunities/${encodeURIComponent(opportunityId)}`,
-      query: { location_id: locationId },
     });
-    if (!response.opportunity) return null;
-    return mapOpportunity(response.opportunity);
-  } catch {
-    return null;
+    if (!response.opportunity) {
+      console.warn("BRIITELY_OPPORTUNITY_FETCH", {
+        opportunityId,
+        httpStatus: 200,
+        errorMessage: "Response did not include an opportunity object",
+      });
+      return { opportunity: null, httpStatus: 200, errorMessage: "No opportunity in response" };
+    }
+    return {
+      opportunity: mapOpportunity(response.opportunity),
+      httpStatus: 200,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status = typeof (err as { status?: number })?.status === "number"
+      ? (err as { status: number }).status
+      : null;
+    const message = err instanceof Error ? err.message : "unknown error";
+    console.warn("BRIITELY_OPPORTUNITY_FETCH", {
+      opportunityId,
+      httpStatus: status,
+      errorMessage: message,
+    });
+    return { opportunity: null, httpStatus: status, errorMessage: message };
   }
 }
 
@@ -156,27 +180,49 @@ export async function getOpportunityWithRetry(
   opportunityId: string,
   maxAttempts = 3,
   delayMs = 1500
-): Promise<{ opportunity: BriitelyOpportunity | null; attempts: number }> {
+): Promise<{ opportunity: BriitelyOpportunity | null; attempts: number; lastHttpStatus: number | null; lastErrorMessage: string | null }> {
+  let lastStatus: number | null = null;
+  let lastError: string | null = null;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const opportunity = await getOpportunity(opportunityId);
-    if (opportunity) {
-      const fields = extractInquiryFields(opportunity);
+    const result = await getOpportunity(opportunityId);
+    lastStatus = result.httpStatus;
+    lastError = result.errorMessage;
+
+    if (result.opportunity) {
+      const fields = extractInquiryFields(result.opportunity);
       if (hasAnyIntakeField(fields) || attempt === maxAttempts) {
-        return { opportunity, attempts: attempt };
+        return {
+          opportunity: result.opportunity,
+          attempts: attempt,
+          lastHttpStatus: result.httpStatus,
+          lastErrorMessage: result.errorMessage,
+        };
       }
     }
     if (attempt < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  return { opportunity: null, attempts: maxAttempts };
+  return { opportunity: null, attempts: maxAttempts, lastHttpStatus: lastStatus, lastErrorMessage: lastError };
 }
 
-/**
- * Logs a diagnostic mapping of custom fields discovered on a fetched
- * opportunity. Logs only the field name, field ID, and whether a value was
- * present — never the value itself.
- */
+export function getCustomFieldNames(opportunity: BriitelyOpportunity): string[] {
+  return opportunity.customFields.map((f) => f.name);
+}
+
+export function getMatchedLogicalFields(opportunity: BriitelyOpportunity): Record<string, boolean> {
+  const allDefinitions: Record<string, FieldDefinition> = {
+    ...inspiredVacationsIntakeFields,
+    ...inspiredVacationsConfirmedFields,
+  };
+  const result: Record<string, boolean> = {};
+  for (const [key, def] of Object.entries(allDefinitions)) {
+    result[key] = Boolean(resolveCustomField(opportunity, def));
+  }
+  return result;
+}
+
 export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): void {
   const allDefinitions: Record<string, FieldDefinition> = {
     ...inspiredVacationsIntakeFields,
@@ -196,6 +242,8 @@ export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): vo
   console.info("BRIITELY_OPPORTUNITY_FIELD_MAPPING", {
     opportunityId: opportunity.id,
     customFieldCount: opportunity.customFields.length,
+    returnedFieldNames: opportunity.customFields.map((f) => f.name),
+    matchedLogicalFields: getMatchedLogicalFields(opportunity),
     mappings,
   });
 }
