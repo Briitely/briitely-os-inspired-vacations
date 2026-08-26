@@ -10,10 +10,16 @@ import {
   type ConfirmedFieldKey,
 } from "@/config/inspired-vacations.config";
 
-interface HighLevelCustomField {
+// ── HighLevel API types ───────────────────────────────────────
+
+/** Raw customField from the opportunity endpoint: { id, field_value } */
+interface RawOpportunityCustomField {
   id: string;
-  name: string;
-  value: string;
+  field_value?: string;
+  // Some API versions may use alternate keys — we check all known ones
+  value?: string;
+  fieldValueString?: string;
+  name?: string;
 }
 
 interface HighLevelOpportunity {
@@ -23,7 +29,7 @@ interface HighLevelOpportunity {
   status?: string;
   pipelineId?: string;
   monetaryValue?: number;
-  customFields?: HighLevelCustomField[];
+  customFields?: RawOpportunityCustomField[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -37,14 +43,34 @@ interface HighLevelSearchOpportunitiesResponse {
   meta?: { total?: number };
 }
 
+interface HighLevelCustomFieldDefinition {
+  id: string;
+  name: string;
+  fieldKey?: string;
+  dataType?: string;
+  model?: string;
+}
+
+interface HighLevelCustomFieldsResponse {
+  customFields?: HighLevelCustomFieldDefinition[];
+}
+
+// ── Normalized internal types ────────────────────────────────
+
 export interface BriitelyOpportunity {
   id: string;
   name: string | null;
   contactId: string | null;
   status: string | null;
   pipelineId: string | null;
-  customFields: HighLevelCustomField[];
+  customFields: NormalizedCustomField[];
   createdAt: string | null;
+}
+
+export interface NormalizedCustomField {
+  id: string;
+  name: string | null;
+  value: string;
 }
 
 export interface EnrichedInquiryFields {
@@ -80,14 +106,80 @@ export interface OpportunityResolutionResult {
   errorMessage: string | null;
 }
 
-function mapOpportunity(raw: HighLevelOpportunity): BriitelyOpportunity {
+export type FieldDefinitionMap = Map<string, string>;
+
+// ── Custom field definition fetching ──────────────────────────
+
+let cachedFieldDefinitions: FieldDefinitionMap | null = null;
+let cachedFieldDefinitionsExpiry = 0;
+const FIELD_DEFINITION_CACHE_MS = 10 * 60 * 1000;
+
+export async function getOpportunityFieldDefinitions(): Promise<{
+  definitions: FieldDefinitionMap;
+  httpStatus: number | null;
+  errorMessage: string | null;
+}> {
+  const now = Date.now();
+  if (cachedFieldDefinitions && now < cachedFieldDefinitionsExpiry) {
+    return { definitions: cachedFieldDefinitions, httpStatus: 200, errorMessage: null };
+  }
+
+  const locationId = getLocationId();
+  try {
+    const response = await briitelyRequest<HighLevelCustomFieldsResponse>({
+      method: "GET",
+      path: `/locations/${locationId}/customFields`,
+      query: { model: "opportunity" },
+      version: "2021-07-28",
+    });
+
+    const definitions: FieldDefinitionMap = new Map();
+    for (const def of response.customFields ?? []) {
+      definitions.set(def.id, def.name);
+    }
+
+    cachedFieldDefinitions = definitions;
+    cachedFieldDefinitionsExpiry = now + FIELD_DEFINITION_CACHE_MS;
+
+    return { definitions, httpStatus: 200, errorMessage: null };
+  } catch (err) {
+    const status = typeof (err as { status?: number })?.status === "number"
+      ? (err as { status: number }).status
+      : null;
+    const message = err instanceof Error ? err.message : "unknown error";
+    console.warn("BRIITELY_CUSTOM_FIELD_DEFINITIONS", {
+      httpStatus: status,
+      errorMessage: message,
+    });
+    return { definitions: new Map(), httpStatus: status, errorMessage: message };
+  }
+}
+
+// ── Opportunity mapping ──────────────────────────────────────
+
+function extractRawValue(raw: RawOpportunityCustomField): string {
+  // The HighLevel API uses field_value, but some versions may use other keys
+  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
+  return typeof v === "string" ? v : "";
+}
+
+function mapOpportunity(
+  raw: HighLevelOpportunity,
+  fieldDefinitions: FieldDefinitionMap
+): BriitelyOpportunity {
+  const customFields: NormalizedCustomField[] = (raw.customFields ?? []).map((cf) => ({
+    id: cf.id,
+    name: cf.name ?? fieldDefinitions.get(cf.id) ?? null,
+    value: extractRawValue(cf),
+  }));
+
   return {
     id: raw.id,
     name: raw.name ?? null,
     contactId: raw.contactId ?? null,
     status: raw.status ?? null,
     pipelineId: raw.pipelineId ?? null,
-    customFields: raw.customFields ?? [],
+    customFields,
     createdAt: raw.createdAt ?? null,
   };
 }
@@ -106,8 +198,10 @@ export async function getOpportunity(opportunityId: string): Promise<Opportunity
       });
       return { opportunity: null, httpStatus: 200, errorMessage: "No opportunity in response" };
     }
+
+    const { definitions } = await getOpportunityFieldDefinitions();
     return {
-      opportunity: mapOpportunity(response.opportunity),
+      opportunity: mapOpportunity(response.opportunity, definitions),
       httpStatus: 200,
       errorMessage: null,
     };
@@ -147,7 +241,9 @@ async function searchOpportunitiesByContact(
       query,
       version: "2021-07-28",
     });
-    const opportunities = (response.opportunities ?? []).map(mapOpportunity);
+
+    const { definitions } = await getOpportunityFieldDefinitions();
+    const opportunities = (response.opportunities ?? []).map((o) => mapOpportunity(o, definitions));
     return { opportunities, httpStatus: 200, errorMessage: null };
   } catch (err) {
     const status = typeof (err as { status?: number })?.status === "number"
@@ -196,13 +292,11 @@ export async function resolveOpportunityForContact(
 
   const totalFound = opportunities.length;
 
-  // Filter by pipeline if configured
   let candidates = opportunities;
   if (inspiredVacationsPipeline.pipelineId) {
     candidates = candidates.filter((o) => o.pipelineId === inspiredVacationsPipeline.pipelineId);
   }
 
-  // If pipeline filter eliminated all, fall back to all open opportunities
   if (candidates.length === 0 && totalFound > 0) {
     candidates = opportunities;
   }
@@ -220,14 +314,12 @@ export async function resolveOpportunityForContact(
     };
   }
 
-  // Sort by createdAt descending (most recent first)
   const sorted = [...candidates].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return bTime - aTime;
   });
 
-  // Check recency: prefer opportunities within the recency window
   const callbackMs = callbackTime.getTime();
   const windowMs = opportunityRecencyWindowMinutes * 60 * 1000;
   const recent = sorted.filter((o) => {
@@ -266,7 +358,6 @@ export async function resolveOpportunityForContact(
     };
   }
 
-  // No recent ones — if exactly one candidate total, use it
   if (suitableCount === 1) {
     return {
       opportunity: sorted[0],
@@ -278,7 +369,6 @@ export async function resolveOpportunityForContact(
     };
   }
 
-  // Multiple candidates but none recent — ambiguous
   console.warn("BRIITELY_OPPORTUNITY_RESOLUTION", {
     stage: "ambiguous_opportunity",
     contactId,
@@ -296,6 +386,8 @@ export async function resolveOpportunityForContact(
   };
 }
 
+// ── Field extraction ──────────────────────────────────────────
+
 function safeInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
   if (typeof value === "string") {
@@ -312,12 +404,16 @@ type FieldDefinition = { name: string; fieldId?: string };
 function resolveCustomField(
   opportunity: BriitelyOpportunity,
   definition: FieldDefinition
-): HighLevelCustomField | undefined {
+): NormalizedCustomField | undefined {
   if (definition.fieldId) {
     const byId = opportunity.customFields.find((f) => f.id === definition.fieldId);
     if (byId) return byId;
   }
-  return opportunity.customFields.find((f) => f.name === definition.name);
+  if (definition.name) {
+    const byName = opportunity.customFields.find((f) => f.name === definition.name);
+    if (byName) return byName;
+  }
+  return undefined;
 }
 
 function getFieldValue(opportunity: BriitelyOpportunity, definition: FieldDefinition): string | null {
@@ -400,7 +496,7 @@ export async function getOpportunityWithRetry(
 }
 
 export function getCustomFieldNames(opportunity: BriitelyOpportunity): string[] {
-  return opportunity.customFields.map((f) => f.name);
+  return opportunity.customFields.map((f) => f.name ?? "(unnamed)");
 }
 
 export function getMatchedLogicalFields(opportunity: BriitelyOpportunity): Record<string, boolean> {
@@ -415,6 +511,35 @@ export function getMatchedLogicalFields(opportunity: BriitelyOpportunity): Recor
   return result;
 }
 
+export function getMatchedFieldIds(opportunity: BriitelyOpportunity): Record<string, string | null> {
+  const allDefinitions: Record<string, FieldDefinition> = {
+    ...inspiredVacationsIntakeFields,
+    ...inspiredVacationsConfirmedFields,
+  };
+  const result: Record<string, string | null> = {};
+  for (const [key, def] of Object.entries(allDefinitions)) {
+    const field = resolveCustomField(opportunity, def);
+    result[key] = field?.id ?? null;
+  }
+  return result;
+}
+
+export function logCustomFieldShapeDiagnostics(opportunity: BriitelyOpportunity): void {
+  const shapes = opportunity.customFields.map((f, i) => ({
+    index: i,
+    id: f.id,
+    name: f.name,
+    valueType: "string",
+    hasValue: Boolean(f.value?.trim()),
+  }));
+
+  console.info("BRIITELY_OPPORTUNITY_CUSTOM_FIELD_SHAPE", {
+    opportunityId: opportunity.id,
+    customFieldCount: shapes.length,
+    shapes,
+  });
+}
+
 export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): void {
   const allDefinitions: Record<string, FieldDefinition> = {
     ...inspiredVacationsIntakeFields,
@@ -426,6 +551,7 @@ export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): vo
     return {
       logicalKey: key,
       customFieldName: def.name,
+      configuredFieldId: def.fieldId ?? null,
       customFieldId: field?.id ?? null,
       hasValue: Boolean(field?.value?.trim()),
     };
@@ -434,8 +560,10 @@ export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): vo
   console.info("BRIITELY_OPPORTUNITY_FIELD_MAPPING", {
     opportunityId: opportunity.id,
     customFieldCount: opportunity.customFields.length,
-    returnedFieldNames: opportunity.customFields.map((f) => f.name),
+    returnedFieldNames: opportunity.customFields.map((f) => f.name ?? "(unnamed)"),
+    returnedFieldIds: opportunity.customFields.map((f) => f.id),
     matchedLogicalFields: getMatchedLogicalFields(opportunity),
+    matchedFieldIds: getMatchedFieldIds(opportunity),
     mappings,
   });
 }
@@ -452,7 +580,9 @@ export interface EnrichmentDiagnosticsInput {
   opportunityFetchHttpStatus: number | null;
   opportunityErrorMessage: string | null;
   customFieldCount: number;
+  fieldDefinitionCount: number | null;
   matchedLogicalFields: Record<string, boolean> | null;
+  matchedFieldIds: Record<string, string | null> | null;
   fieldsResolved: Record<string, unknown>;
   travelFileUpdateAttempted: boolean;
   travelFileUpdateSucceeded: boolean;
@@ -473,7 +603,9 @@ export function logEnrichmentDiagnostics(input: EnrichmentDiagnosticsInput): voi
     opportunityFetchHttpStatus: input.opportunityFetchHttpStatus,
     opportunityErrorMessage: input.opportunityErrorMessage,
     customFieldCount: input.customFieldCount,
+    fieldDefinitionCount: input.fieldDefinitionCount,
     matchedLogicalFields: input.matchedLogicalFields,
+    matchedFieldIds: input.matchedFieldIds,
     fieldsResolved: input.fieldsResolved,
     travelFileUpdateAttempted: input.travelFileUpdateAttempted,
     travelFileUpdateSucceeded: input.travelFileUpdateSucceeded,

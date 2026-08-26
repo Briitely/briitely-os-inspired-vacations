@@ -6,8 +6,11 @@ import {
   getOpportunity,
   extractInquiryFields,
   logFieldMappingDiagnostics,
+  logCustomFieldShapeDiagnostics,
   logEnrichmentDiagnostics,
   getMatchedLogicalFields,
+  getMatchedFieldIds,
+  getOpportunityFieldDefinitions,
   resolveOpportunityForContact,
   type EnrichedInquiryFields,
   type BriitelyOpportunity,
@@ -311,6 +314,22 @@ export async function POST(request: Request) {
   let opportunitiesFoundForContact: number | null = null;
   let suitableNewInquiryOpportunitiesFound: number | null = null;
   let matchedLogicalFields: Record<string, boolean> | null = null;
+  let matchedFieldIds: Record<string, string | null> | null = null;
+  let fieldDefinitionCount: number | null = null;
+
+  // Pre-fetch field definitions so we can resolve field IDs to names
+  const fieldDefsResult = await getOpportunityFieldDefinitions();
+  fieldDefinitionCount = fieldDefsResult.definitions.size;
+  if (fieldDefsResult.errorMessage) {
+    log("field_definitions_fetch_failed", {
+      httpStatus: fieldDefsResult.httpStatus,
+      errorMessage: fieldDefsResult.errorMessage,
+    });
+  } else {
+    log("field_definitions_fetched", {
+      definitionCount: fieldDefinitionCount,
+    });
+  }
 
   if (webhookInquiry.opportunityId) {
     // Webhook provided the opportunityId — fetch directly
@@ -411,16 +430,21 @@ export async function POST(request: Request) {
 
   // Extract enrichment fields from the resolved opportunity
   if (resolvedOpportunity) {
+    logCustomFieldShapeDiagnostics(resolvedOpportunity);
     logFieldMappingDiagnostics(resolvedOpportunity);
     enrichedFields = extractInquiryFields(resolvedOpportunity);
     customFieldCount = resolvedOpportunity.customFields.length;
     matchedLogicalFields = getMatchedLogicalFields(resolvedOpportunity);
+    matchedFieldIds = getMatchedFieldIds(resolvedOpportunity);
 
     log("opportunity_enrichment_extracted", {
       opportunityId: resolvedOpportunity.id,
       customFieldCount,
-      returnedFieldNames: resolvedOpportunity.customFields.map((f) => f.name),
+      fieldDefinitionCount,
+      returnedFieldNames: resolvedOpportunity.customFields.map((f) => f.name ?? "(unnamed)"),
+      returnedFieldIds: resolvedOpportunity.customFields.map((f) => f.id),
       matchedLogicalFields,
+      matchedFieldIds,
       enrichedFields: {
         destination: Boolean(enrichedFields.destination),
         travelTimeframe: Boolean(enrichedFields.travelTimeframe),
@@ -579,7 +603,9 @@ export async function POST(request: Request) {
           opportunityFetchHttpStatus,
           opportunityErrorMessage,
           customFieldCount,
+          fieldDefinitionCount,
           matchedLogicalFields,
+          matchedFieldIds,
           fieldsResolved: {
             destination: Boolean(inquiry.destination),
             travelTimeframe: Boolean(inquiry.travelTimeframe),
@@ -621,7 +647,9 @@ export async function POST(request: Request) {
             opportunityFetchHttpStatus,
             opportunityErrorMessage,
             customFieldCount,
+            fieldDefinitionCount,
             matchedLogicalFields,
+            matchedFieldIds,
             travelFileUpdateAttempted: false,
             travelFileUpdateSucceeded: false,
             finalResult: "no_update_needed",
@@ -649,7 +677,9 @@ export async function POST(request: Request) {
           opportunityFetchHttpStatus,
           opportunityErrorMessage,
           customFieldCount,
+          fieldDefinitionCount,
           matchedLogicalFields,
+          matchedFieldIds,
           fieldsResolved: {
             destination: Boolean(inquiry.destination),
             travelTimeframe: Boolean(inquiry.travelTimeframe),
@@ -691,7 +721,9 @@ export async function POST(request: Request) {
         opportunityFetchHttpStatus,
         opportunityErrorMessage,
         customFieldCount,
+        fieldDefinitionCount,
         matchedLogicalFields,
+        matchedFieldIds,
         fieldsResolved: {
           destination: Boolean(inquiry.destination),
           travelTimeframe: Boolean(inquiry.travelTimeframe),
@@ -733,7 +765,9 @@ export async function POST(request: Request) {
           opportunityFetchHttpStatus,
           opportunityErrorMessage,
           customFieldCount,
+          fieldDefinitionCount,
           matchedLogicalFields,
+          matchedFieldIds,
           travelFileUpdateAttempted: true,
           travelFileUpdateSucceeded: true,
           updateFields: updateFieldKeys,
@@ -785,7 +819,9 @@ export async function POST(request: Request) {
         opportunityFetchHttpStatus,
         opportunityErrorMessage,
         customFieldCount,
+        fieldDefinitionCount,
         matchedLogicalFields,
+        matchedFieldIds,
         fieldsResolved: {
           destination: Boolean(inquiry.destination),
           travelTimeframe: Boolean(inquiry.travelTimeframe),
@@ -903,7 +939,9 @@ export async function POST(request: Request) {
       opportunityFetchHttpStatus,
       opportunityErrorMessage,
       customFieldCount,
+      fieldDefinitionCount,
       matchedLogicalFields,
+      matchedFieldIds,
       fieldsResolved: {
         destination: Boolean(inquiry.destination),
         travelTimeframe: Boolean(inquiry.travelTimeframe),
@@ -945,7 +983,9 @@ export async function POST(request: Request) {
         opportunityFetchHttpStatus,
         opportunityErrorMessage,
         customFieldCount,
+        fieldDefinitionCount,
         matchedLogicalFields,
+        matchedFieldIds,
         travelFileUpdateAttempted: false,
         travelFileUpdateSucceeded: false,
         finalResult: "created",
