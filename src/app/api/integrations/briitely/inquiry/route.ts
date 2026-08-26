@@ -500,12 +500,13 @@ export async function POST(request: Request) {
 
   log("traveller_count_diagnostics", {
     adultFieldMatched: Boolean(matchedLogicalFields?.numberOfAdults),
-    adultRawType: enrichedFields ? typeof (enrichedFields.numberOfAdults) : "no_enrichment",
+    adultFieldId: matchedFieldIds?.numberOfAdults ?? null,
+    adultValuePropertyUsed: "fieldValueNumber",
     adultParsedValue: numberOfAdults,
     childFieldMatched: Boolean(matchedLogicalFields?.numberOfChildren),
-    childRawType: enrichedFields ? typeof (enrichedFields.numberOfChildren) : "no_enrichment",
-    childParsedValue: numberOfChildren,
-    normalizedChildren,
+    childFieldId: matchedFieldIds?.numberOfChildren ?? null,
+    childDefaultedToZero: numberOfChildren === null && numberOfAdults !== null,
+    childParsedOrDefaultValue: normalizedChildren,
     calculatedTravellerTotal: numberOfTravellers,
     updateIncludesNumberOfAdults: numberOfAdults !== null,
     updateIncludesNumberOfChildren: normalizedChildren !== null,

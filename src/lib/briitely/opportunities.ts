@@ -12,13 +12,14 @@ import {
 
 // ── HighLevel API types ───────────────────────────────────────
 
-/** Raw customField from the opportunity endpoint: { id, field_value } */
+/** Raw customField from the opportunity endpoint */
 interface RawOpportunityCustomField {
   id: string;
   field_value?: unknown;
+  fieldValueString?: unknown;
+  fieldValueNumber?: unknown;
   // Some API versions may use alternate keys — we check all known ones
   value?: unknown;
-  fieldValueString?: unknown;
   name?: string;
 }
 
@@ -153,10 +154,10 @@ export async function getOpportunityFieldDefinitions(): Promise<{
 
     const travellerCountDefs = [...definitions.entries()]
       .filter(([, name]) =>
-        name === "How many adults in your party?" ||
-        name === "How many children in your party?" ||
-        name.toLowerCase().includes("adults in your party") ||
-        name.toLowerCase().includes("children in your party")
+        name === "How many adults?" ||
+        name === "How many children?" ||
+        name.toLowerCase().includes("adults") ||
+        name.toLowerCase().includes("children")
       )
       .map(([id, name]) => ({ id, name }));
 
@@ -192,14 +193,14 @@ function primitiveToString(v: unknown): string | null {
 }
 
 function extractRawValue(raw: RawOpportunityCustomField): string {
-  const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
+  const v = raw.field_value ?? raw.fieldValueNumber ?? raw.fieldValueString ?? raw.value ?? "";
 
   const direct = primitiveToString(v);
   if (direct !== null) return direct;
 
   if (v && typeof v === "object" && !Array.isArray(v)) {
     const obj = v as Record<string, unknown>;
-    for (const key of ["value", "field_value", "fieldValueString", "fieldValue", "val", "data"]) {
+    for (const key of ["value", "field_value", "fieldValueNumber", "fieldValueString", "fieldValue", "val", "data"]) {
       if (key in obj) {
         const nested = primitiveToString(obj[key]);
         if (nested !== null) return nested;
@@ -708,8 +709,8 @@ export function logTravellerCountFieldDiagnostics(
   fieldDefinitions: FieldDefinitionMap
 ): void {
   const targetNames = [
-    "How many adults in your party?",
-    "How many children in your party?",
+    "How many adults?",
+    "How many children?",
   ];
 
   const matches = opportunity.customFields.filter(
