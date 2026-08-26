@@ -1,9 +1,11 @@
 import "server-only";
 
-import { briitelyRequest } from "./client";
+import { briitelyRequest, getLocationId } from "./client";
 import {
   inspiredVacationsIntakeFields,
   inspiredVacationsConfirmedFields,
+  inspiredVacationsPipeline,
+  opportunityRecencyWindowMinutes,
   type IntakeFieldKey,
   type ConfirmedFieldKey,
 } from "@/config/inspired-vacations.config";
@@ -19,6 +21,7 @@ interface HighLevelOpportunity {
   name?: string;
   contactId?: string;
   status?: string;
+  pipelineId?: string;
   monetaryValue?: number;
   customFields?: HighLevelCustomField[];
   createdAt?: string;
@@ -29,12 +32,19 @@ interface HighLevelOpportunityResponse {
   opportunity?: HighLevelOpportunity;
 }
 
+interface HighLevelSearchOpportunitiesResponse {
+  opportunities?: HighLevelOpportunity[];
+  meta?: { total?: number };
+}
+
 export interface BriitelyOpportunity {
   id: string;
   name: string | null;
   contactId: string | null;
   status: string | null;
+  pipelineId: string | null;
   customFields: HighLevelCustomField[];
+  createdAt: string | null;
 }
 
 export interface EnrichedInquiryFields {
@@ -61,13 +71,24 @@ export interface OpportunityFetchResult {
   errorMessage: string | null;
 }
 
+export interface OpportunityResolutionResult {
+  opportunity: BriitelyOpportunity | null;
+  resolvedOpportunityId: string | null;
+  method: "webhook" | "contact_search" | "ambiguous" | "none";
+  opportunitiesFound: number;
+  suitableFound: number;
+  errorMessage: string | null;
+}
+
 function mapOpportunity(raw: HighLevelOpportunity): BriitelyOpportunity {
   return {
     id: raw.id,
     name: raw.name ?? null,
     contactId: raw.contactId ?? null,
     status: raw.status ?? null,
+    pipelineId: raw.pipelineId ?? null,
     customFields: raw.customFields ?? [],
+    createdAt: raw.createdAt ?? null,
   };
 }
 
@@ -102,6 +123,177 @@ export async function getOpportunity(opportunityId: string): Promise<Opportunity
     });
     return { opportunity: null, httpStatus: status, errorMessage: message };
   }
+}
+
+async function searchOpportunitiesByContact(
+  contactId: string,
+  status: "open" | "won" | "lost" | "abandoned" | "all" = "open"
+): Promise<{ opportunities: BriitelyOpportunity[]; httpStatus: number | null; errorMessage: string | null }> {
+  const locationId = getLocationId();
+  const query: Record<string, string | number | boolean | undefined> = {
+    location_id: locationId,
+    contact_id: contactId,
+    status,
+    limit: 100,
+  };
+  if (inspiredVacationsPipeline.pipelineId) {
+    query.pipeline_id = inspiredVacationsPipeline.pipelineId;
+  }
+
+  try {
+    const response = await briitelyRequest<HighLevelSearchOpportunitiesResponse>({
+      method: "GET",
+      path: "/opportunities/search",
+      query,
+      version: "2021-07-28",
+    });
+    const opportunities = (response.opportunities ?? []).map(mapOpportunity);
+    return { opportunities, httpStatus: 200, errorMessage: null };
+  } catch (err) {
+    const status = typeof (err as { status?: number })?.status === "number"
+      ? (err as { status: number }).status
+      : null;
+    const message = err instanceof Error ? err.message : "unknown error";
+    console.warn("BRIITELY_OPPORTUNITY_SEARCH", {
+      contactId,
+      httpStatus: status,
+      errorMessage: message,
+    });
+    return { opportunities: [], httpStatus: status, errorMessage: message };
+  }
+}
+
+/**
+ * Resolve the correct opportunity for a contact when the webhook does not
+ * provide an opportunityId.
+ *
+ * Resolution rules:
+ *   1. Search open opportunities for the contact (filtered by pipeline if configured).
+ *   2. If pipeline ID is configured, prefer opportunities in that pipeline.
+ *   3. Among candidates, prefer the most recently created one within the
+ *      recency window (opportunityRecencyWindowMinutes) of the callback time.
+ *   4. If exactly one suitable candidate exists, use it.
+ *   5. If multiple suitable candidates exist and cannot be disambiguated,
+ *      return "ambiguous" — do not guess.
+ *   6. If no suitable candidates exist, return "none".
+ */
+export async function resolveOpportunityForContact(
+  contactId: string,
+  callbackTime: Date
+): Promise<OpportunityResolutionResult> {
+  const { opportunities, httpStatus, errorMessage } = await searchOpportunitiesByContact(contactId, "open");
+
+  if (errorMessage) {
+    return {
+      opportunity: null,
+      resolvedOpportunityId: null,
+      method: "none",
+      opportunitiesFound: 0,
+      suitableFound: 0,
+      errorMessage,
+    };
+  }
+
+  const totalFound = opportunities.length;
+
+  // Filter by pipeline if configured
+  let candidates = opportunities;
+  if (inspiredVacationsPipeline.pipelineId) {
+    candidates = candidates.filter((o) => o.pipelineId === inspiredVacationsPipeline.pipelineId);
+  }
+
+  // If pipeline filter eliminated all, fall back to all open opportunities
+  if (candidates.length === 0 && totalFound > 0) {
+    candidates = opportunities;
+  }
+
+  const suitableCount = candidates.length;
+
+  if (suitableCount === 0) {
+    return {
+      opportunity: null,
+      resolvedOpportunityId: null,
+      method: "none",
+      opportunitiesFound: totalFound,
+      suitableFound: 0,
+      errorMessage: null,
+    };
+  }
+
+  // Sort by createdAt descending (most recent first)
+  const sorted = [...candidates].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  // Check recency: prefer opportunities within the recency window
+  const callbackMs = callbackTime.getTime();
+  const windowMs = opportunityRecencyWindowMinutes * 60 * 1000;
+  const recent = sorted.filter((o) => {
+    if (!o.createdAt) return false;
+    const createdMs = new Date(o.createdAt).getTime();
+    return Math.abs(callbackMs - createdMs) <= windowMs;
+  });
+
+  if (recent.length === 1) {
+    return {
+      opportunity: recent[0],
+      resolvedOpportunityId: recent[0].id,
+      method: "contact_search",
+      opportunitiesFound: totalFound,
+      suitableFound: suitableCount,
+      errorMessage: null,
+    };
+  }
+
+  if (recent.length > 1) {
+    console.warn("BRIITELY_OPPORTUNITY_RESOLUTION", {
+      stage: "ambiguous_opportunity",
+      contactId,
+      opportunitiesFound: totalFound,
+      suitableFound: suitableCount,
+      recentFound: recent.length,
+      recentOpportunityIds: recent.map((o) => o.id),
+    });
+    return {
+      opportunity: null,
+      resolvedOpportunityId: null,
+      method: "ambiguous",
+      opportunitiesFound: totalFound,
+      suitableFound: suitableCount,
+      errorMessage: `${recent.length} open opportunities found within ${opportunityRecencyWindowMinutes} minutes — cannot safely disambiguate`,
+    };
+  }
+
+  // No recent ones — if exactly one candidate total, use it
+  if (suitableCount === 1) {
+    return {
+      opportunity: sorted[0],
+      resolvedOpportunityId: sorted[0].id,
+      method: "contact_search",
+      opportunitiesFound: totalFound,
+      suitableFound: 1,
+      errorMessage: null,
+    };
+  }
+
+  // Multiple candidates but none recent — ambiguous
+  console.warn("BRIITELY_OPPORTUNITY_RESOLUTION", {
+    stage: "ambiguous_opportunity",
+    contactId,
+    opportunitiesFound: totalFound,
+    suitableFound: suitableCount,
+    reason: "multiple_candidates_none_recent",
+  });
+  return {
+    opportunity: null,
+    resolvedOpportunityId: null,
+    method: "ambiguous",
+    opportunitiesFound: totalFound,
+    suitableFound: suitableCount,
+    errorMessage: `${suitableCount} open opportunities found but none within ${opportunityRecencyWindowMinutes} minutes — cannot safely disambiguate`,
+  };
 }
 
 function safeInt(value: unknown): number | null {
@@ -248,29 +440,44 @@ export function logFieldMappingDiagnostics(opportunity: BriitelyOpportunity): vo
   });
 }
 
-export function logEnrichmentDiagnostics(
-  opportunityId: string,
-  fetched: boolean,
-  customFieldCount: number,
-  fields: EnrichedInquiryFields,
-  result: string,
-  retryCount: number
-): void {
+export interface EnrichmentDiagnosticsInput {
+  opportunityIdReceived: string | null;
+  opportunityResolutionAttempted: boolean;
+  opportunitiesFoundForContact: number | null;
+  suitableNewInquiryOpportunitiesFound: number | null;
+  resolvedOpportunityId: string | null;
+  opportunityResolutionMethod: string | null;
+  opportunityFetchAttempted: boolean;
+  opportunityFetchSucceeded: boolean;
+  opportunityFetchHttpStatus: number | null;
+  opportunityErrorMessage: string | null;
+  customFieldCount: number;
+  matchedLogicalFields: Record<string, boolean> | null;
+  fieldsResolved: Record<string, unknown>;
+  travelFileUpdateAttempted: boolean;
+  travelFileUpdateSucceeded: boolean;
+  travelFileResult: string;
+  enrichmentRetryCount: number;
+}
+
+export function logEnrichmentDiagnostics(input: EnrichmentDiagnosticsInput): void {
   console.info("BRIITELY_INQUIRY_ENRICHMENT", {
-    opportunityIdPresent: true,
-    opportunityFetchAttempted: true,
-    opportunityFetchSucceeded: fetched,
-    customFieldCount,
-    fieldsResolved: {
-      destination: Boolean(fields.destination),
-      travelTimeframe: Boolean(fields.travelTimeframe),
-      adults: fields.numberOfAdults !== null,
-      children: fields.numberOfChildren !== null,
-      budget: Boolean(fields.travelBudget),
-      insurance: Boolean(fields.travelInsuranceInterest),
-      specialConsiderations: Boolean(fields.specialConsiderations),
-    },
-    travelFileResult: result,
-    enrichmentRetryCount: retryCount,
+    opportunityIdReceived: input.opportunityIdReceived,
+    opportunityResolutionAttempted: input.opportunityResolutionAttempted,
+    opportunitiesFoundForContact: input.opportunitiesFoundForContact,
+    suitableNewInquiryOpportunitiesFound: input.suitableNewInquiryOpportunitiesFound,
+    resolvedOpportunityId: input.resolvedOpportunityId,
+    opportunityResolutionMethod: input.opportunityResolutionMethod,
+    opportunityFetchAttempted: input.opportunityFetchAttempted,
+    opportunityFetchSucceeded: input.opportunityFetchSucceeded,
+    opportunityFetchHttpStatus: input.opportunityFetchHttpStatus,
+    opportunityErrorMessage: input.opportunityErrorMessage,
+    customFieldCount: input.customFieldCount,
+    matchedLogicalFields: input.matchedLogicalFields,
+    fieldsResolved: input.fieldsResolved,
+    travelFileUpdateAttempted: input.travelFileUpdateAttempted,
+    travelFileUpdateSucceeded: input.travelFileUpdateSucceeded,
+    travelFileResult: input.travelFileResult,
+    enrichmentRetryCount: input.enrichmentRetryCount,
   });
 }

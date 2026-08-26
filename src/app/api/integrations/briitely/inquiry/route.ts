@@ -3,11 +3,14 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { logIntegration } from "@/lib/logging/integration";
 import {
   getOpportunityWithRetry,
+  getOpportunity,
   extractInquiryFields,
   logFieldMappingDiagnostics,
   logEnrichmentDiagnostics,
   getMatchedLogicalFields,
+  resolveOpportunityForContact,
   type EnrichedInquiryFields,
+  type BriitelyOpportunity,
 } from "@/lib/briitely/opportunities";
 import { getContact } from "@/lib/briitely/contacts";
 
@@ -18,9 +21,9 @@ import { getContact } from "@/lib/briitely/contacts";
  * Submitted" workflow after a valid (non-DNB) inquiry has been assigned and
  * the lead opportunity has been created.
  *
- * Uses the webhook as an event notification (contactId + opportunityId),
- * then fetches the authoritative opportunity from the Briitely API to
- * populate the Travel File with actual custom-field values.
+ * The webhook may not include opportunityId (the merge field may not resolve
+ * in the workflow context). When that happens, we resolve the opportunity by
+ * searching for open opportunities belonging to the contact.
  *
  * Authentication: shared secret via x-briitely-webhook-secret header.
  * Idempotency: lead_opportunity_id is the primary deduplication key.
@@ -295,19 +298,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
   }
 
-  // ── 6. Fetch opportunity and enrich ─────────────────────────
+  // ── 6. Resolve and fetch opportunity ─────────────────────────
   let enrichedFields: EnrichedInquiryFields | null = null;
   let retryCount = 0;
   let customFieldCount = 0;
   let opportunityFetchHttpStatus: number | null = null;
   let opportunityErrorMessage: string | null = null;
+  let resolvedOpportunity: BriitelyOpportunity | null = null;
+  let resolvedOpportunityId: string | null = null;
+  let opportunityResolutionMethod: string | null = null;
+  let opportunityResolutionAttempted = false;
+  let opportunitiesFoundForContact: number | null = null;
+  let suitableNewInquiryOpportunitiesFound: number | null = null;
+  let matchedLogicalFields: Record<string, boolean> | null = null;
 
   if (webhookInquiry.opportunityId) {
+    // Webhook provided the opportunityId — fetch directly
     const { opportunity, attempts, lastHttpStatus, lastErrorMessage } =
       await getOpportunityWithRetry(webhookInquiry.opportunityId);
     retryCount = attempts - 1;
     opportunityFetchHttpStatus = lastHttpStatus;
     opportunityErrorMessage = lastErrorMessage;
+    resolvedOpportunityId = webhookInquiry.opportunityId;
+    opportunityResolutionMethod = "webhook";
 
     log("opportunity_fetch_result", {
       opportunityId: webhookInquiry.opportunityId,
@@ -320,74 +333,132 @@ export async function POST(request: Request) {
     });
 
     if (opportunity) {
-      logFieldMappingDiagnostics(opportunity);
-      enrichedFields = extractInquiryFields(opportunity);
-      customFieldCount = opportunity.customFields.length;
-
-      log("opportunity_enrichment_extracted", {
-        opportunityId: opportunity.id,
-        customFieldCount,
-        returnedFieldNames: opportunity.customFields.map((f) => f.name),
-        matchedLogicalFields: getMatchedLogicalFields(opportunity),
-        enrichedFields: {
-          destination: Boolean(enrichedFields.destination),
-          travelTimeframe: Boolean(enrichedFields.travelTimeframe),
-          numberOfAdults: enrichedFields.numberOfAdults,
-          numberOfChildren: enrichedFields.numberOfChildren,
-          childrenAges: Boolean(enrichedFields.childrenAges),
-          travelBudget: Boolean(enrichedFields.travelBudget),
-          travelInsuranceInterest: Boolean(enrichedFields.travelInsuranceInterest),
-          specialConsiderations: Boolean(enrichedFields.specialConsiderations),
-        },
-      });
-
-      // If clientName was missing from webhook, try contact record
-      if (!webhookInquiry.clientName && opportunity.contactId) {
-        try {
-          const contact = await getContact(opportunity.contactId);
-          if (contact.name) {
-            webhookInquiry.clientName = contact.name;
-          } else if (contact.firstName || contact.lastName) {
-            webhookInquiry.clientName = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
-          }
-        } catch {
-          // Contact fetch is best-effort
-        }
-      }
+      resolvedOpportunity = opportunity;
     }
   } else {
-    log("opportunity_fetch_skipped", { reason: "no_opportunity_id_in_webhook" });
+    // Webhook did not provide opportunityId — resolve from contact
+    opportunityResolutionAttempted = true;
+    log("opportunity_resolution_started", {
+      contactId: webhookInquiry.contactId,
+      reason: "no_opportunity_id_in_webhook",
+    });
+
+    const resolution = await resolveOpportunityForContact(
+      webhookInquiry.contactId,
+      new Date(webhookInquiry.submittedAt)
+    );
+
+    opportunitiesFoundForContact = resolution.opportunitiesFound;
+    suitableNewInquiryOpportunitiesFound = resolution.suitableFound;
+    opportunityResolutionMethod = resolution.method;
+    opportunityErrorMessage = resolution.errorMessage;
+
+    log("opportunity_resolution_result", {
+      contactId: webhookInquiry.contactId,
+      method: resolution.method,
+      resolvedOpportunityId: resolution.resolvedOpportunityId,
+      opportunitiesFound: resolution.opportunitiesFound,
+      suitableFound: resolution.suitableFound,
+      errorMessage: resolution.errorMessage,
+    });
+
+    if (resolution.method === "ambiguous") {
+      log("ambiguous_opportunity", {
+        contactId: webhookInquiry.contactId,
+        opportunitiesFound: resolution.opportunitiesFound,
+        suitableFound: resolution.suitableFound,
+        errorMessage: resolution.errorMessage,
+      });
+      // Return a safe result that identifies the need for review
+      return NextResponse.json({
+        success: false,
+        result: "ambiguous_opportunity",
+        error: "Multiple open opportunities found for this contact. Manual review required.",
+        diagnostics: {
+          opportunityIdReceived: null,
+          opportunityResolutionAttempted: true,
+          opportunitiesFoundForContact: resolution.opportunitiesFound,
+          suitableNewInquiryOpportunitiesFound: resolution.suitableFound,
+          resolvedOpportunityId: null,
+          opportunityResolutionMethod: resolution.method,
+          opportunityFetchAttempted: false,
+          opportunityFetchSucceeded: false,
+          customFieldCount: 0,
+          travelFileUpdateAttempted: false,
+          travelFileUpdateSucceeded: false,
+          finalResult: "ambiguous_opportunity",
+        },
+      }, { status: 409 });
+    }
+
+    if (resolution.opportunity) {
+      resolvedOpportunity = resolution.opportunity;
+      resolvedOpportunityId = resolution.resolvedOpportunityId;
+    }
+  }
+
+  // If we have a resolved opportunity (either from webhook or contact search),
+  // fetch its full data if we don't already have it
+  if (resolvedOpportunityId && !resolvedOpportunity) {
+    // Should not normally happen, but handle gracefully
+    const result = await getOpportunity(resolvedOpportunityId);
+    opportunityFetchHttpStatus = result.httpStatus;
+    opportunityErrorMessage = result.errorMessage;
+    if (result.opportunity) {
+      resolvedOpportunity = result.opportunity;
+    }
+  }
+
+  // Extract enrichment fields from the resolved opportunity
+  if (resolvedOpportunity) {
+    logFieldMappingDiagnostics(resolvedOpportunity);
+    enrichedFields = extractInquiryFields(resolvedOpportunity);
+    customFieldCount = resolvedOpportunity.customFields.length;
+    matchedLogicalFields = getMatchedLogicalFields(resolvedOpportunity);
+
+    log("opportunity_enrichment_extracted", {
+      opportunityId: resolvedOpportunity.id,
+      customFieldCount,
+      returnedFieldNames: resolvedOpportunity.customFields.map((f) => f.name),
+      matchedLogicalFields,
+      enrichedFields: {
+        destination: Boolean(enrichedFields.destination),
+        travelTimeframe: Boolean(enrichedFields.travelTimeframe),
+        numberOfAdults: enrichedFields.numberOfAdults,
+        numberOfChildren: enrichedFields.numberOfChildren,
+        childrenAges: Boolean(enrichedFields.childrenAges),
+        travelBudget: Boolean(enrichedFields.travelBudget),
+        travelInsuranceInterest: Boolean(enrichedFields.travelInsuranceInterest),
+        specialConsiderations: Boolean(enrichedFields.specialConsiderations),
+      },
+    });
+
+    // If clientName was missing from webhook, try contact record
+    if (!webhookInquiry.clientName && resolvedOpportunity.contactId) {
+      try {
+        const contact = await getContact(resolvedOpportunity.contactId);
+        if (contact.name) {
+          webhookInquiry.clientName = contact.name;
+        } else if (contact.firstName || contact.lastName) {
+          webhookInquiry.clientName = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
+        }
+      } catch {
+        // Contact fetch is best-effort
+      }
+    }
   }
 
   // Apply source precedence: opportunity > webhook > null
   const inquiry = applySourcePrecedence(webhookInquiry, enrichedFields);
-
-  // Log enrichment diagnostics
-  if (webhookInquiry.opportunityId) {
-    logEnrichmentDiagnostics(
-      webhookInquiry.opportunityId,
-      enrichedFields !== null,
-      customFieldCount,
-      {
-        destination: inquiry.destination,
-        travelTimeframe: inquiry.travelTimeframe,
-        numberOfAdults: inquiry.numberOfAdults,
-        numberOfChildren: inquiry.numberOfChildren,
-        childrenAges: inquiry.childrenAges,
-        travelBudget: inquiry.travelBudget,
-        travelInsuranceInterest: inquiry.travelInsuranceInterest,
-        specialConsiderations: inquiry.specialConsiderations,
-      },
-      "pending",
-      retryCount
-    );
-  }
 
   const {
     contactId, opportunityId, clientName, submittedAt, inquirySource,
     destination, travelTimeframe, numberOfAdults, numberOfChildren,
     childrenAges, travelBudget, travelInsuranceInterest, specialConsiderations,
   } = inquiry;
+
+  // Use resolvedOpportunityId if webhook didn't provide one
+  const effectiveOpportunityId = opportunityId ?? resolvedOpportunityId;
 
   // Compute number_of_travellers from adults + children
   let numberOfTravellers: number | null = null;
@@ -399,21 +470,21 @@ export async function POST(request: Request) {
 
   try {
     // ── 7. Idempotency check ───────────────────────────────────
-    let existingFile: { id: string } | null = null;
+    let existingFile: { id: string; lead_opportunity_id: string | null } | null = null;
     let matchedBy: "opportunity" | "contact" | null = null;
 
-    if (opportunityId) {
+    if (effectiveOpportunityId) {
       const { data: matchByOpp, error: oppError } = await supabase
         .from("travel_files")
-        .select("id")
-        .eq("lead_opportunity_id", opportunityId)
+        .select("id, lead_opportunity_id")
+        .eq("lead_opportunity_id", effectiveOpportunityId)
         .maybeSingle();
 
       if (oppError) {
         log("idempotency_query_error", { stage: "opportunity_lookup", error: oppError.message });
       }
       if (matchByOpp) {
-        existingFile = matchByOpp;
+        existingFile = matchByOpp as { id: string; lead_opportunity_id: string | null };
         matchedBy = "opportunity";
       }
     }
@@ -422,7 +493,7 @@ export async function POST(request: Request) {
     if (!existingFile) {
       const { data: matchByContact, error: contactError } = await supabase
         .from("travel_files")
-        .select("id")
+        .select("id, lead_opportunity_id")
         .eq("briitely_contact_id", contactId)
         .eq("file_status", "open")
         .order("created_at", { ascending: false })
@@ -433,7 +504,7 @@ export async function POST(request: Request) {
         log("idempotency_query_error", { stage: "contact_lookup", error: contactError.message });
       }
       if (matchByContact) {
-        existingFile = matchByContact;
+        existingFile = matchByContact as { id: string; lead_opportunity_id: string | null };
         matchedBy = "contact";
       }
     }
@@ -442,7 +513,7 @@ export async function POST(request: Request) {
       matchingTravelFileFound: Boolean(existingFile),
       existingTravelFileId: existingFile?.id ?? null,
       matchedBy,
-      opportunityIdUsed: opportunityId ?? null,
+      opportunityIdUsed: effectiveOpportunityId ?? null,
       contactIdUsed: contactId,
     });
 
@@ -450,8 +521,18 @@ export async function POST(request: Request) {
     if (existingFile) {
       const updateData: Record<string, unknown> = {};
 
+      // Repair: if matched by contact and lead_opportunity_id is null,
+      // populate it with the resolved opportunity ID
+      if (effectiveOpportunityId && !existingFile.lead_opportunity_id) {
+        updateData.lead_opportunity_id = effectiveOpportunityId;
+        log("opportunity_id_repair", {
+          travelFileId: existingFile.id,
+          previousLeadOpportunityId: null,
+          newLeadOpportunityId: effectiveOpportunityId,
+        });
+      }
+
       // Only set fields that have values — don't overwrite existing with blank
-      if (opportunityId) updateData.lead_opportunity_id = opportunityId;
       if (destination) updateData.destination = destination;
       if (travelTimeframe) updateData.travel_timeframe = travelTimeframe;
       if (numberOfAdults !== null) updateData.number_of_adults = numberOfAdults;
@@ -463,6 +544,7 @@ export async function POST(request: Request) {
       if (specialConsiderations) updateData.special_requests = specialConsiderations;
 
       const updateFieldKeys = Object.keys(updateData);
+      const travelFileUpdateAttempted = updateFieldKeys.length > 0;
 
       log("update_attempted", {
         travelFileId: existingFile.id,
@@ -482,8 +564,37 @@ export async function POST(request: Request) {
         },
       });
 
-      if (updateFieldKeys.length === 0) {
+      if (!travelFileUpdateAttempted) {
         log("update_skipped", { travelFileId: existingFile.id, reason: "no_fields_to_update" });
+
+        logEnrichmentDiagnostics({
+          opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+          opportunityResolutionAttempted,
+          opportunitiesFoundForContact,
+          suitableNewInquiryOpportunitiesFound,
+          resolvedOpportunityId: effectiveOpportunityId,
+          opportunityResolutionMethod,
+          opportunityFetchAttempted: effectiveOpportunityId !== null,
+          opportunityFetchSucceeded: enrichedFields !== null,
+          opportunityFetchHttpStatus,
+          opportunityErrorMessage,
+          customFieldCount,
+          matchedLogicalFields,
+          fieldsResolved: {
+            destination: Boolean(inquiry.destination),
+            travelTimeframe: Boolean(inquiry.travelTimeframe),
+            adults: inquiry.numberOfAdults !== null,
+            children: inquiry.numberOfChildren !== null,
+            budget: Boolean(inquiry.travelBudget),
+            insurance: Boolean(inquiry.travelInsuranceInterest),
+            specialConsiderations: Boolean(inquiry.specialConsiderations),
+          },
+          travelFileUpdateAttempted: false,
+          travelFileUpdateSucceeded: false,
+          travelFileResult: "no_update_needed",
+          enrichmentRetryCount: retryCount,
+        });
+
         await logIntegration({
           provider: "briitely",
           operation: "inquiry_intake",
@@ -499,17 +610,20 @@ export async function POST(request: Request) {
           result: "no_update_needed",
           travelFileId: existingFile.id,
           diagnostics: {
-            opportunityIdReceived: opportunityId ?? null,
-            existingTravelFileFound: true,
-            existingTravelFileId: existingFile.id,
-            matchedBy,
-            opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+            opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+            opportunityResolutionAttempted,
+            opportunitiesFoundForContact,
+            suitableNewInquiryOpportunitiesFound,
+            resolvedOpportunityId: effectiveOpportunityId,
+            opportunityResolutionMethod,
+            opportunityFetchAttempted: effectiveOpportunityId !== null,
             opportunityFetchSucceeded: enrichedFields !== null,
             opportunityFetchHttpStatus,
             opportunityErrorMessage,
             customFieldCount,
-            updateAttempted: false,
-            updateSucceeded: false,
+            matchedLogicalFields,
+            travelFileUpdateAttempted: false,
+            travelFileUpdateSucceeded: false,
             finalResult: "no_update_needed",
           },
         });
@@ -522,6 +636,35 @@ export async function POST(request: Request) {
 
       if (updateError) {
         log("update_failed", { travelFileId: existingFile.id, error: updateError.message, updateFieldKeys });
+
+        logEnrichmentDiagnostics({
+          opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+          opportunityResolutionAttempted,
+          opportunitiesFoundForContact,
+          suitableNewInquiryOpportunitiesFound,
+          resolvedOpportunityId: effectiveOpportunityId,
+          opportunityResolutionMethod,
+          opportunityFetchAttempted: effectiveOpportunityId !== null,
+          opportunityFetchSucceeded: enrichedFields !== null,
+          opportunityFetchHttpStatus,
+          opportunityErrorMessage,
+          customFieldCount,
+          matchedLogicalFields,
+          fieldsResolved: {
+            destination: Boolean(inquiry.destination),
+            travelTimeframe: Boolean(inquiry.travelTimeframe),
+            adults: inquiry.numberOfAdults !== null,
+            children: inquiry.numberOfChildren !== null,
+            budget: Boolean(inquiry.travelBudget),
+            insurance: Boolean(inquiry.travelInsuranceInterest),
+            specialConsiderations: Boolean(inquiry.specialConsiderations),
+          },
+          travelFileUpdateAttempted: true,
+          travelFileUpdateSucceeded: false,
+          travelFileResult: "update_failed",
+          enrichmentRetryCount: retryCount,
+        });
+
         await logIntegration({
           provider: "briitely",
           operation: "inquiry_intake",
@@ -535,6 +678,35 @@ export async function POST(request: Request) {
       }
 
       log("update_succeeded", { travelFileId: existingFile.id, updateFieldKeys });
+
+      logEnrichmentDiagnostics({
+        opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+        opportunityResolutionAttempted,
+        opportunitiesFoundForContact,
+        suitableNewInquiryOpportunitiesFound,
+        resolvedOpportunityId: effectiveOpportunityId,
+        opportunityResolutionMethod,
+        opportunityFetchAttempted: effectiveOpportunityId !== null,
+        opportunityFetchSucceeded: enrichedFields !== null,
+        opportunityFetchHttpStatus,
+        opportunityErrorMessage,
+        customFieldCount,
+        matchedLogicalFields,
+        fieldsResolved: {
+          destination: Boolean(inquiry.destination),
+          travelTimeframe: Boolean(inquiry.travelTimeframe),
+          adults: inquiry.numberOfAdults !== null,
+          children: inquiry.numberOfChildren !== null,
+          budget: Boolean(inquiry.travelBudget),
+          insurance: Boolean(inquiry.travelInsuranceInterest),
+          specialConsiderations: Boolean(inquiry.specialConsiderations),
+        },
+        travelFileUpdateAttempted: true,
+        travelFileUpdateSucceeded: true,
+        travelFileResult: "updated",
+        enrichmentRetryCount: retryCount,
+      });
+
       await logIntegration({
         provider: "briitely",
         operation: "inquiry_intake",
@@ -550,17 +722,20 @@ export async function POST(request: Request) {
         result: "updated",
         travelFileId: existingFile.id,
         diagnostics: {
-          opportunityIdReceived: opportunityId ?? null,
-          existingTravelFileFound: true,
-          existingTravelFileId: existingFile.id,
-          matchedBy,
-          opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+          opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+          opportunityResolutionAttempted,
+          opportunitiesFoundForContact,
+          suitableNewInquiryOpportunitiesFound,
+          resolvedOpportunityId: effectiveOpportunityId,
+          opportunityResolutionMethod,
+          opportunityFetchAttempted: effectiveOpportunityId !== null,
           opportunityFetchSucceeded: enrichedFields !== null,
           opportunityFetchHttpStatus,
           opportunityErrorMessage,
           customFieldCount,
-          updateAttempted: true,
-          updateSucceeded: true,
+          matchedLogicalFields,
+          travelFileUpdateAttempted: true,
+          travelFileUpdateSucceeded: true,
           updateFields: updateFieldKeys,
           finalResult: "updated",
         },
@@ -578,7 +753,7 @@ export async function POST(request: Request) {
       inquiry_received_at: submittedAt,
     };
 
-    if (opportunityId) fileInsert.lead_opportunity_id = opportunityId;
+    if (effectiveOpportunityId) fileInsert.lead_opportunity_id = effectiveOpportunityId;
     if (destination) fileInsert.destination = destination;
     if (travelTimeframe) fileInsert.travel_timeframe = travelTimeframe;
     if (numberOfAdults !== null) fileInsert.number_of_adults = numberOfAdults;
@@ -597,6 +772,35 @@ export async function POST(request: Request) {
 
     if (fileError || !file) {
       log("create_failed", { stage: "travel_file", error: fileError?.message });
+
+      logEnrichmentDiagnostics({
+        opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+        opportunityResolutionAttempted,
+        opportunitiesFoundForContact,
+        suitableNewInquiryOpportunitiesFound,
+        resolvedOpportunityId: effectiveOpportunityId,
+        opportunityResolutionMethod,
+        opportunityFetchAttempted: effectiveOpportunityId !== null,
+        opportunityFetchSucceeded: enrichedFields !== null,
+        opportunityFetchHttpStatus,
+        opportunityErrorMessage,
+        customFieldCount,
+        matchedLogicalFields,
+        fieldsResolved: {
+          destination: Boolean(inquiry.destination),
+          travelTimeframe: Boolean(inquiry.travelTimeframe),
+          adults: inquiry.numberOfAdults !== null,
+          children: inquiry.numberOfChildren !== null,
+          budget: Boolean(inquiry.travelBudget),
+          insurance: Boolean(inquiry.travelInsuranceInterest),
+          specialConsiderations: Boolean(inquiry.specialConsiderations),
+        },
+        travelFileUpdateAttempted: false,
+        travelFileUpdateSucceeded: false,
+        travelFileResult: "create_failed",
+        enrichmentRetryCount: retryCount,
+      });
+
       await logIntegration({
         provider: "briitely",
         operation: "inquiry_intake",
@@ -669,7 +873,7 @@ export async function POST(request: Request) {
         summary: "Online inquiry received. Travel File created.",
         actor_type: "briitely",
         new_stage: "new_inquiry",
-        metadata: { inquiry_source: inquirySource, contact_id: contactId, opportunity_id: opportunityId ?? null },
+        metadata: { inquiry_source: inquirySource, contact_id: contactId, opportunity_id: effectiveOpportunityId ?? null },
       },
       {
         travel_file_id: file.id,
@@ -686,6 +890,35 @@ export async function POST(request: Request) {
     }
 
     log("created", { travelFileId: file.id });
+
+    logEnrichmentDiagnostics({
+      opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+      opportunityResolutionAttempted,
+      opportunitiesFoundForContact,
+      suitableNewInquiryOpportunitiesFound,
+      resolvedOpportunityId: effectiveOpportunityId,
+      opportunityResolutionMethod,
+      opportunityFetchAttempted: effectiveOpportunityId !== null,
+      opportunityFetchSucceeded: enrichedFields !== null,
+      opportunityFetchHttpStatus,
+      opportunityErrorMessage,
+      customFieldCount,
+      matchedLogicalFields,
+      fieldsResolved: {
+        destination: Boolean(inquiry.destination),
+        travelTimeframe: Boolean(inquiry.travelTimeframe),
+        adults: inquiry.numberOfAdults !== null,
+        children: inquiry.numberOfChildren !== null,
+        budget: Boolean(inquiry.travelBudget),
+        insurance: Boolean(inquiry.travelInsuranceInterest),
+        specialConsiderations: Boolean(inquiry.specialConsiderations),
+      },
+      travelFileUpdateAttempted: false,
+      travelFileUpdateSucceeded: false,
+      travelFileResult: "created",
+      enrichmentRetryCount: retryCount,
+    });
+
     await logIntegration({
       provider: "briitely",
       operation: "inquiry_intake",
@@ -701,17 +934,20 @@ export async function POST(request: Request) {
       result: "created",
       travelFileId: file.id,
       diagnostics: {
-        opportunityIdReceived: opportunityId ?? null,
-        existingTravelFileFound: false,
-        existingTravelFileId: null,
-        matchedBy: null,
-        opportunityFetchAttempted: webhookInquiry.opportunityId !== null,
+        opportunityIdReceived: webhookInquiry.opportunityId ?? null,
+        opportunityResolutionAttempted,
+        opportunitiesFoundForContact,
+        suitableNewInquiryOpportunitiesFound,
+        resolvedOpportunityId: effectiveOpportunityId,
+        opportunityResolutionMethod,
+        opportunityFetchAttempted: effectiveOpportunityId !== null,
         opportunityFetchSucceeded: enrichedFields !== null,
         opportunityFetchHttpStatus,
         opportunityErrorMessage,
         customFieldCount,
-        updateAttempted: false,
-        updateSucceeded: false,
+        matchedLogicalFields,
+        travelFileUpdateAttempted: false,
+        travelFileUpdateSucceeded: false,
         finalResult: "created",
       },
     });

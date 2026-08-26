@@ -76,3 +76,23 @@ export const requiredIntakeFieldKeys: IntakeFieldKey[] = [
   "travelInsuranceInterest",
   "specialConsiderations",
 ];
+
+/**
+ * Inspired Vacations pipeline configuration.
+ *
+ * The pipeline ID for the "New Inquiry" pipeline can be set here once
+ * confirmed. When set, opportunity resolution filters by this pipeline.
+ * When not set, resolution falls back to recency + open status only.
+ *
+ * The pipeline stage ID for the initial "New Inquiry" stage is optional
+ * and used for additional disambiguation if available.
+ */
+export const inspiredVacationsPipeline = {
+  /** ID of the Inspired Vacations New Inquiry pipeline. Leave empty to resolve by recency only. */
+  pipelineId: "",
+  /** Name of the pipeline (for diagnostics only). */
+  pipelineName: "Inspired Vacations",
+} as const;
+
+/** Max age in minutes for an opportunity to be considered "close to the callback". */
+export const opportunityRecencyWindowMinutes = 30;
