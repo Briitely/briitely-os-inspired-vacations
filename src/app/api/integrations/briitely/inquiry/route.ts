@@ -496,6 +496,20 @@ export async function POST(request: Request) {
     numberOfTravellers = numberOfAdults;
   }
 
+  log("traveller_count_diagnostics", {
+    adultFieldMatched: Boolean(matchedLogicalFields?.numberOfAdults),
+    adultRawType: enrichedFields ? typeof (enrichedFields.numberOfAdults) : "no_enrichment",
+    adultParsedValue: numberOfAdults,
+    childFieldMatched: Boolean(matchedLogicalFields?.numberOfChildren),
+    childRawType: enrichedFields ? typeof (enrichedFields.numberOfChildren) : "no_enrichment",
+    childParsedValue: numberOfChildren,
+    normalizedChildren,
+    calculatedTravellerTotal: numberOfTravellers,
+    updateIncludesNumberOfAdults: numberOfAdults !== null,
+    updateIncludesNumberOfChildren: normalizedChildren !== null,
+    updateIncludesNumberOfTravellers: numberOfTravellers !== null,
+  });
+
   try {
     // ── 7. Idempotency check ───────────────────────────────────
     let existingFile: { id: string; lead_opportunity_id: string | null } | null = null;

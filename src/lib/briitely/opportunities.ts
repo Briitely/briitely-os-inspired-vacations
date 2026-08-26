@@ -15,10 +15,10 @@ import {
 /** Raw customField from the opportunity endpoint: { id, field_value } */
 interface RawOpportunityCustomField {
   id: string;
-  field_value?: string;
+  field_value?: string | number | boolean | null;
   // Some API versions may use alternate keys — we check all known ones
-  value?: string;
-  fieldValueString?: string;
+  value?: string | number | boolean | null;
+  fieldValueString?: string | number | boolean | null;
   name?: string;
 }
 
@@ -158,9 +158,11 @@ export async function getOpportunityFieldDefinitions(): Promise<{
 // ── Opportunity mapping ──────────────────────────────────────
 
 function extractRawValue(raw: RawOpportunityCustomField): string {
-  // The HighLevel API uses field_value, but some versions may use other keys
   const v = raw.field_value ?? raw.fieldValueString ?? raw.value ?? "";
-  return typeof v === "string" ? v : "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return String(v);
+  if (typeof v === "boolean") return String(v);
+  return "";
 }
 
 function mapOpportunity(
@@ -412,6 +414,11 @@ function resolveCustomField(
   if (definition.name) {
     const byName = opportunity.customFields.find((f) => f.name === definition.name);
     if (byName) return byName;
+    const lowerTarget = definition.name.toLowerCase();
+    const byNameCI = opportunity.customFields.find(
+      (f) => f.name && f.name.toLowerCase() === lowerTarget
+    );
+    if (byNameCI) return byNameCI;
   }
   return undefined;
 }
