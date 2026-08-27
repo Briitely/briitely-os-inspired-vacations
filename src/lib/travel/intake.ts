@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { upsertContact, findContactByEmailOrPhone, addContactTag, getContact } from "@/lib/briitely/contacts";
+import { upsertContact, findContactByEmailOrPhone, addContactTag } from "@/lib/briitely/contacts";
 import { briitelyRequest } from "@/lib/briitely/client";
 import {
   travelInterestOptions,
@@ -10,7 +10,6 @@ import {
   resolveTagsFromSelections,
   NEW_INQUIRY_TAG,
 } from "./tag-mappings";
-import type { BriitelyCustomer } from "@/lib/briitely/types";
 
 // ── Public types ─────────────────────────────────────────────
 
@@ -135,21 +134,19 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
 
   // 1. Resolve or create Briitely contact FIRST so we have a contact ID
   let briitelyContactId: string | null = null;
-  let briitelyContact: BriitelyCustomer | null = null;
   let briitelySyncPending = false;
   let briitelySyncError: string | null = null;
 
   try {
-    briitelyContact = await findContactByEmailOrPhone(input.email, input.phone);
-    if (briitelyContact) {
-      // Update existing contact with latest info
+    const existing = await findContactByEmailOrPhone(input.email, input.phone);
+    if (existing) {
       const updated = await upsertContact({
         firstName: input.firstName,
         lastName: input.lastName,
         email: input.email,
         phone: input.phone,
       });
-      briitelyContactId = updated.contactId;
+      briitelyContactId = updated.customer.id;
     } else {
       const created = await upsertContact({
         firstName: input.firstName,
@@ -157,7 +154,7 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
         email: input.email,
         phone: input.phone,
       });
-      briitelyContactId = created.contactId;
+      briitelyContactId = created.customer.id;
     }
   } catch (err) {
     console.error("INTAKE_BRIITELY_CONTACT_FAILED", {
@@ -300,14 +297,27 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
   }
 
   // 7. Apply persistent segmentation tags (interests, seasons, source)
-  const tags = resolveIntakeTags(input);
-  let tagsApplied = true;
-  for (const tag of tags) {
+  const interestTags = resolveTagsFromSelections(travelInterestOptions, input.travelInterests);
+  const seasonTags = resolveTagsFromSelections(travelSeasonOptions, input.travelSeasons);
+  const sourceTags = resolveTagsFromSelections(referralSourceOptions, [input.referralSource]);
+  const persistentTags = [...interestTags, ...seasonTags, ...sourceTags];
+
+  let persistentTagWriteAttempted = false;
+  let persistentTagWriteSucceeded = true;
+  let persistentTagWriteHttpStatus: number | null = null;
+  let persistentTagErrorStage: string | null = null;
+
+  for (const tag of persistentTags) {
+    persistentTagWriteAttempted = true;
     try {
       const result = await addContactTag(briitelyContactId, tag);
       if (!result.succeeded) {
-        console.error("INTAKE_TAG_APPLICATION_FAILED", { tag, contactId: briitelyContactId });
-        tagsApplied = false;
+        console.error("INTAKE_TAG_APPLICATION_FAILED", { tag, contactId: briitelyContactId, result });
+        persistentTagWriteSucceeded = false;
+        persistentTagWriteHttpStatus = result.httpStatus;
+        persistentTagErrorStage = result.errorStage ?? "tag_not_confirmed";
+      } else if (persistentTagWriteHttpStatus === null) {
+        persistentTagWriteHttpStatus = result.httpStatus;
       }
     } catch (err) {
       console.error("INTAKE_TAG_APPLICATION_ERROR", {
@@ -315,54 +325,30 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
         contactId: briitelyContactId,
         error: err instanceof Error ? err.message : "unknown",
       });
-      tagsApplied = false;
+      persistentTagWriteSucceeded = false;
+      persistentTagErrorStage = "exception";
     }
   }
 
-  // 8. Add new-inquiry tag LAST (only if all prep succeeded)
-  if (tagsApplied) {
-    try {
-      const newInquiryResult = await addContactTag(briitelyContactId, NEW_INQUIRY_TAG);
-      if (!newInquiryResult.succeeded) {
-        console.error("INTAKE_NEW_INQUIRY_TAG_FAILED", { contactId: briitelyContactId });
-        // Mark sync as pending since the trigger tag wasn't applied
-        await supabase
-          .from("travel_files")
-          .update({
-            briitely_sync_status: "pending",
-            briitely_sync_error: "new-inquiry tag application failed.",
-          })
-          .eq("id", travelFileId);
-        return {
-          success: true,
-          travelFileId,
-          briitelyContactId,
-          error: null,
-          briitelySyncPending: true,
-        };
-      }
-    } catch (err) {
-      console.error("INTAKE_NEW_INQUIRY_TAG_ERROR", {
-        contactId: briitelyContactId,
-        error: err instanceof Error ? err.message : "unknown",
-      });
-      await supabase
-        .from("travel_files")
-        .update({
-          briitely_sync_status: "pending",
-          briitely_sync_error: "new-inquiry tag application error.",
-        })
-        .eq("id", travelFileId);
-      return {
-        success: true,
-        travelFileId,
-        briitelyContactId,
-        error: null,
-        briitelySyncPending: true,
-      };
-    }
-  } else {
-    // Some segmentation tags failed — do NOT add new-inquiry
+  console.info("PORTAL_INTAKE_TAG_SYNC", {
+    briitelyContactId,
+    interestTags,
+    seasonTags,
+    sourceTags,
+    persistentTagList: persistentTags,
+    persistentTagWriteAttempted,
+    persistentTagWriteSucceeded,
+    persistentTagWriteHttpStatus,
+    persistentTagErrorStage,
+    newInquiryTagAttempted: false,
+    newInquiryTagHTTPStatus: null,
+    newInquiryTagSucceeded: false,
+    errorStage: persistentTagErrorStage,
+    errorMessage: null,
+  });
+
+  // 8. If persistent tags failed, do NOT add new-inquiry
+  if (!persistentTagWriteSucceeded) {
     await supabase
       .from("travel_files")
       .update({
@@ -379,7 +365,90 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
     };
   }
 
-  // 9. Update Travel File with confirmed Briitely contact ID and sync status
+  // 9. Add new-inquiry tag LAST (only after all persistent tags succeeded)
+  let newInquiryTagAttempted = true;
+  let newInquiryTagSucceeded = false;
+  let newInquiryTagHttpStatus: number | null = null;
+  let newInquiryErrorStage: string | null = null;
+
+  try {
+    const newInquiryResult = await addContactTag(briitelyContactId, NEW_INQUIRY_TAG);
+    newInquiryTagHttpStatus = newInquiryResult.httpStatus;
+    newInquiryTagSucceeded = newInquiryResult.succeeded;
+    newInquiryErrorStage = newInquiryResult.errorStage;
+
+    if (!newInquiryResult.succeeded) {
+      console.error("INTAKE_NEW_INQUIRY_TAG_FAILED", { contactId: briitelyContactId, result: newInquiryResult });
+      await supabase
+        .from("travel_files")
+        .update({
+          briitely_sync_status: "pending",
+          briitely_sync_error: "new-inquiry tag application failed.",
+        })
+        .eq("id", travelFileId);
+      console.info("PORTAL_INTAKE_TAG_SYNC", {
+        briitelyContactId,
+        interestTags,
+        seasonTags,
+        sourceTags,
+        persistentTagList: persistentTags,
+        persistentTagWriteAttempted,
+        persistentTagWriteSucceeded,
+        persistentTagWriteHttpStatus,
+        persistentTagErrorStage,
+        newInquiryTagAttempted,
+        newInquiryTagHTTPStatus: newInquiryTagHttpStatus,
+        newInquiryTagSucceeded,
+        errorStage: newInquiryErrorStage,
+        errorMessage: "new-inquiry tag not confirmed",
+      });
+      return {
+        success: true,
+        travelFileId,
+        briitelyContactId,
+        error: null,
+        briitelySyncPending: true,
+      };
+    }
+  } catch (err) {
+    console.error("INTAKE_NEW_INQUIRY_TAG_ERROR", {
+      contactId: briitelyContactId,
+      error: err instanceof Error ? err.message : "unknown",
+    });
+    newInquiryErrorStage = "exception";
+    await supabase
+      .from("travel_files")
+      .update({
+        briitely_sync_status: "pending",
+        briitely_sync_error: "new-inquiry tag application error.",
+      })
+      .eq("id", travelFileId);
+    console.info("PORTAL_INTAKE_TAG_SYNC", {
+      briitelyContactId,
+      interestTags,
+      seasonTags,
+      sourceTags,
+      persistentTagList: persistentTags,
+      persistentTagWriteAttempted,
+      persistentTagWriteSucceeded,
+      persistentTagWriteHttpStatus,
+      persistentTagErrorStage,
+      newInquiryTagAttempted,
+      newInquiryTagHTTPStatus: null,
+      newInquiryTagSucceeded: false,
+      errorStage: newInquiryErrorStage,
+      errorMessage: err instanceof Error ? err.message : "unknown",
+    });
+    return {
+      success: true,
+      travelFileId,
+      briitelyContactId,
+      error: null,
+      briitelySyncPending: true,
+    };
+  }
+
+  // 10. Update Travel File with confirmed Briitely contact ID and sync status
   await supabase
     .from("travel_files")
     .update({
@@ -390,11 +459,28 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
     })
     .eq("id", travelFileId);
 
+  console.info("PORTAL_INTAKE_TAG_SYNC", {
+    briitelyContactId,
+    interestTags,
+    seasonTags,
+    sourceTags,
+    persistentTagList: persistentTags,
+    persistentTagWriteAttempted,
+    persistentTagWriteSucceeded,
+    persistentTagWriteHttpStatus,
+    persistentTagErrorStage,
+    newInquiryTagAttempted,
+    newInquiryTagHTTPStatus: newInquiryTagHttpStatus,
+    newInquiryTagSucceeded,
+    errorStage: null,
+    errorMessage: null,
+  });
+
   console.info("INTAKE_COMPLETED", {
     travelFileId,
     briitelyContactId,
     numberOfTravellers,
-    tagsApplied: tags.length,
+    persistentTagsApplied: persistentTags.length,
     newInquiryAdded: true,
   });
 
