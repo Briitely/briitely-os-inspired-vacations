@@ -8,6 +8,7 @@ import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrappe
 import { SharedFooter } from "@/components/app/shared-footer";
 import { DeleteTestFileButton } from "@/components/app/delete-test-file-button";
 import { BriitelyTestTriggerButton } from "@/components/app/briitely-test-trigger-button";
+import { TravelInterestsTestPanel } from "@/components/app/travel-interests-test-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -348,6 +349,8 @@ export default async function TravelFilePage({
             </div>
           </CardContent>
         </Card>
+
+        {isAdmin && <TravelInterestsTestPanel travelFileId={file.id} />}
 
         {/* Booking References */}
         <Card>
