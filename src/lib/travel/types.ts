@@ -97,9 +97,11 @@ export interface TravelFile {
   return_date: string | null;
   budget_range: string | null;
   tmf_amount: number | null;
+  tmf_agreement_type: string | null;
   ivt_custom: boolean | null;
   proposal_due_date: string | null;
   revisions_allowed: number | null;
+  revisions_included: number | null;
   revisions_used: number;
   date_booked: string | null;
   total_booking_value: number | null;

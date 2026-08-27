@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { EditTravelFileModal, type TravelFileData } from "@/components/app/edit-travel-file-modal";
 import { DeleteTravelFileDialog } from "@/components/app/delete-travel-file-dialog";
+import { CompleteConsultationModal } from "@/components/app/complete-consultation-modal";
 
 interface TravelFileActionsProps {
   travelFileId: string;
@@ -50,11 +51,18 @@ interface TravelFileActionsProps {
   bookingRegistrationDoneAt: string | null;
   canEdit: boolean;
   canDelete: boolean;
+  currentActionCode: string | null;
+  currentActionStatus: string | null;
 }
 
 export function TravelFileActions(props: TravelFileActionsProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
+
+  const showConsultButton =
+    props.currentActionCode === "complete_initial_consultation" &&
+    props.currentActionStatus !== "completed";
 
   const travelFileData: TravelFileData = {
     id: props.travelFileId,
@@ -100,6 +108,12 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   return (
     <>
       <div className="flex items-center gap-2">
+        {showConsultButton && props.canEdit && (
+          <Button variant="default" size="sm" onClick={() => setConsultOpen(true)}>
+            <ClipboardCheck className="h-4 w-4" />
+            Complete Initial Consultation
+          </Button>
+        )}
         {props.canEdit && (
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="h-4 w-4" />
@@ -120,6 +134,25 @@ export function TravelFileActions(props: TravelFileActionsProps) {
           travelFile={travelFileData}
           isOpen={editOpen}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {showConsultButton && props.canEdit && consultOpen && (
+        <CompleteConsultationModal
+          key={`consult-${props.travelFileId}-${consultOpen}`}
+          travelFileId={props.travelFileId}
+          clientName={props.clientName}
+          destination={props.destination}
+          tripType={props.tripType}
+          departureDate={props.departureDate}
+          returnDate={props.returnDate}
+          budgetRange={props.budgetRange}
+          numberOfTravellers={props.numberOfAdults != null && props.numberOfChildren != null
+            ? props.numberOfAdults + props.numberOfChildren
+            : null}
+          assignedAdvisorId={props.assignedAdvisorId}
+          isOpen={consultOpen}
+          onClose={() => setConsultOpen(false)}
         />
       )}
 

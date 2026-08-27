@@ -265,6 +265,8 @@ export default async function TravelFilePage({
                 bookingRegistrationDoneAt={file.booking_registration_done_at}
                 canEdit={user.isActive}
                 canDelete={isAdmin}
+                currentActionCode={currentAction?.action_code ?? null}
+                currentActionStatus={currentAction?.status ?? null}
               />
             </div>
           </CardContent>
@@ -314,6 +316,35 @@ export default async function TravelFilePage({
             )}
           </CardContent>
         </Card>
+
+        {/* Consultation / TMF Details */}
+        {file.tmf_agreement_type && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Consultation / TMF Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <InfoRow label="Client Fit" value="Yes" />
+                <InfoRow
+                  label="Agreement Type"
+                  value={file.tmf_agreement_type === "ivt" ? "IVT" : "All-Inclusive"}
+                />
+                <InfoRow label="TMF Amount" value={formatCurrency(file.tmf_amount)} />
+                <InfoRow
+                  label="Assigned Advisor"
+                  value={file.assigned_advisor?.full_name ?? "Unassigned"}
+                />
+                {file.tmf_agreement_type === "ivt" && (
+                  <InfoRow
+                    label="Revisions Included"
+                    value={file.revisions_included != null ? String(file.revisions_included) : "—"}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview */}
         <Card>

@@ -46,6 +46,9 @@ export const clientConfig = {
   defaultInvoiceSenderUserId: "",
   defaultInvoiceSenderEmail: "",
   defaultConsultationOwnerId: "",
+  defaultTmfOwnerProfileId: "",
+  tmfTemplateIdAllInclusive: "",
+  tmfTemplateIdIvt: "",
   invoiceGoLiveDate: "",
   taxConfig: clientTaxConfig,
   features: {
