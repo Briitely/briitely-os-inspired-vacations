@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
-import { DeleteTestFileButton } from "@/components/app/delete-test-file-button";
+import { TravelFileActions } from "@/components/app/travel-file-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -175,7 +175,6 @@ export default async function TravelFilePage({
   });
 
   const isAdmin = user.role === "admin" || user.role === "super_admin";
-  const isTestFile = file.briitely_contact_id === "test-contact";
 
   const currentAction = file.current_action;
   const currentDueText = currentAction
@@ -223,11 +222,34 @@ export default async function TravelFilePage({
               />
               <InfoRow label="Phase" value={<span className="capitalize">{file.phase}</span>} />
             </div>
-            {isTestFile && isAdmin && (
-              <div className="mt-5 flex justify-end border-t border-border pt-4">
-                <DeleteTestFileButton travelFileId={file.id} />
-              </div>
-            )}
+            <div className="mt-5 flex justify-end border-t border-border pt-4">
+              <TravelFileActions
+                travelFileId={file.id}
+                clientName={file.client_name}
+                destination={file.destination}
+                tripType={file.trip_type}
+                travelTimeframe={file.travel_timeframe}
+                departureDate={file.departure_date}
+                returnDate={file.return_date}
+                numberOfAdults={file.number_of_adults}
+                numberOfChildren={file.number_of_children}
+                childrenAges={file.children_ages}
+                budgetRange={file.budget_range}
+                insuranceInterest={file.insurance_interest === "yes"}
+                specialConsiderations={file.special_requests}
+                travelInterests={file.travel_interests ?? []}
+                travelSeasons={file.travel_seasons ?? []}
+                inquirySource={file.inquiry_source}
+                intakeMethod={file.intake_method}
+                referralDetail={file.referral_detail}
+                eventDetail={file.event_detail}
+                staffNotes={file.staff_notes}
+                assignedAdvisorId={file.assigned_advisor_id}
+                updatedAt={file.updated_at}
+                canEdit={user.isActive}
+                canDelete={isAdmin}
+              />
+            </div>
           </CardContent>
         </Card>
 
