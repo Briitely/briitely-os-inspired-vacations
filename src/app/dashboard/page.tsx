@@ -102,6 +102,13 @@ export default async function DashboardPage() {
             href="/customers"
             enabled
           />
+          <WorkflowCard
+            icon={<MapPinned className="h-7 w-7" />}
+            title="New Inquiry"
+            description="Enter a new travel inquiry from a phone call, email, referral, or walk-in."
+            href="/intake/new"
+            enabled
+          />
           {(isAdmin) && (
             <WorkflowCard
               icon={<ShieldCheck className="h-7 w-7" />}

@@ -123,6 +123,12 @@ export interface TravelFile {
   children_ages: string | null;
   travel_timeframe: string | null;
   insurance_interest: string | null;
+  intake_method: string | null;
+  travel_interests: string[] | null;
+  travel_seasons: string[] | null;
+  referral_detail: string | null;
+  event_detail: string | null;
+  staff_notes: string | null;
   lost_reason: string | null;
   closed_at: string | null;
   briitely_sync_status: BriitelySyncStatus;
