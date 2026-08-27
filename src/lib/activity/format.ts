@@ -1,4 +1,5 @@
 import type { ActivityEvent, FormattedActivity, ActivityLink } from "./types";
+import { clientConfig } from "@/config/client.config";
 
 function safeString(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -23,12 +24,13 @@ function formatCurrency(amount: number): string {
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: clientConfig.businessTimezone,
   });
 }
 

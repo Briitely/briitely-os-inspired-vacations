@@ -1,3 +1,5 @@
+import { clientConfig } from "@/config/client.config";
+
 /**
  * Parse a PostgreSQL DATE column (YYYY-MM-DD) into a local Date at midnight.
  * Unlike new Date("2026-12-21"), which JavaScript interprets as UTC midnight,
@@ -76,6 +78,7 @@ export function formatReadableDate(value: string | null): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: clientConfig.businessTimezone,
   });
 }
 
@@ -87,6 +90,7 @@ export function formatReadableDateTime(value: string | null): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: clientConfig.businessTimezone,
   });
 }
 

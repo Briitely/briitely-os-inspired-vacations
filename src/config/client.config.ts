@@ -43,6 +43,7 @@ export const clientConfig = {
   users: {
     fallbackUsers: [] as Array<{ id: string; label: string }>,
   },
+  businessTimezone: "America/Denver",
   defaultInvoiceSenderUserId: "",
   defaultInvoiceSenderEmail: "",
   defaultConsultationOwnerId: "",
