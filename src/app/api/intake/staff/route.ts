@@ -34,7 +34,6 @@ export async function POST(req: Request) {
     referralSource: String(body.referralSource ?? ""),
     referralDetail: body.referralDetail ? String(body.referralDetail) : null,
     eventDetail: body.eventDetail ? String(body.eventDetail) : null,
-    insuranceInterest: Boolean(body.insuranceInterest),
     specialConsiderations: body.specialConsiderations ? String(body.specialConsiderations) : null,
     consent: Boolean(body.consent ?? true),
     intakeSource: "staff",

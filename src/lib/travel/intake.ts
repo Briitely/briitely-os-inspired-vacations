@@ -43,7 +43,6 @@ export interface IntakeInput {
   eventDetail: string | null;
 
   // Other
-  insuranceInterest: boolean;
   specialConsiderations: string | null;
   consent: boolean;
 
@@ -103,6 +102,12 @@ export function validateIntake(input: IntakeInput): ValidationResult {
 
   if (input.numberOfChildren !== null && input.numberOfChildren < 0) {
     errors.push("Number of children cannot be negative.");
+  }
+
+  if (input.numberOfChildren !== null && input.numberOfChildren > 0) {
+    if (!input.childrenAges || !input.childrenAges.trim()) {
+      errors.push("Ages of children is required when number of children is greater than zero.");
+    }
   }
 
   return { valid: errors.length === 0, errors };
@@ -189,7 +194,7 @@ export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
       travel_seasons: input.travelSeasons.length > 0 ? input.travelSeasons : null,
       referral_detail: input.referralDetail,
       event_detail: input.eventDetail,
-      insurance_interest: input.insuranceInterest ? "yes" : "no",
+      insurance_interest: "no",
       special_requests: input.specialConsiderations,
       staff_notes: input.staffNotes,
       briitely_sync_status: briitelySyncPending ? "pending" : "synced",

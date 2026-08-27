@@ -52,7 +52,6 @@ export function StaffIntakeForm() {
   const [referralSource, setReferralSource] = useState("");
   const [referralDetail, setReferralDetail] = useState("");
   const [eventDetail, setEventDetail] = useState("");
-  const [insuranceInterest, setInsuranceInterest] = useState(false);
   const [specialConsiderations, setSpecialConsiderations] = useState("");
   const [intakeMethod, setIntakeMethod] = useState("phone");
   const [staffNotes, setStaffNotes] = useState("");
@@ -125,7 +124,6 @@ export function StaffIntakeForm() {
           referralSource,
           referralDetail: referralSource === "Referral" ? referralDetail : null,
           eventDetail: referralSource === "Event" ? eventDetail : null,
-          insuranceInterest,
           specialConsiderations: specialConsiderations || null,
           intakeMethod,
           staffNotes: staffNotes || null,
@@ -282,13 +280,16 @@ export function StaffIntakeForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="numberOfChildren">Children</Label>
-                  <Input id="numberOfChildren" type="number" min="0" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} />
+                  <Input id="numberOfChildren" type="number" min="0" value={numberOfChildren} onChange={(e) => {
+                setNumberOfChildren(e.target.value);
+                if (!e.target.value || parseInt(e.target.value, 10) === 0) setChildrenAges("");
+              }} />
                 </div>
               </div>
               {numberOfChildren && parseInt(numberOfChildren, 10) > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="childrenAges">Ages of Children</Label>
-                  <Input id="childrenAges" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} />
+                  <Label htmlFor="childrenAges">Ages of Children *</Label>
+                  <Input id="childrenAges" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} required />
                 </div>
               )}
             </CardContent>
@@ -351,10 +352,6 @@ export function StaffIntakeForm() {
           <Card>
             <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                <span className="text-sm text-foreground">Interested in travel insurance</span>
-              </label>
               <div className="space-y-2">
                 <Label htmlFor="specialConsiderations">Special Considerations</Label>
                 <textarea id="specialConsiderations" value={specialConsiderations} onChange={(e) => setSpecialConsiderations(e.target.value)} rows={3} className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

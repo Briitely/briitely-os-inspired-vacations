@@ -35,7 +35,6 @@ export function PublicIntakeForm({ businessName }: { businessName: string }) {
   const [referralSource, setReferralSource] = useState("");
   const [referralDetail, setReferralDetail] = useState("");
   const [eventDetail, setEventDetail] = useState("");
-  const [insuranceInterest, setInsuranceInterest] = useState(false);
   const [specialConsiderations, setSpecialConsiderations] = useState("");
   const [consent, setConsent] = useState(false);
 
@@ -61,7 +60,6 @@ export function PublicIntakeForm({ businessName }: { businessName: string }) {
           referralSource,
           referralDetail: referralSource === "Referral" ? referralDetail : null,
           eventDetail: referralSource === "Event" ? eventDetail : null,
-          insuranceInterest,
           specialConsiderations: specialConsiderations || null,
           consent,
         }),
@@ -169,13 +167,16 @@ export function PublicIntakeForm({ businessName }: { businessName: string }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="numberOfChildren">How many children in your party?</Label>
-              <Input id="numberOfChildren" type="number" min="0" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} />
+              <Input id="numberOfChildren" type="number" min="0" value={numberOfChildren} onChange={(e) => {
+                setNumberOfChildren(e.target.value);
+                if (!e.target.value || parseInt(e.target.value, 10) === 0) setChildrenAges("");
+              }} />
             </div>
           </div>
           {numberOfChildren && parseInt(numberOfChildren, 10) > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="childrenAges">Ages of Children</Label>
-              <Input id="childrenAges" placeholder="e.g. 5, 8, 12" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} />
+              <Label htmlFor="childrenAges">Ages of Children *</Label>
+              <Input id="childrenAges" placeholder="e.g. 5, 8, 12" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} required />
             </div>
           )}
         </CardContent>
@@ -253,15 +254,6 @@ export function PublicIntakeForm({ businessName }: { businessName: string }) {
       <Card>
         <CardHeader><CardTitle>Additional Information</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={insuranceInterest}
-              onChange={(e) => setInsuranceInterest(e.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            <span className="text-sm text-foreground">I&apos;m interested in travel insurance</span>
-          </label>
           <div className="space-y-2">
             <Label htmlFor="specialConsiderations">Special Considerations</Label>
             <textarea

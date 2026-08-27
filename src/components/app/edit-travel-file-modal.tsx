@@ -365,7 +365,10 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-children">Children</Label>
-                  <Input id="edit-children" type="number" min="0" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} />
+                  <Input id="edit-children" type="number" min="0" value={numberOfChildren} onChange={(e) => {
+                    setNumberOfChildren(e.target.value);
+                    if (!e.target.value || parseInt(e.target.value, 10) === 0) setChildrenAges("");
+                  }} />
                 </div>
               </div>
               <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
@@ -373,14 +376,10 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
               </div>
               {childCount > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-childrenAges">Ages of Children</Label>
-                  <Input id="edit-childrenAges" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} />
+                  <Label htmlFor="edit-childrenAges">Ages of Children *</Label>
+                  <Input id="edit-childrenAges" value={childrenAges} onChange={(e) => setChildrenAges(e.target.value)} required />
                 </div>
               )}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                <span className="text-sm text-foreground">Interested in travel insurance</span>
-              </label>
               <div className="space-y-2">
                 <Label htmlFor="edit-specialConsiderations">Special Considerations</Label>
                 <textarea id="edit-specialConsiderations" value={specialConsiderations} onChange={(e) => setSpecialConsiderations(e.target.value)} rows={3} className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -520,6 +519,10 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           <Card>
             <CardHeader><CardTitle className="text-base">Insurance / Pre-Trip</CardTitle></CardHeader>
             <CardContent className="space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                <span className="text-sm text-foreground">Interested in travel insurance</span>
+              </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="edit-insuranceStatus">Insurance Status</Label>
