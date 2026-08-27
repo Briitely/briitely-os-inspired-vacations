@@ -68,7 +68,31 @@ export async function POST(
     } | null;
   };
 
-  const currentAction = file.current_action;
+  let currentAction = file.current_action;
+
+  // Fallback: if the current_action join returned null but the stage is
+  // consult_booked, look up the active complete_initial_consultation action
+  // directly. This handles files where current_action_id is null or the
+  // PostgREST join didn't resolve.
+  if (!currentAction && file.stage === "consult_booked") {
+    const { data: fallbackAction } = await supabase
+      .from("travel_actions")
+      .select("id, action_code, title, status")
+      .eq("travel_file_id", travelFileId)
+      .eq("action_code", "complete_initial_consultation")
+      .neq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackAction) {
+      currentAction = fallbackAction as {
+        id: string;
+        action_code: string;
+        status: string;
+      };
+    }
+  }
 
   if (!currentAction || currentAction.action_code !== "complete_initial_consultation") {
     return NextResponse.json(

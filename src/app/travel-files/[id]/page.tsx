@@ -265,6 +265,7 @@ export default async function TravelFilePage({
                 bookingRegistrationDoneAt={file.booking_registration_done_at}
                 canEdit={user.isActive}
                 canDelete={isAdmin}
+                stage={file.stage}
                 currentActionCode={currentAction?.action_code ?? null}
                 currentActionStatus={currentAction?.status ?? null}
               />

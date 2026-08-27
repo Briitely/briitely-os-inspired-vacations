@@ -51,6 +51,7 @@ interface TravelFileActionsProps {
   bookingRegistrationDoneAt: string | null;
   canEdit: boolean;
   canDelete: boolean;
+  stage: string;
   currentActionCode: string | null;
   currentActionStatus: string | null;
 }
@@ -61,8 +62,12 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   const [consultOpen, setConsultOpen] = useState(false);
 
   const showConsultButton =
-    props.currentActionCode === "complete_initial_consultation" &&
-    props.currentActionStatus !== "completed";
+    props.stage === "consult_booked" &&
+    props.currentActionStatus !== "completed" &&
+    (
+      props.currentActionCode === "complete_initial_consultation" ||
+      props.currentActionCode == null
+    );
 
   const travelFileData: TravelFileData = {
     id: props.travelFileId,
