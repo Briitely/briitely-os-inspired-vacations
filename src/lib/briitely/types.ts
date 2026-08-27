@@ -96,6 +96,7 @@ interface HighLevelContact {
     phone?: string;
   };
   address?: HighLevelContactAddress;
+  tags?: string[];
 }
 
 interface HighLevelSearchResponse {

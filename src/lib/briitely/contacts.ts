@@ -298,6 +298,44 @@ export async function getContact(contactId: string): Promise<BriitelyCustomer> {
   return mapHighLevelContact(contact);
 }
 
+export async function addContactTag(contactId: string, tag: string): Promise<{
+  succeeded: boolean;
+  httpStatus: number | null;
+  alreadyPresent: boolean;
+  errorStage: string | null;
+}> {
+  try {
+    const getResponse = await briitelyRequest<{ contact?: HighLevelContact }>({
+      method: "GET",
+      path: `/contacts/${encodeURIComponent(contactId)}`,
+    });
+
+    const existingTags: string[] = getResponse.contact?.tags ?? [];
+    if (existingTags.includes(tag)) {
+      return { succeeded: true, httpStatus: 200, alreadyPresent: true, errorStage: null };
+    }
+
+    const addResponse = await briitelyRequest<{ contact?: HighLevelContact }>({
+      method: "PUT",
+      path: `/contacts/${encodeURIComponent(contactId)}`,
+      body: { tags: [...existingTags, tag] },
+    });
+
+    const updatedTags: string[] = addResponse.contact?.tags ?? [];
+    return {
+      succeeded: updatedTags.includes(tag),
+      httpStatus: 200,
+      alreadyPresent: false,
+      errorStage: updatedTags.includes(tag) ? null : "tag_not_confirmed",
+    };
+  } catch (err) {
+    const status = typeof (err as { status?: number })?.status === "number"
+      ? (err as { status: number }).status
+      : null;
+    return { succeeded: false, httpStatus: status, alreadyPresent: false, errorStage: "api_error" };
+  }
+}
+
 export async function findContactByEmailOrPhone(
   email?: string,
   phone?: string

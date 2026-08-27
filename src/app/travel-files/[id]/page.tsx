@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { DeleteTestFileButton } from "@/components/app/delete-test-file-button";
+import { BriitelyTestTriggerButton } from "@/components/app/briitely-test-trigger-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -226,6 +227,11 @@ export default async function TravelFilePage({
             {isTestFile && isAdmin && (
               <div className="mt-5 flex justify-end border-t border-border pt-4">
                 <DeleteTestFileButton travelFileId={file.id} />
+              </div>
+            )}
+            {isAdmin && (
+              <div className="mt-5 flex justify-end border-t border-border pt-4">
+                <BriitelyTestTriggerButton travelFileId={file.id} />
               </div>
             )}
           </CardContent>
