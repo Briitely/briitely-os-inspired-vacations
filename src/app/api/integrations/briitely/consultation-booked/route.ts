@@ -333,10 +333,16 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!responsibleUserId && clientConfig.defaultConsultationOwnerId) {
-    responsibleUserId = clientConfig.defaultConsultationOwnerId;
-    userMappingSource = "default_config";
-    log("user_mapping_fallback_default", {});
+  if (!responsibleUserId) {
+    const fallbackId =
+      process.env.DEFAULT_CONSULTATION_OWNER_PROFILE_ID ||
+      clientConfig.defaultConsultationOwnerId ||
+      null;
+    if (fallbackId) {
+      responsibleUserId = fallbackId;
+      userMappingSource = "default_config";
+      log("user_mapping_fallback_default", {});
+    }
   }
 
   if (!responsibleUserId) {

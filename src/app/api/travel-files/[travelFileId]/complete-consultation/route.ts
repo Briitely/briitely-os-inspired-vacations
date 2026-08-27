@@ -5,10 +5,23 @@ import { clientConfig } from "@/config/client.config";
 
 interface CompleteConsultationBody {
   isFit: "yes" | "no";
+  // Trip detail edits
+  destination?: string | null;
+  tripType?: string | null;
+  travelTimeframe?: string | null;
+  departureDate?: string | null;
+  returnDate?: string | null;
+  numberOfAdults?: number;
+  numberOfChildren?: number;
+  childrenAges?: string | null;
+  budgetRange?: string | null;
+  specialConsiderations?: string | null;
+  // Fit path
   agreementType?: "ivt" | "all_inclusive";
   tmfAmount?: number;
   assignedAdvisorId?: string;
   revisionsIncluded?: number;
+  // Not-fit path
   notFitReason?: string;
 }
 
@@ -101,16 +114,39 @@ export async function POST(
     );
   }
 
+  // Duplicate prevention: if already completed, return already_processed
   if (currentAction.status === "completed") {
-    return NextResponse.json(
-      { error: "Consultation has already been completed for this Travel File." },
-      { status: 409 }
-    );
+    return NextResponse.json({
+      success: true,
+      result: "already_processed",
+      message: "Consultation has already been completed for this Travel File.",
+    });
   }
 
-  const now = new Date().toISOString();
+  // ── Validate trip detail edits ──────────────────────────────
+  const adultCount = body.numberOfAdults ?? 0;
+  const childCount = body.numberOfChildren ?? 0;
+  const travellerTotal = adultCount + childCount;
 
-  // ── Not-a-fit path ──────────────────────────────────────────
+  if (adultCount < 1) {
+    return NextResponse.json({ error: "Number of adults must be at least 1." }, { status: 400 });
+  }
+
+  if (body.departureDate && body.returnDate) {
+    const dep = new Date(body.departureDate + "T00:00:00");
+    const ret = new Date(body.returnDate + "T00:00:00");
+    if (ret < dep) {
+      return NextResponse.json({ error: "Return date cannot be before departure date." }, { status: 400 });
+    }
+  }
+
+  if (childCount > 0 && !body.childrenAges?.trim()) {
+    return NextResponse.json({ error: "Ages of Children is required when there are children." }, { status: 400 });
+  }
+
+  const cleanChildrenAges = childCount > 0 ? (body.childrenAges ?? null) : null;
+
+  // ── Validate fit decision fields ────────────────────────────
   if (body.isFit === "no") {
     if (!body.notFitReason?.trim()) {
       return NextResponse.json(
@@ -118,18 +154,81 @@ export async function POST(
         { status: 400 }
       );
     }
+  }
 
+  let agreementType: "ivt" | "all_inclusive" | null = null;
+  let tmfAmount: number | null = null;
+  let assignedAdvisorId: string | null = null;
+  let revisionsIncluded: number | null = null;
+
+  if (body.isFit === "yes") {
+    if (!body.agreementType || (body.agreementType !== "ivt" && body.agreementType !== "all_inclusive")) {
+      return NextResponse.json(
+        { error: "Agreement / trip category is required (IVT or All-Inclusive)." },
+        { status: 400 }
+      );
+    }
+    agreementType = body.agreementType;
+
+    tmfAmount = body.tmfAmount ?? null;
+    if (tmfAmount == null || isNaN(tmfAmount) || tmfAmount < 0) {
+      return NextResponse.json(
+        { error: "TMF Amount is required and must be a valid non-negative number." },
+        { status: 400 }
+      );
+    }
+
+    if (!body.assignedAdvisorId) {
+      return NextResponse.json({ error: "Assigned Advisor is required." }, { status: 400 });
+    }
+    assignedAdvisorId = body.assignedAdvisorId;
+
+    if (agreementType === "ivt") {
+      if (
+        body.revisionsIncluded == null ||
+        !Number.isInteger(body.revisionsIncluded) ||
+        body.revisionsIncluded < 0
+      ) {
+        return NextResponse.json(
+          { error: "Number of Revisions Included is required for IVT agreements and must be a non-negative integer." },
+          { status: 400 }
+        );
+      }
+      revisionsIncluded = body.revisionsIncluded;
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  // ── Build the travel file update (trip details) ──────────────
+  const fileUpdate: Record<string, unknown> = {
+    destination: body.destination ?? null,
+    trip_type: body.tripType ?? null,
+    travel_timeframe: body.travelTimeframe ?? null,
+    departure_date: body.departureDate ?? null,
+    return_date: body.returnDate ?? null,
+    number_of_adults: adultCount,
+    number_of_children: childCount,
+    children_ages: cleanChildrenAges,
+    number_of_travellers: travellerTotal,
+    budget_range: body.budgetRange ?? null,
+    special_requests: body.specialConsiderations ?? null,
+  };
+
+  // ── Not-a-fit path ──────────────────────────────────────────
+  if (body.isFit === "no") {
+    // Save consultation record
     const { error: consultError } = await supabase.from("travel_consultations").insert({
       travel_file_id: travelFileId,
       conducted_by: user.id,
       outcome: "not_fit",
-      discussion_summary: body.notFitReason.trim(),
-      destination: file.destination,
-      trip_type: file.trip_type,
-      number_of_travellers: file.number_of_travellers,
-      departure_date: file.departure_date,
-      return_date: file.return_date,
-      budget_range: file.budget_range,
+      discussion_summary: body.notFitReason!.trim(),
+      destination: body.destination ?? null,
+      trip_type: body.tripType ?? null,
+      number_of_travellers: travellerTotal,
+      departure_date: body.departureDate ?? null,
+      return_date: body.returnDate ?? null,
+      budget_range: body.budgetRange ?? null,
     });
 
     if (consultError) {
@@ -139,6 +238,7 @@ export async function POST(
       return NextResponse.json({ error: "Failed to save consultation record." }, { status: 500 });
     }
 
+    // Complete Tracy's action
     const { error: actionError } = await supabase
       .from("travel_actions")
       .update({
@@ -156,16 +256,17 @@ export async function POST(
       return NextResponse.json({ error: "Failed to complete consultation action." }, { status: 500 });
     }
 
+    // Update the Travel File: save trip edits + close file
+    fileUpdate.stage = "lost_not_qualified";
+    fileUpdate.file_status = "closed";
+    fileUpdate.closed_at = now;
+    fileUpdate.lost_reason = body.notFitReason!.trim();
+    fileUpdate.current_action_id = null;
+    fileUpdate.stage_changed_at = now;
+
     const { error: fileUpdateError } = await supabase
       .from("travel_files")
-      .update({
-        stage: "lost_not_qualified",
-        file_status: "closed",
-        closed_at: now,
-        lost_reason: body.notFitReason.trim(),
-        current_action_id: null,
-        stage_changed_at: now,
-      })
+      .update(fileUpdate)
       .eq("id", travelFileId);
 
     if (fileUpdateError) {
@@ -175,6 +276,7 @@ export async function POST(
       return NextResponse.json({ error: "Failed to update Travel File." }, { status: 500 });
     }
 
+    // Activity
     await supabase.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "consultation_completed",
@@ -194,44 +296,8 @@ export async function POST(
   }
 
   // ── Fit / Proceed path ──────────────────────────────────────
-  if (!body.agreementType || (body.agreementType !== "ivt" && body.agreementType !== "all_inclusive")) {
-    return NextResponse.json(
-      { error: "Agreement / trip category is required (IVT or All-Inclusive)." },
-      { status: 400 }
-    );
-  }
 
-  const tmfAmount = body.tmfAmount;
-  if (tmfAmount == null || isNaN(tmfAmount) || tmfAmount < 0) {
-    return NextResponse.json(
-      { error: "TMF Amount is required and must be a valid non-negative number." },
-      { status: 400 }
-    );
-  }
-
-  if (!body.assignedAdvisorId) {
-    return NextResponse.json(
-      { error: "Assigned Advisor is required." },
-      { status: 400 }
-    );
-  }
-
-  let revisionsIncluded: number | null = null;
-  if (body.agreementType === "ivt") {
-    if (
-      body.revisionsIncluded == null ||
-      !Number.isInteger(body.revisionsIncluded) ||
-      body.revisionsIncluded < 0
-    ) {
-      return NextResponse.json(
-        { error: "Number of Revisions Included is required for IVT agreements and must be a non-negative integer." },
-        { status: 400 }
-      );
-    }
-    revisionsIncluded = body.revisionsIncluded;
-  }
-
-  // Resolve Dana's profile ID from env or config — never hardcoded
+  // Resolve Dana's profile ID from env or config
   const tmfOwnerId =
     process.env.DEFAULT_TMF_OWNER_PROFILE_ID ||
     clientConfig.defaultTmfOwnerProfileId ||
@@ -272,15 +338,15 @@ export async function POST(
     travel_file_id: travelFileId,
     conducted_by: user.id,
     outcome: "proceed",
-    destination: file.destination,
-    trip_type: file.trip_type,
-    number_of_travellers: file.number_of_travellers,
-    departure_date: file.departure_date,
-    return_date: file.return_date,
-    budget_range: file.budget_range,
+    destination: body.destination ?? null,
+    trip_type: body.tripType ?? null,
+    number_of_travellers: travellerTotal,
+    departure_date: body.departureDate ?? null,
+    return_date: body.returnDate ?? null,
+    budget_range: body.budgetRange ?? null,
     tmf_amount: tmfAmount,
-    ivt_custom: body.agreementType === "ivt",
-    assigned_advisor_id: body.assignedAdvisorId,
+    ivt_custom: agreementType === "ivt",
+    assigned_advisor_id: assignedAdvisorId,
     revisions_allowed: revisionsIncluded,
   });
 
@@ -288,6 +354,8 @@ export async function POST(
     console.error("COMPLETE_CONSULTATION", {
       travelFileId, userId: user.id, errorStage: "consult_insert_proceed", errorMessage: consultError.message,
     });
+    // Rollback: delete the Dana action
+    await supabase.from("travel_actions").delete().eq("id", newAction.id);
     return NextResponse.json({ error: "Failed to save consultation record." }, { status: 500 });
   }
 
@@ -306,37 +374,43 @@ export async function POST(
     console.error("COMPLETE_CONSULTATION", {
       travelFileId, userId: user.id, errorStage: "complete_tracy_action", errorMessage: actionCompleteError.message,
     });
+    // Rollback: delete the Dana action
+    await supabase.from("travel_actions").delete().eq("id", newAction.id);
     return NextResponse.json({ error: "Failed to complete consultation action." }, { status: 500 });
   }
 
-  // Update the Travel File
+  // Update the Travel File: trip details + TMF fields + stage + advisor
+  fileUpdate.stage = "consultation_complete";
+  fileUpdate.stage_changed_at = now;
+  fileUpdate.assigned_advisor_id = assignedAdvisorId;
+  fileUpdate.tmf_amount = tmfAmount;
+  fileUpdate.tmf_agreement_type = agreementType;
+  fileUpdate.revisions_included = revisionsIncluded;
+  fileUpdate.revisions_allowed = revisionsIncluded;
+  fileUpdate.ivt_custom = agreementType === "ivt";
+  fileUpdate.current_action_id = newAction.id;
+
   const { error: fileUpdateError } = await supabase
     .from("travel_files")
-    .update({
-      stage: "consultation_complete",
-      stage_changed_at: now,
-      assigned_advisor_id: body.assignedAdvisorId,
-      tmf_amount: tmfAmount,
-      tmf_agreement_type: body.agreementType,
-      revisions_included: revisionsIncluded,
-      revisions_allowed: revisionsIncluded,
-      ivt_custom: body.agreementType === "ivt",
-      current_action_id: newAction.id,
-    })
+    .update(fileUpdate)
     .eq("id", travelFileId);
 
   if (fileUpdateError) {
     console.error("COMPLETE_CONSULTATION", {
       travelFileId, userId: user.id, errorStage: "file_update_proceed", errorMessage: fileUpdateError.message,
     });
+    // Rollback: delete the Dana action, reopen Tracy's action
+    await supabase.from("travel_actions").delete().eq("id", newAction.id);
+    await supabase.from("travel_actions").update({
+      status: "active",
+      completed_at: null,
+      completed_by: null,
+      completion_source: null,
+    }).eq("id", currentAction.id);
     return NextResponse.json({ error: "Failed to update Travel File." }, { status: 500 });
   }
 
-  // Activity entries
-  const tmfActivitySummary = tmfOwnerId
-    ? "TMF Agreement assigned."
-    : "TMF Agreement action created (unassigned).";
-
+  // Activity entries — concise, not per-field
   await supabase.from("travel_activity").insert([
     {
       travel_file_id: travelFileId,
@@ -351,7 +425,7 @@ export async function POST(
     {
       travel_file_id: travelFileId,
       event_type: "tmf_agreement_assigned",
-      summary: tmfActivitySummary,
+      summary: tmfOwnerId ? "TMF Agreement assigned to Dana." : "TMF Agreement action created (unassigned).",
       actor_type: "internal",
       actor_user_id: user.id,
       action_id: newAction.id,
@@ -360,8 +434,8 @@ export async function POST(
 
   console.info("COMPLETE_CONSULTATION", {
     travelFileId, userId: user.id, outcome: "proceed",
-    agreementType: body.agreementType, tmfAmount,
-    assignedAdvisorId: body.assignedAdvisorId,
+    agreementType, tmfAmount,
+    assignedAdvisorId,
     revisionsIncluded, tmfOwnerId: tmfOwnerId ?? "unassigned",
     succeeded: true,
   });

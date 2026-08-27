@@ -149,12 +149,14 @@ export function TravelFileActions(props: TravelFileActionsProps) {
           clientName={props.clientName}
           destination={props.destination}
           tripType={props.tripType}
+          travelTimeframe={props.travelTimeframe}
           departureDate={props.departureDate}
           returnDate={props.returnDate}
+          numberOfAdults={props.numberOfAdults}
+          numberOfChildren={props.numberOfChildren}
+          childrenAges={props.childrenAges}
           budgetRange={props.budgetRange}
-          numberOfTravellers={props.numberOfAdults != null && props.numberOfChildren != null
-            ? props.numberOfAdults + props.numberOfChildren
-            : null}
+          specialConsiderations={props.specialConsiderations}
           assignedAdvisorId={props.assignedAdvisorId}
           isOpen={consultOpen}
           onClose={() => setConsultOpen(false)}

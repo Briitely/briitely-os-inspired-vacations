@@ -7,7 +7,10 @@ import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
-import { formatDateOnly } from "@/lib/travel/format";
+import {
+  tripTypeOptions,
+  budgetRangeOptions,
+} from "@/lib/travel/tag-mappings";
 
 interface Advisor {
   id: string;
@@ -19,10 +22,14 @@ interface CompleteConsultationModalProps {
   clientName: string;
   destination: string | null;
   tripType: string | null;
+  travelTimeframe: string | null;
   departureDate: string | null;
   returnDate: string | null;
+  numberOfAdults: number | null;
+  numberOfChildren: number | null;
+  childrenAges: string | null;
   budgetRange: string | null;
-  numberOfTravellers: number | null;
+  specialConsiderations: string | null;
   assignedAdvisorId: string | null;
   isOpen: boolean;
   onClose: () => void;
@@ -31,13 +38,17 @@ interface CompleteConsultationModalProps {
 export function CompleteConsultationModal({
   travelFileId,
   clientName,
-  destination,
-  tripType,
-  departureDate,
-  returnDate,
-  budgetRange,
-  numberOfTravellers,
-  assignedAdvisorId,
+  destination: initialDestination,
+  tripType: initialTripType,
+  travelTimeframe: initialTravelTimeframe,
+  departureDate: initialDepartureDate,
+  returnDate: initialReturnDate,
+  numberOfAdults: initialAdults,
+  numberOfChildren: initialChildren,
+  childrenAges: initialChildrenAges,
+  budgetRange: initialBudgetRange,
+  specialConsiderations: initialSpecialConsiderations,
+  assignedAdvisorId: initialAdvisor,
   isOpen,
   onClose,
 }: CompleteConsultationModalProps) {
@@ -46,10 +57,25 @@ export function CompleteConsultationModal({
   const [error, setError] = useState<string | null>(null);
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
 
+  // Editable trip detail fields
+  const [destination, setDestination] = useState(initialDestination ?? "");
+  const [tripType, setTripType] = useState(initialTripType ?? "");
+  const [travelTimeframe, setTravelTimeframe] = useState(initialTravelTimeframe ?? "");
+  const [departureDate, setDepartureDate] = useState(initialDepartureDate ?? "");
+  const [returnDate, setReturnDate] = useState(initialReturnDate ?? "");
+  const [numberOfAdults, setNumberOfAdults] = useState(String(initialAdults ?? 1));
+  const [numberOfChildren, setNumberOfChildren] = useState(
+    initialChildren != null ? String(initialChildren) : "0"
+  );
+  const [childrenAges, setChildrenAges] = useState(initialChildrenAges ?? "");
+  const [budgetRange, setBudgetRange] = useState(initialBudgetRange ?? "");
+  const [specialConsiderations, setSpecialConsiderations] = useState(initialSpecialConsiderations ?? "");
+
+  // Fit decision + TMF fields
   const [isFit, setIsFit] = useState<"yes" | "no" | "">("");
   const [agreementType, setAgreementType] = useState<"ivt" | "all_inclusive" | "">("");
   const [tmfAmount, setTmfAmount] = useState("");
-  const [assignedAdvisor, setAssignedAdvisor] = useState(assignedAdvisorId ?? "");
+  const [assignedAdvisor, setAssignedAdvisor] = useState(initialAdvisor ?? "");
   const [revisionsIncluded, setRevisionsIncluded] = useState("");
   const [notFitReason, setNotFitReason] = useState("");
 
@@ -80,7 +106,23 @@ export function CompleteConsultationModal({
     onClose();
   }
 
+  const adultCount = parseInt(numberOfAdults, 10) || 0;
+  const childCount = parseInt(numberOfChildren, 10) || 0;
+  const travellerTotal = adultCount + childCount;
+
   function validate(): string | null {
+    if (adultCount < 1) return "Number of adults must be at least 1.";
+
+    if (departureDate && returnDate) {
+      const dep = new Date(departureDate + "T00:00:00");
+      const ret = new Date(returnDate + "T00:00:00");
+      if (ret < dep) return "Return date cannot be before departure date.";
+    }
+
+    if (childCount > 0 && !childrenAges.trim()) {
+      return "Ages of Children is required when there are children.";
+    }
+
     if (!isFit) return "Please select whether this client is a fit.";
     if (isFit === "no") {
       if (!notFitReason.trim()) return "Reason / Notes is required when client is not a fit.";
@@ -113,7 +155,21 @@ export function CompleteConsultationModal({
     setError(null);
 
     try {
-      const payload: Record<string, unknown> = { isFit };
+      const payload: Record<string, unknown> = {
+        isFit,
+        // Trip detail edits
+        destination: destination.trim() || null,
+        tripType: tripType || null,
+        travelTimeframe: travelTimeframe.trim() || null,
+        departureDate: departureDate || null,
+        returnDate: returnDate || null,
+        numberOfAdults: adultCount,
+        numberOfChildren: childCount,
+        childrenAges: childCount > 0 ? childrenAges.trim() : null,
+        budgetRange: budgetRange || null,
+        specialConsiderations: specialConsiderations.trim() || null,
+      };
+
       if (isFit === "no") {
         payload.notFitReason = notFitReason.trim();
       } else {
@@ -166,46 +222,156 @@ export function CompleteConsultationModal({
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <CardContent className="space-y-6 overflow-y-auto flex-1 p-6">
-            {/* Context summary */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Inquiry Summary
+            {/* Context: client name only */}
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                Client
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <span className="text-xs text-muted-foreground">Client</span>
-                  <p className="text-sm font-medium text-foreground">{clientName}</p>
+              <p className="text-sm font-medium text-foreground">{clientName}</p>
+            </div>
+
+            {/* Editable Inquiry Summary */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">Review / Update Trip Details</h3>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destination</Label>
+                  <Input
+                    id="destination"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    placeholder="e.g. Hawaii"
+                  />
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Destination</span>
-                  <p className="text-sm font-medium text-foreground">{destination || "—"}</p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tripType">Trip Type</Label>
+                  <select
+                    id="tripType"
+                    value={tripType}
+                    onChange={(e) => setTripType(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select...</option>
+                    {tripTypeOptions.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Trip Type</span>
-                  <p className="text-sm font-medium text-foreground">{tripType || "—"}</p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="travelTimeframe">Travel Timeframe</Label>
+                  <Input
+                    id="travelTimeframe"
+                    value={travelTimeframe}
+                    onChange={(e) => setTravelTimeframe(e.target.value)}
+                    placeholder="e.g. Spring 2027"
+                  />
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Travellers</span>
-                  <p className="text-sm font-medium text-foreground">
-                    {numberOfTravellers != null ? String(numberOfTravellers) : "—"}
-                  </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="budgetRange">Budget Range</Label>
+                  <select
+                    id="budgetRange"
+                    value={budgetRange}
+                    onChange={(e) => setBudgetRange(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select...</option>
+                    {budgetRangeOptions.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Departure</span>
-                  <p className="text-sm font-medium text-foreground">
-                    {departureDate ? formatDateOnly(departureDate) : "—"}
-                  </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="departureDate">Departure Date</Label>
+                  <Input
+                    id="departureDate"
+                    type="date"
+                    value={departureDate}
+                    onChange={(e) => setDepartureDate(e.target.value)}
+                  />
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Return</span>
-                  <p className="text-sm font-medium text-foreground">
-                    {returnDate ? formatDateOnly(returnDate) : "—"}
-                  </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="returnDate">Return Date</Label>
+                  <Input
+                    id="returnDate"
+                    type="date"
+                    value={returnDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                  />
                 </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Budget Range</span>
-                  <p className="text-sm font-medium text-foreground">{budgetRange || "—"}</p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="numberOfAdults">Adults</Label>
+                  <Input
+                    id="numberOfAdults"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={numberOfAdults}
+                    onChange={(e) => setNumberOfAdults(e.target.value)}
+                  />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="numberOfChildren">Children</Label>
+                  <Input
+                    id="numberOfChildren"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={numberOfChildren}
+                    onChange={(e) => {
+                      setNumberOfChildren(e.target.value);
+                      if (parseInt(e.target.value, 10) === 0) {
+                        setChildrenAges("");
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {childCount > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="childrenAges">
+                      Ages of Children <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="childrenAges"
+                      value={childrenAges}
+                      onChange={(e) => setChildrenAges(e.target.value)}
+                      placeholder="e.g. 5, 8, 12"
+                      required
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="travellerTotal">Total Travellers</Label>
+                  <Input
+                    id="travellerTotal"
+                    value={String(travellerTotal)}
+                    readOnly
+                    className="bg-muted/50"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="specialConsiderations">Special Considerations</Label>
+                <textarea
+                  id="specialConsiderations"
+                  value={specialConsiderations}
+                  onChange={(e) => setSpecialConsiderations(e.target.value)}
+                  rows={2}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Any special requests, accessibility needs, etc."
+                />
               </div>
             </div>
 
