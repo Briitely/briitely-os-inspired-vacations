@@ -244,8 +244,25 @@ export default async function TravelFilePage({
                 referralDetail={file.referral_detail}
                 eventDetail={file.event_detail}
                 staffNotes={file.staff_notes}
+                internalNotes={file.internal_notes}
                 assignedAdvisorId={file.assigned_advisor_id}
                 updatedAt={file.updated_at}
+                proposalDueDate={file.proposal_due_date}
+                dateBooked={file.date_booked}
+                totalBookingValue={file.total_booking_value}
+                tmfAmount={file.tmf_amount}
+                ivtCustom={file.ivt_custom}
+                clientbaseResCardId={file.clientbase_res_card_id}
+                primaryBookingNumber={file.primary_booking_number}
+                travefyProposalUrl={file.travefy_proposal_url}
+                travefyTripPlanUrl={file.travefy_trip_plan_url}
+                insuranceStatus={file.insurance_status}
+                insuranceWaiverSigned={file.insurance_waiver_signed}
+                pretripMeetingRequired={file.pretrip_meeting_required}
+                pretripMeetingBookedAt={file.pretrip_meeting_booked_at}
+                pretripCardSentAt={file.pretrip_card_sent_at}
+                bookingRegistrationEligible={file.booking_registration_eligible}
+                bookingRegistrationDoneAt={file.booking_registration_done_at}
                 canEdit={user.isActive}
                 canDelete={isAdmin}
               />

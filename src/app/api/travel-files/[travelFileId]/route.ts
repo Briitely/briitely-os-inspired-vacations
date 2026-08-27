@@ -89,8 +89,37 @@ interface EditRequestBody {
   referralDetail?: string | null;
   eventDetail?: string | null;
   staffNotes?: string | null;
+  internalNotes?: string | null;
   assignedAdvisorId?: string | null;
   updatedAt?: string;
+  // Booking / Planning
+  proposalDueDate?: string | null;
+  dateBooked?: string | null;
+  totalBookingValue?: number | null;
+  tmfAmount?: number | null;
+  ivtCustom?: boolean | null;
+  clientbaseResCardId?: string | null;
+  primaryBookingNumber?: string | null;
+  travefyProposalUrl?: string | null;
+  travefyTripPlanUrl?: string | null;
+  // Insurance / Pre-Trip
+  insuranceStatus?: string;
+  insuranceWaiverSigned?: boolean | null;
+  pretripMeetingRequired?: boolean | null;
+  pretripMeetingBookedAt?: string | null;
+  pretripCardSentAt?: string | null;
+  bookingRegistrationEligible?: boolean;
+  bookingRegistrationDoneAt?: string | null;
+}
+
+function isValidUrl(value: string): boolean {
+  if (!value) return true;
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export async function PATCH(
@@ -129,7 +158,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
   }
 
-  // Stale-edit detection: if client sends updatedAt and it doesn't match, reject
+  // Stale-edit detection
   if (body.updatedAt && body.updatedAt !== existing.updated_at) {
     console.error("TRAVEL_FILE_UPDATE", {
       travelFileId,
@@ -156,6 +185,22 @@ export async function PATCH(
     }
   }
 
+  // ── URL validation ───────────────────────────────────────────
+  if (body.travefyProposalUrl !== undefined && body.travefyProposalUrl && !isValidUrl(body.travefyProposalUrl)) {
+    return NextResponse.json({ error: "Travefy Proposal URL must be a valid http:// or https:// URL." }, { status: 400 });
+  }
+  if (body.travefyTripPlanUrl !== undefined && body.travefyTripPlanUrl && !isValidUrl(body.travefyTripPlanUrl)) {
+    return NextResponse.json({ error: "Travefy Trip Plan URL must be a valid http:// or https:// URL." }, { status: 400 });
+  }
+
+  // ── Numeric validation ───────────────────────────────────────
+  if (body.totalBookingValue !== undefined && body.totalBookingValue !== null && (isNaN(body.totalBookingValue) || body.totalBookingValue < 0)) {
+    return NextResponse.json({ error: "Total Booking Value must be a valid number." }, { status: 400 });
+  }
+  if (body.tmfAmount !== undefined && body.tmfAmount !== null && (isNaN(body.tmfAmount) || body.tmfAmount < 0)) {
+    return NextResponse.json({ error: "TMF Amount must be a valid number." }, { status: 400 });
+  }
+
   // ── Build update object with only changed fields ─────────────
   const updates: Record<string, unknown> = {};
 
@@ -174,12 +219,32 @@ export async function PATCH(
   if (body.referralDetail !== undefined) updates.referral_detail = body.referralDetail?.trim() || null;
   if (body.eventDetail !== undefined) updates.event_detail = body.eventDetail?.trim() || null;
   if (body.staffNotes !== undefined) updates.staff_notes = body.staffNotes?.trim() || null;
+  if (body.internalNotes !== undefined) updates.internal_notes = body.internalNotes?.trim() || null;
   if (body.assignedAdvisorId !== undefined) updates.assigned_advisor_id = body.assignedAdvisorId || null;
   if (body.childrenAges !== undefined) updates.children_ages = body.childrenAges?.trim() || null;
 
+  // Booking / Planning
+  if (body.proposalDueDate !== undefined) updates.proposal_due_date = body.proposalDueDate || null;
+  if (body.dateBooked !== undefined) updates.date_booked = body.dateBooked || null;
+  if (body.totalBookingValue !== undefined) updates.total_booking_value = body.totalBookingValue;
+  if (body.tmfAmount !== undefined) updates.tmf_amount = body.tmfAmount;
+  if (body.ivtCustom !== undefined) updates.ivt_custom = body.ivtCustom;
+  if (body.clientbaseResCardId !== undefined) updates.clientbase_res_card_id = body.clientbaseResCardId?.trim() || null;
+  if (body.primaryBookingNumber !== undefined) updates.primary_booking_number = body.primaryBookingNumber?.trim() || null;
+  if (body.travefyProposalUrl !== undefined) updates.travefy_proposal_url = body.travefyProposalUrl || null;
+  if (body.travefyTripPlanUrl !== undefined) updates.travefy_trip_plan_url = body.travefyTripPlanUrl || null;
+
+  // Insurance / Pre-Trip
+  if (body.insuranceStatus !== undefined) updates.insurance_status = body.insuranceStatus;
+  if (body.insuranceWaiverSigned !== undefined) updates.insurance_waiver_signed = body.insuranceWaiverSigned;
+  if (body.pretripMeetingRequired !== undefined) updates.pretrip_meeting_required = body.pretripMeetingRequired;
+  if (body.pretripMeetingBookedAt !== undefined) updates.pretrip_meeting_booked_at = body.pretripMeetingBookedAt || null;
+  if (body.pretripCardSentAt !== undefined) updates.pretrip_card_sent_at = body.pretripCardSentAt || null;
+  if (body.bookingRegistrationEligible !== undefined) updates.booking_registration_eligible = body.bookingRegistrationEligible;
+  if (body.bookingRegistrationDoneAt !== undefined) updates.booking_registration_done_at = body.bookingRegistrationDoneAt || null;
+
   // ── Derived traveller count ──────────────────────────────────
   if (body.numberOfAdults !== undefined || body.numberOfChildren !== undefined) {
-    // Need both values to compute — fetch current if only one is provided
     let adults = body.numberOfAdults;
     let children = body.numberOfChildren;
 
