@@ -1,6 +1,10 @@
 import "server-only";
 
 import { briitelyRequest, getLocationId } from "./client";
+import {
+  findContactCustomField,
+  updateContactCustomField,
+} from "./contact-custom-fields";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -49,6 +53,89 @@ export function getTmfTemplateId(type: TmfTemplateType): string | null {
 
 export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
   return getTmfTemplateId(type) !== null;
+}
+
+// ── TMF custom field values ───────────────────────────────────
+// The GHL /proposals/templates/send API does NOT accept custom
+// values in the send payload. Templates resolve merge fields from
+// the contact record. We populate contact custom fields with
+// portal-owned values before sending so the template can read them
+// via {{contact.custom_fields.xxx}} merge tokens.
+
+export interface TmfContactFieldValues {
+  destination: string;
+  assignedAdvisorName: string;
+  tmfAmount: number;
+  agreementDate: string;
+  revisionsIncluded?: number | null;
+}
+
+export interface PopulateTmfFieldsResult {
+  succeeded: boolean;
+  updatedFields: string[];
+  failedFields: string[];
+  error?: string;
+}
+
+async function populateSingleField(
+  contactId: string,
+  fieldName: string,
+  fieldValue: string
+): Promise<boolean> {
+  const def = await findContactCustomField(fieldName);
+  if (!def) {
+    console.warn("TMF_CUSTOM_FIELD_NOT_FOUND", { fieldName });
+    return false;
+  }
+  const result = await updateContactCustomField(
+    contactId,
+    def.id,
+    def.fieldKey,
+    fieldValue
+  );
+  return result.succeeded;
+}
+
+export async function populateTmfContactFields(
+  contactId: string,
+  values: TmfContactFieldValues
+): Promise<PopulateTmfFieldsResult> {
+  const fieldMap: Record<string, string> = {
+    "TMF Destination": values.destination,
+    "TMF Assigned Advisor": values.assignedAdvisorName,
+    "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
+    "TMF Agreement Date": values.agreementDate,
+  };
+
+  if (values.revisionsIncluded != null) {
+    fieldMap["TMF Revisions Included"] = String(values.revisionsIncluded);
+  }
+
+  const updated: string[] = [];
+  const failed: string[] = [];
+
+  for (const [fieldName, fieldValue] of Object.entries(fieldMap)) {
+    const ok = await populateSingleField(contactId, fieldName, fieldValue);
+    if (ok) {
+      updated.push(fieldName);
+    } else {
+      failed.push(fieldName);
+    }
+  }
+
+  console.info("TMF_CUSTOM_FIELDS_POPULATED", {
+    contactId,
+    updatedCount: updated.length,
+    failedCount: failed.length,
+    updated,
+    failed,
+  });
+
+  return {
+    succeeded: failed.length === 0,
+    updatedFields: updated,
+    failedFields: failed,
+  };
 }
 
 // ── Send Template ─────────────────────────────────────────────

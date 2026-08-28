@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getTmfTemplateId,
   isTmfTemplateConfigured,
+  populateTmfContactFields,
   sendDocumentTemplate,
   type TmfTemplateType,
 } from "@/lib/briitely/documents";
@@ -209,8 +210,54 @@ export async function POST(
     );
   }
 
-  // ── Opportunity ID (optional but needed for merge fields) ─────
-  const opportunityId = file.lead_opportunity_id ?? null;
+  // ── Validate required portal-owned values ────────────────────
+  const missingFields: string[] = [];
+  if (!file.destination) missingFields.push("Destination");
+  if (!file.assigned_advisor?.full_name) missingFields.push("Assigned Advisor");
+  if (file.tmf_amount == null) missingFields.push("TMF Amount");
+  if (agreementType === "ivt" && file.revisions_included == null) {
+    missingFields.push("Revisions Included");
+  }
+  if (missingFields.length > 0) {
+    console.error("TMF_DOCUMENT_SEND", {
+      travelFileId,
+      errorStage: "missing_required_values",
+      missingFields,
+    });
+    return NextResponse.json(
+      { error: `Cannot send TMF Agreement: the following required values are missing: ${missingFields.join(", ")}. Please update the Travel File first.` },
+      { status: 400 }
+    );
+  }
+
+  // ── Populate contact custom fields with portal values ─────────
+  // The GHL send API does not accept custom values in the payload.
+  // Templates resolve merge fields from the contact record, so we
+  // write portal-owned values to contact custom fields before sending.
+  const agreementDate = new Date().toLocaleDateString("en-CA");
+
+  const populateResult = await populateTmfContactFields(
+    file.briitely_contact_id,
+    {
+      destination: file.destination!,
+      assignedAdvisorName: file.assigned_advisor!.full_name,
+      tmfAmount: file.tmf_amount!,
+      agreementDate,
+      revisionsIncluded: agreementType === "ivt" ? file.revisions_included : null,
+    }
+  );
+
+  if (!populateResult.succeeded) {
+    console.error("TMF_DOCUMENT_SEND", {
+      travelFileId,
+      errorStage: "custom_field_population_failed",
+      failedFields: populateResult.failedFields,
+    });
+    return NextResponse.json(
+      { error: `Could not populate all document fields on the contact record. Missing custom fields: ${populateResult.failedFields.join(", ")}. Please ensure these custom fields exist in Briitely.` },
+      { status: 500 }
+    );
+  }
 
   // ── Send the document ─────────────────────────────────────────
   console.info("TMF_DOCUMENT_SEND", {
@@ -219,7 +266,7 @@ export async function POST(
     templateConfigured: true,
     contactIdPresent: !!file.briitely_contact_id,
     senderResolved: !!senderGhlUserId,
-    opportunityIdPresent: !!opportunityId,
+    customFieldsPopulated: populateResult.updatedFields,
     sendAttempted: true,
   });
 
@@ -227,7 +274,6 @@ export async function POST(
     templateId,
     userId: senderGhlUserId,
     contactId: file.briitely_contact_id,
-    opportunityId,
     sendDocument: true,
   });
 
