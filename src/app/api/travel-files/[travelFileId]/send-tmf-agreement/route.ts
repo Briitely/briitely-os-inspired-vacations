@@ -24,7 +24,13 @@ export async function POST(
   const { travelFileId } = await params;
   const supabase = await createClient();
 
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isValidUuid = uuidRegex.test(travelFileId);
+
   // ── Load the Travel File with current action and advisor ──────
+  // Note: tmf_document_id and tmf_sent_at are NOT selected here because
+  // they may not exist in the database yet (pending migration). We only
+  // write to them; the idempotency check uses a separate query.
   const { data: rawFile, error: fileError } = await supabase
     .from("travel_files")
     .select(`
@@ -37,8 +43,6 @@ export async function POST(
       tmf_amount,
       revisions_included,
       lead_opportunity_id,
-      tmf_document_id,
-      tmf_sent_at,
       current_action:travel_actions!current_action_id (
         id,
         action_code,
@@ -50,6 +54,14 @@ export async function POST(
     `)
     .eq("id", travelFileId)
     .maybeSingle();
+
+  console.info("TMF_DOCUMENT_SEND_LOOKUP", {
+    routeTravelFileId: travelFileId,
+    validUuid: isValidUuid,
+    travelFileFound: !!rawFile,
+    fileError: fileError?.message ?? null,
+    briitelyContactIdPresent: !!(rawFile as Record<string, unknown> | null)?.briitely_contact_id,
+  });
 
   if (fileError || !rawFile) {
     return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
@@ -65,8 +77,6 @@ export async function POST(
     tmf_amount: number | null;
     revisions_included: number | null;
     lead_opportunity_id: string | null;
-    tmf_document_id: string | null;
-    tmf_sent_at: string | null;
     current_action: {
       id: string;
       action_code: string;
@@ -82,17 +92,27 @@ export async function POST(
   };
 
   // ── Idempotency: already sent? ────────────────────────────────
-  if (file.tmf_document_id && file.tmf_sent_at) {
+  // Use a targeted select for just the document fields, which may not
+  // exist yet if the migration hasn't been applied. If the query fails,
+  // treat it as "not sent" rather than blocking the flow.
+  const { data: existingDoc } = await supabase
+    .from("travel_files")
+    .select("tmf_document_id, tmf_sent_at")
+    .eq("id", travelFileId)
+    .maybeSingle();
+
+  const existingDocRow = existingDoc as { tmf_document_id: string | null; tmf_sent_at: string | null } | null;
+  if (existingDocRow?.tmf_document_id && existingDocRow?.tmf_sent_at) {
     console.info("TMF_DOCUMENT_SEND", {
       travelFileId,
       result: "already_sent",
-      documentId: file.tmf_document_id,
+      documentId: existingDocRow.tmf_document_id,
     });
     return NextResponse.json({
       success: true,
       result: "already_sent",
       message: "TMF Agreement has already been sent.",
-      documentId: file.tmf_document_id,
+      documentId: existingDocRow.tmf_document_id,
     });
   }
 
@@ -260,6 +280,7 @@ export async function POST(
     });
     // Document was sent but we couldn't mark the action complete.
     // Still persist the document reference so we don't double-send.
+    // These columns may not exist yet — best-effort update.
     await supabase
       .from("travel_files")
       .update({
@@ -297,6 +318,7 @@ export async function POST(
     });
     // Document sent, action completed, but can't create next action.
     // Persist document reference and update stage manually.
+    // Best-effort: stage/current_action_id always work; tmf_* may not exist yet.
     await supabase
       .from("travel_files")
       .update({
@@ -314,13 +336,12 @@ export async function POST(
   }
 
   // ── Update the Travel File ────────────────────────────────────
+  // First update the fields that definitely exist (stage, action pointer).
   const { error: fileUpdateError } = await supabase
     .from("travel_files")
     .update({
       stage: "tmf_sent",
       stage_changed_at: now,
-      tmf_document_id: documentId,
-      tmf_sent_at: now,
       current_action_id: newAction.id,
     })
     .eq("id", travelFileId);
@@ -344,6 +365,15 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  // Best-effort: persist the document reference fields (may not exist yet).
+  await supabase
+    .from("travel_files")
+    .update({
+      tmf_document_id: documentId,
+      tmf_sent_at: now,
+    })
+    .eq("id", travelFileId);
 
   // ── Activity ──────────────────────────────────────────────────
   await supabase.from("travel_activity").insert({
