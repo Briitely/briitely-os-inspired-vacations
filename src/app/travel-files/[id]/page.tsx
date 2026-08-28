@@ -9,6 +9,8 @@ import { SharedFooter } from "@/components/app/shared-footer";
 import { TravelFileActions } from "@/components/app/travel-file-actions";
 import { TravelNotesSection } from "@/components/app/travel-notes-section";
 import { WorkflowOverrideButton } from "@/components/app/workflow-override-button";
+import { SendTmfButton } from "@/components/app/send-tmf-button";
+import { getContact } from "@/lib/briitely/contacts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -189,6 +191,24 @@ export default async function TravelFilePage({
   const isAdmin = user.role === "admin" || user.role === "super_admin";
 
   const currentAction = file.current_action;
+
+  // Fetch contact details for the TMF review modal
+  let contactEmail = "";
+  let contactPhone = "";
+  if (file.briitely_contact_id) {
+    try {
+      const contact = await getContact(file.briitely_contact_id);
+      contactEmail = contact.email;
+      contactPhone = contact.phone;
+    } catch {
+      // Non-fatal — modal will show empty values
+    }
+  }
+
+  const canSendTmf =
+    currentAction?.action_code === "send_tmf_agreement" &&
+    currentAction.status === "active" &&
+    (isAdmin || currentAction.responsible_user_id === user.id);
   const currentDueText = currentAction
     ? formatDueOrWaiting(currentAction.due_at, currentAction.waiting_since)
     : "—";
@@ -323,6 +343,22 @@ export default async function TravelFilePage({
                 </div>
                 {currentAction.description && (
                   <p className="text-sm text-muted-foreground">{currentAction.description}</p>
+                )}
+                {canSendTmf && (
+                  <div className="flex justify-end">
+                    <SendTmfButton
+                      travelFileId={file.id}
+                      clientName={file.client_name}
+                      email={contactEmail}
+                      phone={contactPhone}
+                      destination={file.destination}
+                      assignedAdvisorName={file.assigned_advisor?.full_name ?? null}
+                      agreementType={file.tmf_agreement_type}
+                      tmfAmount={file.tmf_amount}
+                      revisionsIncluded={file.revisions_included}
+                      agreementDate={new Date().toLocaleDateString("en-CA")}
+                    />
+                  </div>
                 )}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <InfoRow

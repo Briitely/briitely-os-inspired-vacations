@@ -111,6 +111,9 @@ export interface TravelFile {
   travefy_trip_plan_url: string | null;
   trip_plan_sent_at: string | null;
   trip_plan_final_proof_at: string | null;
+  tmf_document_id: string | null;
+  tmf_document_url: string | null;
+  tmf_sent_at: string | null;
   insurance_status: TravelInsuranceStatus;
   insurance_waiver_signed: boolean | null;
   pretrip_meeting_required: boolean | null;
