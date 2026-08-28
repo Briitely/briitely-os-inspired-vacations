@@ -7,14 +7,24 @@ import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
+import { Badge } from "@/components/core/ui/badge";
 import {
   tripTypeOptions,
   budgetRangeOptions,
 } from "@/lib/travel/tag-mappings";
+import { formatReadableDateTime } from "@/lib/travel/format";
 
 interface Advisor {
   id: string;
   full_name: string;
+}
+
+interface PreviousNote {
+  id: string;
+  note_type: string;
+  note_text: string;
+  created_at: string;
+  author?: { id: string; full_name: string } | null;
 }
 
 interface CompleteConsultationModalProps {
@@ -30,10 +40,22 @@ interface CompleteConsultationModalProps {
   childrenAges: string | null;
   budgetRange: string | null;
   specialConsiderations: string | null;
+  insuranceInterest: string | null;
   assignedAdvisorId: string | null;
+  staffNotes: string | null;
+  previousNotes: PreviousNote[];
   isOpen: boolean;
   onClose: () => void;
 }
+
+const insuranceOptions = [
+  "Yes, I want to add on insurance",
+  "Please provide a quote for the Cancel For Unforeseen Reason (CFUR) coverage",
+  "Please provide a quote for the All-Inclusive Package",
+  "Please provide a quote for Non Medical Package",
+  "I'm not sure, I would like to discuss further",
+  "No, I DECLINE all travel insurance and will not hold the Travel Agent responsible for any potential losses that may occur",
+];
 
 export function CompleteConsultationModal({
   travelFileId,
@@ -48,7 +70,10 @@ export function CompleteConsultationModal({
   childrenAges: initialChildrenAges,
   budgetRange: initialBudgetRange,
   specialConsiderations: initialSpecialConsiderations,
+  insuranceInterest: initialInsuranceInterest,
   assignedAdvisorId: initialAdvisor,
+  staffNotes,
+  previousNotes,
   isOpen,
   onClose,
 }: CompleteConsultationModalProps) {
@@ -70,6 +95,7 @@ export function CompleteConsultationModal({
   const [childrenAges, setChildrenAges] = useState(initialChildrenAges ?? "");
   const [budgetRange, setBudgetRange] = useState(initialBudgetRange ?? "");
   const [specialConsiderations, setSpecialConsiderations] = useState(initialSpecialConsiderations ?? "");
+  const [insuranceInterest, setInsuranceInterest] = useState(initialInsuranceInterest ?? "");
 
   // Fit decision + TMF fields
   const [isFit, setIsFit] = useState<"yes" | "no" | "">("");
@@ -78,6 +104,10 @@ export function CompleteConsultationModal({
   const [assignedAdvisor, setAssignedAdvisor] = useState(initialAdvisor ?? "");
   const [revisionsIncluded, setRevisionsIncluded] = useState("");
   const [notFitReason, setNotFitReason] = useState("");
+
+  // Consultation note
+  const [consultationNote, setConsultationNote] = useState("");
+  const [consultationNoteType, setConsultationNoteType] = useState<"client_facing" | "internal">("internal");
 
   const loadAdvisors = useCallback(async () => {
     try {
@@ -122,6 +152,8 @@ export function CompleteConsultationModal({
     if (childCount > 0 && !childrenAges.trim()) {
       return "Ages of Children is required when there are children.";
     }
+
+    if (!insuranceInterest) return "Travel Insurance preference is required.";
 
     if (!isFit) return "Please select whether this client is a fit.";
     if (isFit === "no") {
@@ -168,6 +200,11 @@ export function CompleteConsultationModal({
         childrenAges: childCount > 0 ? childrenAges.trim() : null,
         budgetRange: budgetRange || null,
         specialConsiderations: specialConsiderations.trim() || null,
+        // Insurance preference
+        insuranceInterest,
+        // Consultation note (optional)
+        consultationNote: consultationNote.trim() || null,
+        consultationNoteType,
       };
 
       if (isFit === "no") {
@@ -229,6 +266,36 @@ export function CompleteConsultationModal({
               </p>
               <p className="text-sm font-medium text-foreground">{clientName}</p>
             </div>
+
+            {/* Previous Notes (read-only) */}
+            {(staffNotes?.trim() || previousNotes.length > 0) && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Previous Notes</h3>
+                {staffNotes?.trim() && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline">Original Intake Note</Badge>
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{staffNotes}</p>
+                  </div>
+                )}
+                {previousNotes.map((note) => (
+                  <div key={note.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={note.note_type === "client_facing" ? "default" : "secondary"}>
+                        {note.note_type === "client_facing" ? "Client-facing" : "Internal"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {note.author?.full_name ?? "Unknown"}
+                        {" · "}
+                        {formatReadableDateTime(note.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Editable Inquiry Summary */}
             <div className="space-y-4">
@@ -372,6 +439,25 @@ export function CompleteConsultationModal({
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="Any special requests, accessibility needs, etc."
                 />
+              </div>
+
+              {/* Travel Insurance */}
+              <div className="space-y-2">
+                <Label htmlFor="insuranceInterest">
+                  Travel Insurance <span className="text-destructive">*</span>
+                </Label>
+                <select
+                  id="insuranceInterest"
+                  value={insuranceInterest}
+                  onChange={(e) => setInsuranceInterest(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  required
+                >
+                  <option value="">Select...</option>
+                  {insuranceOptions.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -531,6 +617,34 @@ export function CompleteConsultationModal({
                 )}
               </>
             )}
+
+            {/* Consultation Note (optional) */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Consultation Note (Optional)</h3>
+              <div className="space-y-2">
+                <Label htmlFor="consultationNoteType">Note Type</Label>
+                <select
+                  id="consultationNoteType"
+                  value={consultationNoteType}
+                  onChange={(e) => setConsultationNoteType(e.target.value as "client_facing" | "internal")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="internal">Internal</option>
+                  <option value="client_facing">Client-facing</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="consultationNote">Note</Label>
+                <textarea
+                  id="consultationNote"
+                  value={consultationNote}
+                  onChange={(e) => setConsultationNote(e.target.value)}
+                  rows={3}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Add a note about this consultation..."
+                />
+              </div>
+            </div>
 
             {error && (
               <p className="text-sm text-destructive">{error}</p>

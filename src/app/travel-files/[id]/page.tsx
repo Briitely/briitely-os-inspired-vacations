@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { TravelFileActions } from "@/components/app/travel-file-actions";
+import { TravelNotesSection } from "@/components/app/travel-notes-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -127,6 +128,16 @@ export default async function TravelFilePage({
     .eq("travel_file_id", id)
     .order("consulted_at", { ascending: false });
 
+  // Load notes
+  const { data: rawNotes } = await supabase
+    .from("travel_notes")
+    .select(`
+      *,
+      author:profiles!created_by (id, full_name)
+    `)
+    .eq("travel_file_id", id)
+    .order("created_at", { ascending: false });
+
   // Load activity
   const { data: rawActivity } = await supabase
     .from("travel_activity")
@@ -235,7 +246,7 @@ export default async function TravelFilePage({
                 numberOfChildren={file.number_of_children}
                 childrenAges={file.children_ages}
                 budgetRange={file.budget_range}
-                insuranceInterest={file.insurance_interest === "yes"}
+                insuranceInterest={file.insurance_interest}
                 specialConsiderations={file.special_requests}
                 travelInterests={file.travel_interests ?? []}
                 travelSeasons={file.travel_seasons ?? []}
@@ -268,6 +279,13 @@ export default async function TravelFilePage({
                 stage={file.stage}
                 currentActionCode={currentAction?.action_code ?? null}
                 currentActionStatus={currentAction?.status ?? null}
+                previousNotes={(rawNotes as unknown as Array<{
+                  id: string;
+                  note_type: string;
+                  note_text: string;
+                  created_at: string;
+                  author: { id: string; full_name: string } | null;
+                }>) ?? []}
               />
             </div>
           </CardContent>
@@ -464,6 +482,7 @@ export default async function TravelFilePage({
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <InfoRow label="Travel Insurance Preference" value={file.insurance_interest || "—"} />
               <InfoRow label="Insurance Status" value={<span className="capitalize">{file.insurance_status}</span>} />
               <InfoRow label="Waiver Signed" value={formatBoolean(file.insurance_waiver_signed)} />
               <InfoRow
@@ -601,6 +620,14 @@ export default async function TravelFilePage({
             )}
           </CardContent>
         </Card>
+
+        {/* Notes */}
+        <TravelNotesSection
+          travelFileId={file.id}
+          legacyStaffNotes={file.staff_notes}
+          isAdmin={isAdmin}
+          currentUserId={user.id}
+        />
 
         {/* Activity */}
         <Card>

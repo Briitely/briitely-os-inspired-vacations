@@ -33,7 +33,7 @@ export interface TravelFileData {
   numberOfChildren: number | null;
   childrenAges: string | null;
   budgetRange: string | null;
-  insuranceInterest: boolean;
+  insuranceInterest: string | null;
   specialConsiderations: string | null;
   travelInterests: string[];
   travelSeasons: string[];
@@ -109,7 +109,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
   );
   const [childrenAges, setChildrenAges] = useState(travelFile.childrenAges ?? "");
   const [budgetRange, setBudgetRange] = useState(travelFile.budgetRange ?? "");
-  const [insuranceInterest, setInsuranceInterest] = useState(travelFile.insuranceInterest);
+  const [insuranceInterest, setInsuranceInterest] = useState(travelFile.insuranceInterest ?? "");
   const [specialConsiderations, setSpecialConsiderations] = useState(travelFile.specialConsiderations ?? "");
   const [travelInterests, setTravelInterests] = useState<string[]>(travelFile.travelInterests ?? []);
   const [travelSeasons, setTravelSeasons] = useState<string[]>(travelFile.travelSeasons ?? []);
@@ -247,7 +247,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           numberOfChildren: childCount,
           childrenAges: childrenAges || null,
           budgetRange,
-          insuranceInterest,
+          insuranceInterest: insuranceInterest || null,
           specialConsiderations: specialConsiderations || null,
           travelInterests,
           travelSeasons,
@@ -520,7 +520,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             <CardHeader><CardTitle className="text-base">Insurance / Pre-Trip</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                <Input id="insuranceInterest" value={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.value)} placeholder="Insurance preference" />
                 <span className="text-sm text-foreground">Interested in travel insurance</span>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">

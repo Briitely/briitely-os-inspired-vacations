@@ -80,7 +80,7 @@ interface EditRequestBody {
   numberOfChildren?: number | null;
   childrenAges?: string | null;
   budgetRange?: string;
-  insuranceInterest?: boolean;
+  insuranceInterest?: string | null;
   specialConsiderations?: string | null;
   travelInterests?: string[];
   travelSeasons?: string[];
@@ -210,7 +210,7 @@ export async function PATCH(
   if (body.departureDate !== undefined) updates.departure_date = body.departureDate || null;
   if (body.returnDate !== undefined) updates.return_date = body.returnDate || null;
   if (body.budgetRange !== undefined) updates.budget_range = body.budgetRange || null;
-  if (body.insuranceInterest !== undefined) updates.insurance_interest = body.insuranceInterest ? "yes" : "no";
+  if (body.insuranceInterest !== undefined) updates.insurance_interest = body.insuranceInterest || null;
   if (body.specialConsiderations !== undefined) updates.special_requests = body.specialConsiderations?.trim() || null;
   if (body.travelInterests !== undefined) updates.travel_interests = body.travelInterests.length > 0 ? body.travelInterests : null;
   if (body.travelSeasons !== undefined) updates.travel_seasons = body.travelSeasons.length > 0 ? body.travelSeasons : null;

@@ -19,7 +19,7 @@ interface TravelFileActionsProps {
   numberOfChildren: number | null;
   childrenAges: string | null;
   budgetRange: string | null;
-  insuranceInterest: boolean;
+  insuranceInterest: string | null;
   specialConsiderations: string | null;
   travelInterests: string[];
   travelSeasons: string[];
@@ -54,6 +54,13 @@ interface TravelFileActionsProps {
   stage: string;
   currentActionCode: string | null;
   currentActionStatus: string | null;
+  previousNotes: Array<{
+    id: string;
+    note_type: string;
+    note_text: string;
+    created_at: string;
+    author: { id: string; full_name: string } | null;
+  }>;
 }
 
 export function TravelFileActions(props: TravelFileActionsProps) {
@@ -157,7 +164,10 @@ export function TravelFileActions(props: TravelFileActionsProps) {
           childrenAges={props.childrenAges}
           budgetRange={props.budgetRange}
           specialConsiderations={props.specialConsiderations}
+          insuranceInterest={props.insuranceInterest}
           assignedAdvisorId={props.assignedAdvisorId}
+          staffNotes={props.staffNotes}
+          previousNotes={props.previousNotes}
           isOpen={consultOpen}
           onClose={() => setConsultOpen(false)}
         />

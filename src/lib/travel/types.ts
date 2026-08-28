@@ -228,6 +228,21 @@ export interface TravelConsultation {
   created_at: string;
 }
 
+export type TravelNoteType = "client_facing" | "internal";
+
+export interface TravelNote {
+  id: string;
+  travel_file_id: string;
+  note_type: TravelNoteType;
+  note_text: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TravelNoteInsert = Omit<TravelNote, "id" | "created_at" | "updated_at"> & Partial<Pick<TravelNote, "id" | "created_at" | "updated_at">>;
+export type TravelNoteUpdate = Partial<Omit<TravelNote, "id" | "created_at">>;
+
 export interface TravelActivity {
   id: string;
   travel_file_id: string;

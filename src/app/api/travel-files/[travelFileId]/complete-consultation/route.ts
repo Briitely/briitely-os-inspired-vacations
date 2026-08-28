@@ -16,6 +16,10 @@ interface CompleteConsultationBody {
   childrenAges?: string | null;
   budgetRange?: string | null;
   specialConsiderations?: string | null;
+  insuranceInterest?: string | null;
+  // Consultation note (optional)
+  consultationNote?: string | null;
+  consultationNoteType?: "client_facing" | "internal";
   // Fit path
   agreementType?: "ivt" | "all_inclusive";
   tmfAmount?: number;
@@ -146,6 +150,10 @@ export async function POST(
 
   const cleanChildrenAges = childCount > 0 ? (body.childrenAges ?? null) : null;
 
+  if (!body.insuranceInterest?.trim()) {
+    return NextResponse.json({ error: "Travel Insurance preference is required." }, { status: 400 });
+  }
+
   // ── Validate fit decision fields ────────────────────────────
   if (body.isFit === "no") {
     if (!body.notFitReason?.trim()) {
@@ -213,6 +221,7 @@ export async function POST(
     number_of_travellers: travellerTotal,
     budget_range: body.budgetRange ?? null,
     special_requests: body.specialConsiderations ?? null,
+    insurance_interest: body.insuranceInterest ?? null,
   };
 
   // ── Not-a-fit path ──────────────────────────────────────────
@@ -287,6 +296,16 @@ export async function POST(
       previous_stage: file.stage,
       new_stage: "lost_not_qualified",
     });
+
+    // Optional consultation note
+    if (body.consultationNote?.trim()) {
+      await supabase.from("travel_notes").insert({
+        travel_file_id: travelFileId,
+        note_type: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
+        note_text: body.consultationNote.trim(),
+        created_by: user.id,
+      });
+    }
 
     console.info("COMPLETE_CONSULTATION", {
       travelFileId, userId: user.id, outcome: "not_fit", succeeded: true,
@@ -431,6 +450,16 @@ export async function POST(
       action_id: newAction.id,
     },
   ]);
+
+  // Optional consultation note
+  if (body.consultationNote?.trim()) {
+    await supabase.from("travel_notes").insert({
+      travel_file_id: travelFileId,
+      note_type: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
+      note_text: body.consultationNote.trim(),
+      created_by: user.id,
+    });
+  }
 
   console.info("COMPLETE_CONSULTATION", {
     travelFileId, userId: user.id, outcome: "proceed",
