@@ -68,9 +68,28 @@ interface DefaultInquiryOwner {
   briitelyUserId: string;
 }
 
-function getDefaultInquiryOwner(): DefaultInquiryOwner {
+async function getDefaultInquiryOwner(): Promise<DefaultInquiryOwner> {
   const portalProfileId = process.env.DEFAULT_INQUIRY_OWNER_PROFILE_ID ?? "";
-  const briitelyUserId = process.env.DEFAULT_INQUIRY_OWNER_BRIITELY_ID ?? "";
+  let briitelyUserId = "";
+
+  if (portalProfileId) {
+    const supabase = await createClient();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("ghl_user_id")
+      .eq("id", portalProfileId)
+      .maybeSingle();
+
+    if (profile?.ghl_user_id) {
+      briitelyUserId = profile.ghl_user_id;
+    } else {
+      console.warn("INTAKE_CONFIG", {
+        warning: "DEFAULT_INQUIRY_OWNER_PROFILE_ID is set but the profile has no ghl_user_id — Briitely contact assignment will be skipped",
+        profileId: portalProfileId,
+      });
+    }
+  }
+
   return { portalProfileId, briitelyUserId };
 }
 
@@ -132,7 +151,7 @@ export function resolveIntakeTags(input: IntakeInput): string[] {
 
 export async function processIntake(input: IntakeInput): Promise<IntakeResult> {
   const supabase = await createClient();
-  const owner = getDefaultInquiryOwner();
+  const owner = await getDefaultInquiryOwner();
   const numberOfChildren = input.numberOfChildren ?? 0;
   const numberOfTravellers = calculateTravellerCount(input.numberOfAdults, numberOfChildren);
   const clientName = `${input.firstName} ${input.lastName}`.trim();

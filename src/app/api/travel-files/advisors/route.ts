@@ -10,10 +10,14 @@ export async function GET() {
 
   const supabase = await createClient();
 
+  // The profiles schema has roles: super_admin, admin, staff.
+  // There is no dedicated "advisor" role/capability field — all active
+  // staff and admin profiles are eligible to be assigned as advisors.
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name")
     .eq("is_active", true)
+    .in("role", ["staff", "admin", "super_admin"])
     .order("full_name", { ascending: true });
 
   if (error) {
