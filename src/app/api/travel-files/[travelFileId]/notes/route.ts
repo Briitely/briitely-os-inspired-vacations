@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createTravelNote } from "@/lib/travel/notes-service";
 
 export async function GET(
   request: Request,
@@ -39,6 +40,10 @@ export async function POST(
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
+  if (user.role !== "staff" && user.role !== "admin" && user.role !== "super_admin") {
+    return NextResponse.json({ error: "Staff access required." }, { status: 403 });
+  }
+
   const { travelFileId } = await params;
   let body: { noteType?: string; noteText?: string };
   try {
@@ -52,23 +57,18 @@ export async function POST(
   }
 
   const noteType = body.noteType === "client_facing" ? "client_facing" : "internal";
-
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("travel_notes")
-    .insert({
-      travel_file_id: travelFileId,
-      note_type: noteType,
-      note_text: body.noteText.trim(),
-      created_by: user.id,
-    })
-    .select("id, note_type, note_text, created_by, created_at, updated_at")
-    .single();
+  const result = await createTravelNote(supabase, {
+    travelFileId,
+    noteType,
+    noteText: body.noteText.trim(),
+    createdBy: user.id,
+  });
 
-  if (error) {
-    return NextResponse.json({ error: "Failed to create note." }, { status: 500 });
+  if (!result.success) {
+    return NextResponse.json({ error: result.error ?? "Failed to create note." }, { status: 500 });
   }
 
-  return NextResponse.json({ note: data });
+  return NextResponse.json({ note: { id: result.note!.id } });
 }

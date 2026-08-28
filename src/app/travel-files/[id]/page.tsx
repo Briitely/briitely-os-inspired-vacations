@@ -8,6 +8,7 @@ import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrappe
 import { SharedFooter } from "@/components/app/shared-footer";
 import { TravelFileActions } from "@/components/app/travel-file-actions";
 import { TravelNotesSection } from "@/components/app/travel-notes-section";
+import { WorkflowOverrideButton } from "@/components/app/workflow-override-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -210,9 +211,21 @@ export default async function TravelFilePage({
                 <p className="text-sm font-medium text-primary">Travel File</p>
                 <h1 className="text-2xl font-bold text-foreground">{file.client_name}</h1>
               </div>
-              <Badge variant={formatStageBadgeVariant(file.stage)}>
-                {formatStageLabel(file.stage)}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant={formatStageBadgeVariant(file.stage)}>
+                  {formatStageLabel(file.stage)}
+                </Badge>
+                {isAdmin && (
+                  <WorkflowOverrideButton
+                    travelFileId={file.id}
+                    currentStage={file.stage}
+                    currentActionCode={currentAction?.action_code ?? null}
+                    currentActionStatus={currentAction?.status ?? null}
+                    currentResponsibleType={currentAction?.responsible_type ?? null}
+                    currentResponsibleName={currentAction ? getResponsibleName(currentAction, profileMap) : null}
+                  />
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>

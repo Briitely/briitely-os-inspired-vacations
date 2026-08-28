@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createTravelNote } from "@/lib/travel/notes-service";
 import { clientConfig } from "@/config/client.config";
 
 interface CompleteConsultationBody {
@@ -297,14 +298,20 @@ export async function POST(
       new_stage: "lost_not_qualified",
     });
 
-    // Optional consultation note
+    // Optional consultation note — fail loudly if it fails
     if (body.consultationNote?.trim()) {
-      await supabase.from("travel_notes").insert({
-        travel_file_id: travelFileId,
-        note_type: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
-        note_text: body.consultationNote.trim(),
-        created_by: user.id,
+      const noteResult = await createTravelNote(supabase, {
+        travelFileId,
+        noteType: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
+        noteText: body.consultationNote.trim(),
+        createdBy: user.id,
       });
+      if (!noteResult.success) {
+        console.error("COMPLETE_CONSULTATION", {
+          travelFileId, userId: user.id, errorStage: "note_insert_not_fit", errorMessage: noteResult.error,
+        });
+        return NextResponse.json({ error: "Consultation was saved but the note could not be created. Please add the note manually from the Notes card." }, { status: 500 });
+      }
     }
 
     console.info("COMPLETE_CONSULTATION", {
@@ -451,14 +458,20 @@ export async function POST(
     },
   ]);
 
-  // Optional consultation note
+  // Optional consultation note — fail loudly if it fails
   if (body.consultationNote?.trim()) {
-    await supabase.from("travel_notes").insert({
-      travel_file_id: travelFileId,
-      note_type: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
-      note_text: body.consultationNote.trim(),
-      created_by: user.id,
+    const noteResult = await createTravelNote(supabase, {
+      travelFileId,
+      noteType: body.consultationNoteType === "client_facing" ? "client_facing" : "internal",
+      noteText: body.consultationNote.trim(),
+      createdBy: user.id,
     });
+    if (!noteResult.success) {
+      console.error("COMPLETE_CONSULTATION", {
+        travelFileId, userId: user.id, errorStage: "note_insert_proceed", errorMessage: noteResult.error,
+      });
+      return NextResponse.json({ error: "Consultation was saved but the note could not be created. Please add the note manually from the Notes card." }, { status: 500 });
+    }
   }
 
   console.info("COMPLETE_CONSULTATION", {

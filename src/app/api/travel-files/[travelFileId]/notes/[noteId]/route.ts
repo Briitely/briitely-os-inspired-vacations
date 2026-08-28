@@ -11,6 +11,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
+  if (user.role !== "staff" && user.role !== "admin" && user.role !== "super_admin") {
+    return NextResponse.json({ error: "Staff access required." }, { status: 403 });
+  }
+
   const { travelFileId, noteId } = await params;
   let body: { noteType?: string; noteText?: string };
   try {
@@ -24,18 +28,15 @@ export async function PATCH(
   }
 
   const noteType = body.noteType === "client_facing" ? "client_facing" : "internal";
-
   const supabase = await createClient();
-
-  const update: Record<string, unknown> = {
-    note_text: body.noteText.trim(),
-    note_type: noteType,
-    updated_at: new Date().toISOString(),
-  };
 
   const { error } = await supabase
     .from("travel_notes")
-    .update(update)
+    .update({
+      note_text: body.noteText.trim(),
+      note_type: noteType,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", noteId)
     .eq("travel_file_id", travelFileId);
 
