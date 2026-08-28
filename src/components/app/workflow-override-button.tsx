@@ -23,19 +23,24 @@ export function WorkflowOverrideButton({
   currentResponsibleName,
 }: WorkflowOverrideButtonProps) {
   const [open, setOpen] = useState(false);
+  const [openKey, setOpenKey] = useState(0);
 
   return (
     <>
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpenKey((k) => k + 1);
+          setOpen(true);
+        }}
         className="h-7 gap-1 text-xs"
       >
         <Settings2 className="h-3.5 w-3.5" />
         Override
       </Button>
       <WorkflowOverrideModal
+        key={openKey}
         travelFileId={travelFileId}
         currentStage={currentStage}
         currentActionCode={currentActionCode}

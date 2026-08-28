@@ -228,7 +228,6 @@ export function CompleteConsultationModal({
 
       if (!res.ok) {
         setError(data.error ?? "Failed to complete consultation.");
-        setSaving(false);
         return;
       }
 
@@ -236,6 +235,7 @@ export function CompleteConsultationModal({
       router.refresh();
     } catch {
       setError("Something went wrong submitting the consultation.");
+    } finally {
       setSaving(false);
     }
   }

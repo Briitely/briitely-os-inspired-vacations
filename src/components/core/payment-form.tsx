@@ -28,7 +28,7 @@ export function PaymentForm({ customer, invoice, onRecorded }: { customer: Briit
       const data = (await response.json()) as { error?: string; payment?: { amount: number; method: PaymentMethod; remainingBalance: number; status: string } };
       if (!response.ok || !data.payment) throw new Error(data.error);
       onRecorded(data.payment);
-    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "We couldn't record the payment. Please try again."); setSaving(false); }
+    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "We couldn't record the payment. Please try again."); } finally { setSaving(false); }
   }
 
   return <Card><CardHeader><CardTitle>Receive Payment</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="space-y-5">

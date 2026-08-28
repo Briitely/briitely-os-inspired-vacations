@@ -99,7 +99,6 @@ export function TravelNotesSection({
         if (!res.ok) {
           const data = await res.json();
           setError(data.error ?? "Failed to update note.");
-          setSaving(false);
           return;
         }
       } else {
@@ -111,7 +110,6 @@ export function TravelNotesSection({
         if (!res.ok) {
           const data = await res.json();
           setError(data.error ?? "Failed to create note.");
-          setSaving(false);
           return;
         }
       }
@@ -120,6 +118,7 @@ export function TravelNotesSection({
       router.refresh();
     } catch {
       setError("Something went wrong.");
+    } finally {
       setSaving(false);
     }
   }

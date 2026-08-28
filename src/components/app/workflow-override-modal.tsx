@@ -147,6 +147,7 @@ export function WorkflowOverrideModal({
       router.refresh();
     } catch {
       setError("Something went wrong.");
+    } finally {
       setSaving(false);
     }
   }

@@ -288,7 +288,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
         } else {
           setError(data.error ?? "Failed to save changes.");
         }
-        setSaving(false);
         return;
       }
 
@@ -296,6 +295,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
       router.refresh();
     } catch {
       setError("Something went wrong saving the changes.");
+    } finally {
       setSaving(false);
     }
   }
