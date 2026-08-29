@@ -122,8 +122,8 @@ export async function populateTmfContactFields(
     "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
-    "New_Client_TMF": isPastClient ? "" : NEW_CLIENT_TMF_COPY,
-    "Past_Client_TMF": isPastClient ? PAST_CLIENT_TMF_COPY : "",
+    "New Client TMF": isPastClient ? "" : NEW_CLIENT_TMF_COPY,
+    "Past Client TMF": isPastClient ? PAST_CLIENT_TMF_COPY : "",
   };
 
   if (values.revisionsIncluded != null) {
