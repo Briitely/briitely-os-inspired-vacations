@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getTmfTemplateId,
   isTmfTemplateConfigured,
-  lookupContactClientType,
   populateTmfContactFields,
   sendDocumentTemplate,
   type TmfTemplateType,
@@ -22,6 +21,24 @@ export async function POST(
   if (user.role !== "staff" && user.role !== "admin" && user.role !== "super_admin") {
     return NextResponse.json({ error: "Staff access required." }, { status: 403 });
   }
+
+  let body: { sendBookingForm?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Please choose whether to send the Client Booking Form." },
+      { status: 400 }
+    );
+  }
+
+  if (typeof body.sendBookingForm !== "boolean") {
+    return NextResponse.json(
+      { error: "Please choose whether to send the Client Booking Form." },
+      { status: 400 }
+    );
+  }
+  const sendBookingForm = body.sendBookingForm;
 
   const { travelFileId } = await params;
   const supabase = await createClient();
@@ -97,11 +114,6 @@ export async function POST(
 
   const existingDocRow = existingDoc as { tmf_document_id: string | null; tmf_sent_at: string | null } | null;
   if (existingDocRow?.tmf_document_id && existingDocRow?.tmf_sent_at) {
-    console.info("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      result: "already_sent",
-      documentId: existingDocRow.tmf_document_id,
-    });
     return NextResponse.json({
       success: true,
       result: "already_sent",
@@ -145,19 +157,9 @@ export async function POST(
   }
 
   const agreementType = file.tmf_agreement_type as TmfTemplateType;
-  const templateConfigured = isTmfTemplateConfigured(agreementType);
   const templateId = getTmfTemplateId(agreementType);
-  if (!templateConfigured || !templateId) {
-    const envVar =
-      agreementType === "all_inclusive"
-        ? "TMF_TEMPLATE_ID_ALL_INCLUSIVE"
-        : "TMF_TEMPLATE_ID_IVT";
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "template_not_configured",
-      agreementType,
-      envVar,
-    });
+  if (!isTmfTemplateConfigured(agreementType) || !templateId) {
+    const envVar = agreementType === "all_inclusive" ? "TMF_TEMPLATE_ID_ALL_INCLUSIVE" : "TMF_TEMPLATE_ID_IVT";
     return NextResponse.json(
       { error: `The ${agreementType === "all_inclusive" ? "All-Inclusive" : "IVT"} TMF template is not configured. Please set the ${envVar} environment variable.` },
       { status: 500 }
@@ -165,22 +167,14 @@ export async function POST(
   }
 
   if (!file.briitely_contact_id) {
-    console.error("TMF_DOCUMENT_SEND", { travelFileId, errorStage: "no_contact_id" });
     return NextResponse.json(
       { error: "No Briitely contact is linked to this Travel File." },
       { status: 400 }
     );
   }
 
-  // Documents should be sent as the assigned advisor, even though Dana owns
-  // the operational Send TMF Agreement action in the portal.
   const senderGhlUserId = file.assigned_advisor?.ghl_user_id ?? null;
   if (!senderGhlUserId) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "no_advisor_ghl_user_id",
-      advisorId: file.assigned_advisor?.id ?? null,
-    });
     return NextResponse.json(
       { error: "The assigned advisor is not linked to a Briitely user. Please set the advisor's Briitely user ID before sending the TMF Agreement." },
       { status: 400 }
@@ -191,15 +185,8 @@ export async function POST(
   if (!file.destination) missingFields.push("Destination");
   if (!file.assigned_advisor?.full_name) missingFields.push("Assigned Advisor");
   if (file.tmf_amount == null) missingFields.push("TMF Amount");
-  if (agreementType === "ivt" && file.revisions_included == null) {
-    missingFields.push("Revisions Included");
-  }
+  if (agreementType === "ivt" && file.revisions_included == null) missingFields.push("Revisions Included");
   if (missingFields.length > 0) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "missing_required_values",
-      missingFields,
-    });
     return NextResponse.json(
       { error: `Cannot send TMF Agreement: the following required values are missing: ${missingFields.join(", ")}. Please update the Travel File first.` },
       { status: 400 }
@@ -215,60 +202,23 @@ export async function POST(
     );
   }
 
-  // ── Determine client type (new vs past) from Briitely tags ────
-  const tagLookup = await lookupContactClientType(file.briitely_contact_id);
-  if (!tagLookup.succeeded) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "contact_tag_lookup_failed",
-      contactId: file.briitely_contact_id,
-      tagLookupError: tagLookup.error,
-    });
-    return NextResponse.json(
-      { error: tagLookup.error ?? "Could not verify the client's status in Briitely. Please try again." },
-      { status: 502 }
-    );
-  }
-
-  const clientType = tagLookup.isPastClient ? "past" : "new";
-
   const agreementDate = new Date().toLocaleDateString("en-CA");
-  const populateResult = await populateTmfContactFields(
-    file.briitely_contact_id,
-    {
-      destination: file.destination!,
-      assignedAdvisorName: advisorFullName,
-      assignedAdvisorFirstName: advisorFirstName,
-      tmfAmount: file.tmf_amount!,
-      agreementDate,
-      revisionsIncluded: agreementType === "ivt" ? file.revisions_included : null,
-      clientType,
-    }
-  );
+  const populateResult = await populateTmfContactFields(file.briitely_contact_id, {
+    destination: file.destination!,
+    assignedAdvisorName: advisorFullName,
+    assignedAdvisorFirstName: advisorFirstName,
+    tmfAmount: file.tmf_amount!,
+    agreementDate,
+    revisionsIncluded: agreementType === "ivt" ? file.revisions_included : null,
+    sendBookingForm,
+  });
 
   if (!populateResult.succeeded) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "custom_field_population_failed",
-      failedFields: populateResult.failedFields,
-    });
     return NextResponse.json(
       { error: `Could not populate all document fields on the contact record. Missing custom fields: ${populateResult.failedFields.join(", ")}. Please ensure these custom fields exist in Briitely.` },
       { status: 500 }
     );
   }
-
-  console.info("TMF_DOCUMENT_SEND", {
-    travelFileId,
-    agreementType,
-    templateConfigured: true,
-    contactIdPresent: !!file.briitely_contact_id,
-    senderResolved: !!senderGhlUserId,
-    senderSource: "assigned_advisor",
-    customFieldsPopulated: populateResult.updatedFields,
-    clientType,
-    sendAttempted: true,
-  });
 
   const sendResult = await sendDocumentTemplate({
     templateId,
@@ -278,13 +228,6 @@ export async function POST(
   });
 
   if (!sendResult.success || !sendResult.documentId) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "api_send_failed",
-      apiError: sendResult.error ?? "unknown",
-      documentIdPresent: !!sendResult.documentId,
-      finalResult: "failed",
-    });
     return NextResponse.json(
       { error: sendResult.error ?? "Failed to send the TMF Agreement. Please try again." },
       { status: 502 }
@@ -293,19 +236,6 @@ export async function POST(
 
   const documentId = sendResult.documentId;
   const now = new Date().toISOString();
-
-  console.info("TMF_DOCUMENT_SEND", {
-    travelFileId,
-    agreementType,
-    templateConfigured: true,
-    contactIdPresent: true,
-    senderResolved: true,
-    senderSource: "assigned_advisor",
-    sendAttempted: true,
-    apiStatus: "success",
-    documentIdPresent: true,
-    finalResult: "sent",
-  });
 
   const { error: actionCompleteError } = await supabase
     .from("travel_actions")
@@ -318,12 +248,6 @@ export async function POST(
     .eq("id", currentAction.id);
 
   if (actionCompleteError) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "action_complete_failed",
-      errorMessage: actionCompleteError.message,
-      documentId,
-    });
     await supabase
       .from("travel_files")
       .update({ tmf_document_id: documentId, tmf_sent_at: now })
@@ -334,27 +258,26 @@ export async function POST(
     );
   }
 
+  const nextActionCode = sendBookingForm ? "await_tmf_and_booking_form" : "await_tmf_signature";
+  const nextActionTitle = sendBookingForm ? "Await TMF Agreement & Booking Form" : "Await TMF Agreement Signature";
+
   const { data: newAction, error: actionCreateError } = await supabase
     .from("travel_actions")
     .insert({
       travel_file_id: travelFileId,
-      action_code: "await_tmf_signature",
-      title: "Await TMF Agreement Signature",
+      action_code: nextActionCode,
+      title: nextActionTitle,
       action_role: "blocking",
       responsible_type: "client",
       status: "active",
       waiting_since: now,
       activated_at: now,
+      metadata: { sendBookingForm },
     })
     .select("id")
     .single();
 
   if (actionCreateError || !newAction) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "create_await_action_failed",
-      errorMessage: actionCreateError?.message,
-    });
     await supabase
       .from("travel_files")
       .update({
@@ -381,18 +304,11 @@ export async function POST(
     .eq("id", travelFileId);
 
   if (fileUpdateError) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "file_update_failed",
-      errorMessage: fileUpdateError.message,
-    });
     await supabase.from("travel_actions").delete().eq("id", newAction.id);
-    await supabase.from("travel_actions").update({
-      status: "active",
-      completed_at: null,
-      completed_by: null,
-      completion_source: null,
-    }).eq("id", currentAction.id);
+    await supabase
+      .from("travel_actions")
+      .update({ status: "active", completed_at: null, completed_by: null, completion_source: null })
+      .eq("id", currentAction.id);
     return NextResponse.json(
       { error: "The agreement was sent but the Travel File could not be updated. Please contact an administrator." },
       { status: 500 }
@@ -407,20 +323,20 @@ export async function POST(
   await supabase.from("travel_activity").insert({
     travel_file_id: travelFileId,
     event_type: "tmf_agreement_sent",
-    summary: "TMF Agreement sent to client.",
+    summary: sendBookingForm
+      ? "TMF Agreement sent to client with Client Booking Form requested."
+      : "TMF Agreement sent to client.",
     actor_type: "internal",
     actor_user_id: user.id,
     action_id: currentAction.id,
     previous_stage: file.stage,
     new_stage: "tmf_sent",
-    metadata: { documentId, agreementType, sendingAdvisor: advisorFullName },
-  });
-
-  console.info("TMF_DOCUMENT_SEND", {
-    travelFileId,
-    finalResult: "transitioned",
-    newStage: "tmf_sent",
-    newActionId: newAction.id,
+    metadata: {
+      documentId,
+      agreementType,
+      sendingAdvisor: advisorFullName,
+      sendBookingForm,
+    },
   });
 
   return NextResponse.json({
@@ -428,6 +344,7 @@ export async function POST(
     result: "sent",
     stage: "tmf_sent",
     documentId,
-    nextAction: { id: newAction.id, title: "Await TMF Agreement Signature" },
+    sendBookingForm,
+    nextAction: { id: newAction.id, title: nextActionTitle, actionCode: nextActionCode },
   });
 }
