@@ -1,12 +1,10 @@
 import "server-only";
 
-import { briitelyRequest, getLocationId } from "./client";
+import { getLocationId, briitelyRequest } from "./client";
 import {
   findContactCustomField,
   updateContactCustomField,
 } from "./contact-custom-fields";
-
-// ── Types ─────────────────────────────────────────────────────
 
 export interface SendTemplateInput {
   templateId: string;
@@ -39,8 +37,6 @@ interface HighLevelSendTemplateResponse {
   links?: TemplateSendLink[];
 }
 
-// ── Template ID resolution ────────────────────────────────────
-
 export type TmfTemplateType = "ivt" | "all_inclusive";
 
 export function getTmfTemplateId(type: TmfTemplateType): string | null {
@@ -55,20 +51,6 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
   return getTmfTemplateId(type) !== null;
 }
 
-// ── TMF custom field values ───────────────────────────────────
-// The GHL /proposals/templates/send API does NOT accept custom
-// values in the send payload. Templates resolve merge fields from
-// the contact record. We populate contact custom fields with
-// portal-owned values before sending so the template can read them
-// via {{contact.custom_fields.xxx}} merge tokens.
-
-const PAST_CLIENT_TAG = "past-client";
-const NEW_CLIENT_TMF_FIELD_NAME = "New Client TMF";
-const PAST_CLIENT_TMF_FIELD_NAME = "Past Client TMF";
-const TMF_EMAIL_BLOCK_ENABLED = "yes";
-
-export type TmfClientType = "new" | "past";
-
 export interface TmfContactFieldValues {
   destination: string;
   assignedAdvisorName: string;
@@ -76,7 +58,7 @@ export interface TmfContactFieldValues {
   tmfAmount: number;
   agreementDate: string;
   revisionsIncluded?: number | null;
-  clientType: TmfClientType;
+  sendBookingForm: boolean;
 }
 
 export interface PopulateTmfFieldsResult {
@@ -96,6 +78,7 @@ async function populateSingleField(
     console.warn("TMF_CUSTOM_FIELD_NOT_FOUND", { fieldName });
     return false;
   }
+
   const result = await updateContactCustomField(
     contactId,
     def.id,
@@ -109,18 +92,13 @@ export async function populateTmfContactFields(
   contactId: string,
   values: TmfContactFieldValues
 ): Promise<PopulateTmfFieldsResult> {
-  const isPastClient = values.clientType === "past";
-
   const fieldMap: Record<string, string> = {
     "TMF Destination": values.destination,
     "TMF Assigned Advisor": values.assignedAdvisorName,
     "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
-    // These fields are switches for Briitely's conditional email blocks.
-    // Email copy and formatting live in Briitely, not in portal code.
-    [NEW_CLIENT_TMF_FIELD_NAME]: isPastClient ? "" : TMF_EMAIL_BLOCK_ENABLED,
-    [PAST_CLIENT_TMF_FIELD_NAME]: isPastClient ? TMF_EMAIL_BLOCK_ENABLED : "",
+    "Send Booking Form": values.sendBookingForm ? "yes" : "no",
   };
 
   if (values.revisionsIncluded != null) {
@@ -132,11 +110,8 @@ export async function populateTmfContactFields(
 
   for (const [fieldName, fieldValue] of Object.entries(fieldMap)) {
     const ok = await populateSingleField(contactId, fieldName, fieldValue);
-    if (ok) {
-      updated.push(fieldName);
-    } else {
-      failed.push(fieldName);
-    }
+    if (ok) updated.push(fieldName);
+    else failed.push(fieldName);
   }
 
   console.info("TMF_CUSTOM_FIELDS_POPULATED", {
@@ -153,65 +128,6 @@ export async function populateTmfContactFields(
     failedFields: failed,
   };
 }
-
-// ── Contact tag lookup ────────────────────────────────────────
-
-export interface ContactTagLookupResult {
-  succeeded: boolean;
-  isPastClient: boolean;
-  error?: string;
-}
-
-export async function lookupContactClientType(
-  contactId: string
-): Promise<ContactTagLookupResult> {
-  try {
-    const response = await briitelyRequest<{ contact?: { tags?: string[] } }>({
-      method: "GET",
-      path: `/contacts/${encodeURIComponent(contactId)}`,
-    });
-
-    const tags = response.contact?.tags;
-    if (!Array.isArray(tags)) {
-      console.error("TMF_CONTACT_TAG_LOOKUP", {
-        contactId,
-        errorStage: "tags_not_array",
-      });
-      return {
-        succeeded: false,
-        isPastClient: false,
-        error: "Could not read the contact's tags from Briitely.",
-      };
-    }
-
-    const isPastClient = tags.some(
-      (tag) => tag.trim().toLowerCase() === PAST_CLIENT_TAG
-    );
-
-    console.info("TMF_CONTACT_TAG_LOOKUP", {
-      contactId,
-      tagCount: tags.length,
-      isPastClient,
-    });
-
-    return { succeeded: true, isPastClient };
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to fetch contact from Briitely.";
-    console.error("TMF_CONTACT_TAG_LOOKUP", {
-      contactId,
-      errorStage: "api_error",
-      errorMessage: message,
-    });
-    return {
-      succeeded: false,
-      isPastClient: false,
-      error: message,
-    };
-  }
-}
-
-// ── Send Template ─────────────────────────────────────────────
 
 export async function sendDocumentTemplate(
   input: SendTemplateInput
