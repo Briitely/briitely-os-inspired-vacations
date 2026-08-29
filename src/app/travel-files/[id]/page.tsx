@@ -59,6 +59,52 @@ function getResponsibleName(
   return "Unassigned";
 }
 
+function ActionHistoryItem({
+  action,
+  profileMap,
+}: {
+  action: TravelAction;
+  profileMap: Record<string, string>;
+}) {
+  return (
+    <div className="py-3 space-y-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-medium text-foreground">{action.title}</span>
+        <Badge variant="outline" className="capitalize">{action.action_role}</Badge>
+        <Badge variant="secondary" className="capitalize">{action.status}</Badge>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>Responsible: {getResponsibleName(action, profileMap)}</span>
+        <span>Due/Waiting: {formatDueOrWaiting(action.due_at, action.waiting_since)}</span>
+        {action.completed_at && (
+          <span>Completed: {formatReadableDateTime(action.completed_at)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActivityHistoryItem({
+  activity,
+}: {
+  activity: TravelActivity & {
+    actor_user: { id: string; full_name: string } | null;
+  };
+}) {
+  return (
+    <div className="py-3 flex items-start gap-3">
+      <div className="flex-1 space-y-0.5">
+        <p className="text-sm text-foreground">{activity.summary}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatReadableDateTime(activity.created_at)}
+          {activity.actor_user && ` · ${activity.actor_user.full_name}`}
+          {!activity.actor_user && activity.actor_type !== "system" && ` · ${activity.actor_type}`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function TravelFilePage({
   params,
 }: {
@@ -106,12 +152,12 @@ export default async function TravelFilePage({
     assigned_advisor: { id: string; full_name: string } | null;
   };
 
-  // Load all actions for this travel file
+  // Load all actions for this travel file, newest first
   const { data: rawActions } = await supabase
     .from("travel_actions")
     .select("*")
     .eq("travel_file_id", id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   // Load payments
   const { data: rawPayments } = await supabase
@@ -179,14 +225,19 @@ export default async function TravelFilePage({
     actor_user: { id: string; full_name: string } | null;
   })[] | null) ?? [];
 
-  // Sort actions: active/pending first, then completed
+  // Keep the current/active work visible first, then order history by recency.
   const sortedActions = [...actions].sort((a, b) => {
     const aActive = a.status === "active" || a.status === "pending";
     const bActive = b.status === "active" || b.status === "pending";
     if (aActive && !bActive) return -1;
     if (!aActive && bActive) return 1;
-    return 0;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  const visibleActions = sortedActions.slice(0, 4);
+  const additionalActions = sortedActions.slice(4);
+  const visibleActivity = activity.slice(0, 4);
+  const additionalActivity = activity.slice(4);
 
   const isAdmin = user.role === "admin" || user.role === "super_admin";
 
@@ -229,7 +280,18 @@ export default async function TravelFilePage({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-primary">Travel File</p>
-                <h1 className="text-2xl font-bold text-foreground">{file.client_name}</h1>
+                <h1 className="text-2xl font-bold text-foreground">
+                  {file.briitely_contact_id ? (
+                    <Link
+                      href={`/customers/${encodeURIComponent(file.briitely_contact_id)}`}
+                      className="transition-colors hover:text-primary hover:underline underline-offset-4"
+                    >
+                      {file.client_name}
+                    </Link>
+                  ) : (
+                    file.client_name
+                  )}
+                </h1>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={formatStageBadgeVariant(file.stage)}>
@@ -568,24 +630,22 @@ export default async function TravelFilePage({
               <p className="text-sm text-muted-foreground italic">No actions recorded.</p>
             ) : (
               <div className="divide-y divide-border">
-                {sortedActions.map((action) => (
-                  <div key={action.id} className="py-3 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-foreground">{action.title}</span>
-                      <Badge variant="outline" className="capitalize">{action.action_role}</Badge>
-                      <Badge variant="secondary" className="capitalize">{action.status}</Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Responsible: {getResponsibleName(action, profileMap)}</span>
-                      <span>
-                        Due/Waiting: {formatDueOrWaiting(action.due_at, action.waiting_since)}
-                      </span>
-                      {action.completed_at && (
-                        <span>Completed: {formatReadableDateTime(action.completed_at)}</span>
-                      )}
-                    </div>
-                  </div>
+                {visibleActions.map((action) => (
+                  <ActionHistoryItem key={action.id} action={action} profileMap={profileMap} />
                 ))}
+                {additionalActions.length > 0 && (
+                  <details className="group border-t border-border">
+                    <summary className="cursor-pointer list-none py-3 text-sm font-medium text-primary hover:underline">
+                      <span className="group-open:hidden">See more actions ({additionalActions.length})</span>
+                      <span className="hidden group-open:inline">Show less</span>
+                    </summary>
+                    <div className="divide-y divide-border border-t border-border">
+                      {additionalActions.map((action) => (
+                        <ActionHistoryItem key={action.id} action={action} profileMap={profileMap} />
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </CardContent>
@@ -688,18 +748,22 @@ export default async function TravelFilePage({
               <p className="text-sm text-muted-foreground italic">No activity recorded.</p>
             ) : (
               <div className="divide-y divide-border">
-                {activity.map((a) => (
-                  <div key={a.id} className="py-3 flex items-start gap-3">
-                    <div className="flex-1 space-y-0.5">
-                      <p className="text-sm text-foreground">{a.summary}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatReadableDateTime(a.created_at)}
-                        {a.actor_user && ` · ${a.actor_user.full_name}`}
-                        {!a.actor_user && a.actor_type !== "system" && ` · ${a.actor_type}`}
-                      </p>
-                    </div>
-                  </div>
+                {visibleActivity.map((a) => (
+                  <ActivityHistoryItem key={a.id} activity={a} />
                 ))}
+                {additionalActivity.length > 0 && (
+                  <details className="group border-t border-border">
+                    <summary className="cursor-pointer list-none py-3 text-sm font-medium text-primary hover:underline">
+                      <span className="group-open:hidden">See more activity ({additionalActivity.length})</span>
+                      <span className="hidden group-open:inline">Show less</span>
+                    </summary>
+                    <div className="divide-y divide-border border-t border-border">
+                      {additionalActivity.map((a) => (
+                        <ActivityHistoryItem key={a.id} activity={a} />
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </CardContent>
