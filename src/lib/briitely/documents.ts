@@ -65,14 +65,7 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
 const PAST_CLIENT_TAG = "past-client";
 const NEW_CLIENT_TMF_FIELD_NAME = "New Client TMF";
 const PAST_CLIENT_TMF_FIELD_NAME = "Past Client TMF";
-
-const NEW_CLIENT_TMF_COPY = `<p>Here are your next steps so we can get started on your trip:</p>
-<p>1. <strong>Review and sign your Travel Management Fee Agreement</strong> using the document link below.</p>
-<p>2. <strong>Complete Your Booking Form</strong> here: <a href="https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5">https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5</a></p>
-<p>The booking form gives us the personal and passport details, travel preferences, payment authorization, and emergency contact information we need to begin planning.</p>
-<p>The sooner we have both your signed agreement and completed booking form, the sooner we can get to work!</p>`;
-
-const PAST_CLIENT_TMF_COPY = "Your Travel Management Fee Agreement is ready for your review and signature. Please click the link below to read through and sign at your earliest convenience.";
+const TMF_EMAIL_BLOCK_ENABLED = "yes";
 
 export type TmfClientType = "new" | "past";
 
@@ -124,8 +117,10 @@ export async function populateTmfContactFields(
     "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
-    [NEW_CLIENT_TMF_FIELD_NAME]: isPastClient ? "" : NEW_CLIENT_TMF_COPY,
-    [PAST_CLIENT_TMF_FIELD_NAME]: isPastClient ? PAST_CLIENT_TMF_COPY : "",
+    // These fields are switches for Briitely's conditional email blocks.
+    // Email copy and formatting live in Briitely, not in portal code.
+    [NEW_CLIENT_TMF_FIELD_NAME]: isPastClient ? "" : TMF_EMAIL_BLOCK_ENABLED,
+    [PAST_CLIENT_TMF_FIELD_NAME]: isPastClient ? TMF_EMAIL_BLOCK_ENABLED : "",
   };
 
   if (values.revisionsIncluded != null) {
