@@ -28,10 +28,6 @@ export async function POST(
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const isValidUuid = uuidRegex.test(travelFileId);
 
-  // ── Load the Travel File with current action and advisor ──────
-  // Note: tmf_document_id and tmf_sent_at are NOT selected here because
-  // they may not exist in the database yet (pending migration). We only
-  // write to them; the idempotency check uses a separate query.
   const { data: rawFile, error: fileError } = await supabase
     .from("travel_files")
     .select(`
@@ -92,10 +88,6 @@ export async function POST(
     } | null;
   };
 
-  // ── Idempotency: already sent? ────────────────────────────────
-  // Use a targeted select for just the document fields, which may not
-  // exist yet if the migration hasn't been applied. If the query fails,
-  // treat it as "not sent" rather than blocking the flow.
   const { data: existingDoc } = await supabase
     .from("travel_files")
     .select("tmf_document_id, tmf_sent_at")
@@ -117,7 +109,6 @@ export async function POST(
     });
   }
 
-  // ── Validate current action ───────────────────────────────────
   const currentAction = file.current_action;
   if (!currentAction || currentAction.action_code !== "send_tmf_agreement") {
     return NextResponse.json(
@@ -134,7 +125,6 @@ export async function POST(
     });
   }
 
-  // ── Permission: responsible user or admin ────────────────────
   const isAdmin = user.role === "admin" || user.role === "super_admin";
   const isResponsible =
     currentAction.responsible_type === "internal" &&
@@ -146,7 +136,6 @@ export async function POST(
     );
   }
 
-  // ── Validate agreement type ───────────────────────────────────
   if (!file.tmf_agreement_type || (file.tmf_agreement_type !== "ivt" && file.tmf_agreement_type !== "all_inclusive")) {
     return NextResponse.json(
       { error: "Agreement type is not set on this Travel File. Please complete the consultation first." },
@@ -155,8 +144,6 @@ export async function POST(
   }
 
   const agreementType = file.tmf_agreement_type as TmfTemplateType;
-
-  // ── Template configuration check ──────────────────────────────
   const templateConfigured = isTmfTemplateConfigured(agreementType);
   const templateId = getTmfTemplateId(agreementType);
   if (!templateConfigured || !templateId) {
@@ -176,41 +163,29 @@ export async function POST(
     );
   }
 
-  // ── Contact ID ────────────────────────────────────────────────
   if (!file.briitely_contact_id) {
-    console.error("TMF_DOCUMENT_SEND", {
-      travelFileId,
-      errorStage: "no_contact_id",
-    });
+    console.error("TMF_DOCUMENT_SEND", { travelFileId, errorStage: "no_contact_id" });
     return NextResponse.json(
       { error: "No Briitely contact is linked to this Travel File." },
       { status: 400 }
     );
   }
 
-  // ── Sender user ID (Dana's ghl_user_id) ───────────────────────
-  // The sender is the portal user sending the document (Dana).
-  // We need the GHL user ID of the current user.
-  const { data: senderProfile } = await supabase
-    .from("profiles")
-    .select("ghl_user_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const senderGhlUserId = (senderProfile as { ghl_user_id: string | null } | null)?.ghl_user_id ?? null;
+  // Documents should be sent as the assigned advisor, even though Dana owns
+  // the operational Send TMF Agreement action in the portal.
+  const senderGhlUserId = file.assigned_advisor?.ghl_user_id ?? null;
   if (!senderGhlUserId) {
     console.error("TMF_DOCUMENT_SEND", {
       travelFileId,
-      errorStage: "no_sender_ghl_user_id",
-      userId: user.id,
+      errorStage: "no_advisor_ghl_user_id",
+      advisorId: file.assigned_advisor?.id ?? null,
     });
     return NextResponse.json(
-      { error: "Your portal account is not linked to a Briitely user. Please contact an administrator to set your Briitely user ID." },
+      { error: "The assigned advisor is not linked to a Briitely user. Please set the advisor's Briitely user ID before sending the TMF Agreement." },
       { status: 400 }
     );
   }
 
-  // ── Validate required portal-owned values ────────────────────
   const missingFields: string[] = [];
   if (!file.destination) missingFields.push("Destination");
   if (!file.assigned_advisor?.full_name) missingFields.push("Assigned Advisor");
@@ -230,17 +205,22 @@ export async function POST(
     );
   }
 
-  // ── Populate contact custom fields with portal values ─────────
-  // The GHL send API does not accept custom values in the payload.
-  // Templates resolve merge fields from the contact record, so we
-  // write portal-owned values to contact custom fields before sending.
-  const agreementDate = new Date().toLocaleDateString("en-CA");
+  const advisorFullName = file.assigned_advisor!.full_name.trim();
+  const advisorFirstName = advisorFullName.split(/\s+/)[0];
+  if (!advisorFirstName) {
+    return NextResponse.json(
+      { error: "The assigned advisor's first name could not be determined. Please update the advisor profile before sending the TMF Agreement." },
+      { status: 400 }
+    );
+  }
 
+  const agreementDate = new Date().toLocaleDateString("en-CA");
   const populateResult = await populateTmfContactFields(
     file.briitely_contact_id,
     {
       destination: file.destination!,
-      assignedAdvisorName: file.assigned_advisor!.full_name,
+      assignedAdvisorName: advisorFullName,
+      assignedAdvisorFirstName: advisorFirstName,
       tmfAmount: file.tmf_amount!,
       agreementDate,
       revisionsIncluded: agreementType === "ivt" ? file.revisions_included : null,
@@ -259,13 +239,13 @@ export async function POST(
     );
   }
 
-  // ── Send the document ─────────────────────────────────────────
   console.info("TMF_DOCUMENT_SEND", {
     travelFileId,
     agreementType,
     templateConfigured: true,
     contactIdPresent: !!file.briitely_contact_id,
     senderResolved: !!senderGhlUserId,
+    senderSource: "assigned_advisor",
     customFieldsPopulated: populateResult.updatedFields,
     sendAttempted: true,
   });
@@ -300,13 +280,13 @@ export async function POST(
     templateConfigured: true,
     contactIdPresent: true,
     senderResolved: true,
+    senderSource: "assigned_advisor",
     sendAttempted: true,
     apiStatus: "success",
     documentIdPresent: true,
     finalResult: "sent",
   });
 
-  // ── Complete the send_tmf_agreement action ────────────────────
   const { error: actionCompleteError } = await supabase
     .from("travel_actions")
     .update({
@@ -324,15 +304,9 @@ export async function POST(
       errorMessage: actionCompleteError.message,
       documentId,
     });
-    // Document was sent but we couldn't mark the action complete.
-    // Still persist the document reference so we don't double-send.
-    // These columns may not exist yet — best-effort update.
     await supabase
       .from("travel_files")
-      .update({
-        tmf_document_id: documentId,
-        tmf_sent_at: now,
-      })
+      .update({ tmf_document_id: documentId, tmf_sent_at: now })
       .eq("id", travelFileId);
     return NextResponse.json(
       { error: "The agreement was sent but the action could not be marked complete. Please contact an administrator." },
@@ -340,7 +314,6 @@ export async function POST(
     );
   }
 
-  // ── Create the next blocking action: await_tmf_signature ────────
   const { data: newAction, error: actionCreateError } = await supabase
     .from("travel_actions")
     .insert({
@@ -362,9 +335,6 @@ export async function POST(
       errorStage: "create_await_action_failed",
       errorMessage: actionCreateError?.message,
     });
-    // Document sent, action completed, but can't create next action.
-    // Persist document reference and update stage manually.
-    // Best-effort: stage/current_action_id always work; tmf_* may not exist yet.
     await supabase
       .from("travel_files")
       .update({
@@ -381,8 +351,6 @@ export async function POST(
     );
   }
 
-  // ── Update the Travel File ────────────────────────────────────
-  // First update the fields that definitely exist (stage, action pointer).
   const { error: fileUpdateError } = await supabase
     .from("travel_files")
     .update({
@@ -398,7 +366,6 @@ export async function POST(
       errorStage: "file_update_failed",
       errorMessage: fileUpdateError.message,
     });
-    // Rollback: delete the new action, reopen the send action
     await supabase.from("travel_actions").delete().eq("id", newAction.id);
     await supabase.from("travel_actions").update({
       status: "active",
@@ -412,16 +379,11 @@ export async function POST(
     );
   }
 
-  // Best-effort: persist the document reference fields (may not exist yet).
   await supabase
     .from("travel_files")
-    .update({
-      tmf_document_id: documentId,
-      tmf_sent_at: now,
-    })
+    .update({ tmf_document_id: documentId, tmf_sent_at: now })
     .eq("id", travelFileId);
 
-  // ── Activity ──────────────────────────────────────────────────
   await supabase.from("travel_activity").insert({
     travel_file_id: travelFileId,
     event_type: "tmf_agreement_sent",
@@ -431,7 +393,7 @@ export async function POST(
     action_id: currentAction.id,
     previous_stage: file.stage,
     new_stage: "tmf_sent",
-    metadata: { documentId, agreementType },
+    metadata: { documentId, agreementType, sendingAdvisor: advisorFullName },
   });
 
   console.info("TMF_DOCUMENT_SEND", {
