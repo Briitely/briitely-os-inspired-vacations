@@ -63,6 +63,8 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
 // via {{contact.custom_fields.xxx}} merge tokens.
 
 const PAST_CLIENT_TAG = "past-client";
+const NEW_CLIENT_TMF_FIELD_NAME = "New Client TMF";
+const PAST_CLIENT_TMF_FIELD_NAME = "Past Client TMF";
 
 const NEW_CLIENT_TMF_COPY = `<p>Here are your next steps so we can get started on your trip:</p>
 <p>1. <strong>Review and sign your Travel Management Fee Agreement</strong> using the document link below.</p>
@@ -122,8 +124,8 @@ export async function populateTmfContactFields(
     "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
-    "New Client TMF": isPastClient ? "" : NEW_CLIENT_TMF_COPY,
-    "Past Client TMF": isPastClient ? PAST_CLIENT_TMF_COPY : "",
+    [NEW_CLIENT_TMF_FIELD_NAME]: isPastClient ? "" : NEW_CLIENT_TMF_COPY,
+    [PAST_CLIENT_TMF_FIELD_NAME]: isPastClient ? PAST_CLIENT_TMF_COPY : "",
   };
 
   if (values.revisionsIncluded != null) {
