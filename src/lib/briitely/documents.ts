@@ -62,6 +62,18 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
 // portal-owned values before sending so the template can read them
 // via {{contact.custom_fields.xxx}} merge tokens.
 
+const PAST_CLIENT_TAG = "past-client";
+
+const NEW_CLIENT_TMF_COPY = `Here are your next steps so we can get started on your trip:
+ Review and sign your Travel Management Fee Agreement using the document link below.
+ Complete your Client Booking Form here: https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5
+The booking form gives us the personal and passport details, travel preferences, payment authorization, and emergency contact information we need to begin planning.
+The sooner we have both your signed agreement and completed booking form, the sooner we can get to work!`;
+
+const PAST_CLIENT_TMF_COPY = "Your Travel Management Fee Agreement is ready for your review and signature. Please click the link below to read through and sign at your earliest convenience.";
+
+export type TmfClientType = "new" | "past";
+
 export interface TmfContactFieldValues {
   destination: string;
   assignedAdvisorName: string;
@@ -69,6 +81,7 @@ export interface TmfContactFieldValues {
   tmfAmount: number;
   agreementDate: string;
   revisionsIncluded?: number | null;
+  clientType: TmfClientType;
 }
 
 export interface PopulateTmfFieldsResult {
@@ -101,12 +114,16 @@ export async function populateTmfContactFields(
   contactId: string,
   values: TmfContactFieldValues
 ): Promise<PopulateTmfFieldsResult> {
+  const isPastClient = values.clientType === "past";
+
   const fieldMap: Record<string, string> = {
     "TMF Destination": values.destination,
     "TMF Assigned Advisor": values.assignedAdvisorName,
     "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
+    "New_Client_TMF": isPastClient ? "" : NEW_CLIENT_TMF_COPY,
+    "Past_Client_TMF": isPastClient ? PAST_CLIENT_TMF_COPY : "",
   };
 
   if (values.revisionsIncluded != null) {
@@ -138,6 +155,63 @@ export async function populateTmfContactFields(
     updatedFields: updated,
     failedFields: failed,
   };
+}
+
+// ── Contact tag lookup ────────────────────────────────────────
+
+export interface ContactTagLookupResult {
+  succeeded: boolean;
+  isPastClient: boolean;
+  error?: string;
+}
+
+export async function lookupContactClientType(
+  contactId: string
+): Promise<ContactTagLookupResult> {
+  try {
+    const response = await briitelyRequest<{ contact?: { tags?: string[] } }>({
+      method: "GET",
+      path: `/contacts/${encodeURIComponent(contactId)}`,
+    });
+
+    const tags = response.contact?.tags;
+    if (!Array.isArray(tags)) {
+      console.error("TMF_CONTACT_TAG_LOOKUP", {
+        contactId,
+        errorStage: "tags_not_array",
+      });
+      return {
+        succeeded: false,
+        isPastClient: false,
+        error: "Could not read the contact's tags from Briitely.",
+      };
+    }
+
+    const isPastClient = tags.some(
+      (tag) => tag.trim().toLowerCase() === PAST_CLIENT_TAG
+    );
+
+    console.info("TMF_CONTACT_TAG_LOOKUP", {
+      contactId,
+      tagCount: tags.length,
+      isPastClient,
+    });
+
+    return { succeeded: true, isPastClient };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to fetch contact from Briitely.";
+    console.error("TMF_CONTACT_TAG_LOOKUP", {
+      contactId,
+      errorStage: "api_error",
+      errorMessage: message,
+    });
+    return {
+      succeeded: false,
+      isPastClient: false,
+      error: message,
+    };
+  }
 }
 
 // ── Send Template ─────────────────────────────────────────────

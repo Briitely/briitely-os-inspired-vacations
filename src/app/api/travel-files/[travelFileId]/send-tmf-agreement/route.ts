@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getTmfTemplateId,
   isTmfTemplateConfigured,
+  lookupContactClientType,
   populateTmfContactFields,
   sendDocumentTemplate,
   type TmfTemplateType,
@@ -214,6 +215,23 @@ export async function POST(
     );
   }
 
+  // ── Determine client type (new vs past) from Briitely tags ────
+  const tagLookup = await lookupContactClientType(file.briitely_contact_id);
+  if (!tagLookup.succeeded) {
+    console.error("TMF_DOCUMENT_SEND", {
+      travelFileId,
+      errorStage: "contact_tag_lookup_failed",
+      contactId: file.briitely_contact_id,
+      tagLookupError: tagLookup.error,
+    });
+    return NextResponse.json(
+      { error: tagLookup.error ?? "Could not verify the client's status in Briitely. Please try again." },
+      { status: 502 }
+    );
+  }
+
+  const clientType = tagLookup.isPastClient ? "past" : "new";
+
   const agreementDate = new Date().toLocaleDateString("en-CA");
   const populateResult = await populateTmfContactFields(
     file.briitely_contact_id,
@@ -224,6 +242,7 @@ export async function POST(
       tmfAmount: file.tmf_amount!,
       agreementDate,
       revisionsIncluded: agreementType === "ivt" ? file.revisions_included : null,
+      clientType,
     }
   );
 
@@ -247,6 +266,7 @@ export async function POST(
     senderResolved: !!senderGhlUserId,
     senderSource: "assigned_advisor",
     customFieldsPopulated: populateResult.updatedFields,
+    clientType,
     sendAttempted: true,
   });
 
