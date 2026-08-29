@@ -65,6 +65,7 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
 export interface TmfContactFieldValues {
   destination: string;
   assignedAdvisorName: string;
+  assignedAdvisorFirstName: string;
   tmfAmount: number;
   agreementDate: string;
   revisionsIncluded?: number | null;
@@ -103,6 +104,7 @@ export async function populateTmfContactFields(
   const fieldMap: Record<string, string> = {
     "TMF Destination": values.destination,
     "TMF Assigned Advisor": values.assignedAdvisorName,
+    "Assigned Advisor First Name": values.assignedAdvisorFirstName,
     "TMF Amount": `${values.tmfAmount.toFixed(2)}`,
     "TMF Agreement Date": values.agreementDate,
   };
