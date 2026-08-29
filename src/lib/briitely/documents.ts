@@ -64,11 +64,11 @@ export function isTmfTemplateConfigured(type: TmfTemplateType): boolean {
 
 const PAST_CLIENT_TAG = "past-client";
 
-const NEW_CLIENT_TMF_COPY = `Here are your next steps so we can get started on your trip:
- Review and sign your Travel Management Fee Agreement using the document link below.
- Complete your Client Booking Form here: https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5
-The booking form gives us the personal and passport details, travel preferences, payment authorization, and emergency contact information we need to begin planning.
-The sooner we have both your signed agreement and completed booking form, the sooner we can get to work!`;
+const NEW_CLIENT_TMF_COPY = `<p>Here are your next steps so we can get started on your trip:</p>
+<p>1. <strong>Review and sign your Travel Management Fee Agreement</strong> using the document link below.</p>
+<p>2. <strong>Complete Your Booking Form</strong> here: <a href="https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5">https://links.briitely.com/widget/survey/QQjORbgYxVUoHJlje5S5</a></p>
+<p>The booking form gives us the personal and passport details, travel preferences, payment authorization, and emergency contact information we need to begin planning.</p>
+<p>The sooner we have both your signed agreement and completed booking form, the sooner we can get to work!</p>`;
 
 const PAST_CLIENT_TMF_COPY = "Your Travel Management Fee Agreement is ready for your review and signature. Please click the link below to read through and sign at your earliest convenience.";
 
