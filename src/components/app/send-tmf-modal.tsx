@@ -27,6 +27,7 @@ export function SendTmfModal({ travelFileId, clientName, email, phone, destinati
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sendBookingForm, setSendBookingForm] = useState<boolean | null>(null);
 
   if (!isOpen) return null;
 
@@ -34,10 +35,19 @@ export function SendTmfModal({ travelFileId, clientName, email, phone, destinati
   const agreementLabel = agreementType === "all_inclusive" ? "All-Inclusive" : "IVT";
 
   async function handleSend() {
+    if (sendBookingForm === null) {
+      setError("Please choose whether to send the Client Booking Form with this agreement.");
+      return;
+    }
+
     setSending(true);
     setError(null);
     try {
-      const res = await fetch(`/api/travel-files/${travelFileId}/send-tmf-agreement`, { method: "POST", headers: { "Content-Type": "application/json" } });
+      const res = await fetch(`/api/travel-files/${travelFileId}/send-tmf-agreement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendBookingForm }),
+      });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed to send TMF Agreement."); setSending(false); return; }
       if (data.result === "already_sent") { setError("This TMF Agreement has already been sent."); setSending(false); return; }
@@ -54,6 +64,7 @@ export function SendTmfModal({ travelFileId, clientName, email, phone, destinati
   function handleClose() {
     if (sending) return;
     setError(null);
+    setSendBookingForm(null);
     onClose();
   }
 
@@ -82,6 +93,22 @@ export function SendTmfModal({ travelFileId, clientName, email, phone, destinati
               {isIvt && <ReviewField label="Revisions Included" value={revisionsIncluded != null ? String(revisionsIncluded) : "—"} />}
             </div>
           </div>
+
+          <fieldset className="space-y-2 rounded-lg border border-border p-4">
+            <legend className="px-1 text-sm font-semibold text-foreground">Send Client Booking Form with this agreement? *</legend>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input type="radio" name="sendBookingForm" checked={sendBookingForm === true} onChange={() => setSendBookingForm(true)} disabled={sending} />
+                Yes
+              </label>
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input type="radio" name="sendBookingForm" checked={sendBookingForm === false} onChange={() => setSendBookingForm(false)} disabled={sending} />
+                No
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">Choose Yes when the client should complete or refresh their booking details for this trip.</p>
+          </fieldset>
+
           <div className="flex items-center gap-2">
             <Badge variant="outline">{agreementLabel} Template</Badge>
             <span className="text-xs text-muted-foreground">The correct Briitely template will be selected automatically based on the agreement type.</span>
@@ -90,7 +117,7 @@ export function SendTmfModal({ travelFileId, clientName, email, phone, destinati
         </CardContent>
         <div className="flex justify-end gap-3 border-t border-border p-4">
           <Button type="button" variant="outline" onClick={handleClose} disabled={sending}>Cancel</Button>
-          <Button type="button" onClick={handleSend} disabled={sending}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{sending ? "Sending..." : "Send Agreement"}</Button>
+          <Button type="button" onClick={handleSend} disabled={sending || sendBookingForm === null}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{sending ? "Sending..." : "Send Agreement"}</Button>
         </div>
       </Card>
     </div>
