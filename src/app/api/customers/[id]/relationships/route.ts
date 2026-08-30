@@ -151,8 +151,6 @@ export async function POST(
       throw new Error(relationshipError?.message ?? "Could not create relationship.");
     }
 
-    // If the related person is also a Briitely customer, create the inverse relationship
-    // so each customer card shows the connection automatically.
     if (relatedTraveller.briitely_contact_id) {
       const primaryTraveller = await upsertContactTraveller(supabase, id);
       await supabase.from("client_relationships").upsert(
@@ -172,4 +170,57 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await requireUser())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const relationshipId = new URL(req.url).searchParams.get("relationshipId");
+  if (!relationshipId) {
+    return NextResponse.json({ error: "Relationship ID is required." }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("client_relationships")
+    .select("id, relationship_type, related_traveller_id, traveller_profiles:related_traveller_id(briitely_contact_id)")
+    .eq("id", relationshipId)
+    .eq("primary_contact_id", id)
+    .maybeSingle();
+
+  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+  if (!existing) return NextResponse.json({ error: "Relationship not found." }, { status: 404 });
+
+  const related = Array.isArray(existing.traveller_profiles)
+    ? existing.traveller_profiles[0]
+    : existing.traveller_profiles;
+
+  const { error: deleteError } = await supabase
+    .from("client_relationships")
+    .delete()
+    .eq("id", relationshipId)
+    .eq("primary_contact_id", id);
+
+  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+
+  if (related?.briitely_contact_id) {
+    const { data: primaryTraveller } = await supabase
+      .from("traveller_profiles")
+      .select("id")
+      .eq("briitely_contact_id", id)
+      .maybeSingle();
+
+    if (primaryTraveller) {
+      await supabase
+        .from("client_relationships")
+        .delete()
+        .eq("primary_contact_id", related.briitely_contact_id)
+        .eq("related_traveller_id", primaryTraveller.id);
+    }
+  }
+
+  return NextResponse.json({ deleted: true });
 }
