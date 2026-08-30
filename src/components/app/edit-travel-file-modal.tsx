@@ -8,8 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/c
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import {
-  travelInterestOptions,
-  travelSeasonOptions,
   referralSourceOptions,
   tripTypeOptions,
   budgetRangeOptions,
@@ -71,10 +69,6 @@ interface EditTravelFileModalProps {
   onClose: () => void;
 }
 
-function toggleArrayValue(arr: string[], value: string): string[] {
-  return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
-}
-
 function isValidUrl(value: string): boolean {
   if (!value) return true;
   try {
@@ -111,8 +105,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
   const [budgetRange, setBudgetRange] = useState(travelFile.budgetRange ?? "");
   const [insuranceInterest, setInsuranceInterest] = useState(travelFile.insuranceInterest ?? "");
   const [specialConsiderations, setSpecialConsiderations] = useState(travelFile.specialConsiderations ?? "");
-  const [travelInterests, setTravelInterests] = useState<string[]>(travelFile.travelInterests ?? []);
-  const [travelSeasons, setTravelSeasons] = useState<string[]>(travelFile.travelSeasons ?? []);
   const [inquirySource, setInquirySource] = useState(travelFile.inquirySource ?? "");
   const [intakeMethod, setIntakeMethod] = useState(travelFile.intakeMethod ?? "phone");
   const [referralSource, setReferralSource] = useState(
@@ -189,7 +181,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
     setSaving(true);
     setError(null);
 
-    // Date validation
     if (departureDate && returnDate) {
       const dep = new Date(departureDate + "T00:00:00");
       const ret = new Date(returnDate + "T00:00:00");
@@ -200,14 +191,12 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
       }
     }
 
-    // Adults validation
     if (adultCount < 1) {
       setError("Number of adults must be at least 1.");
       setSaving(false);
       return;
     }
 
-    // URL validation
     if (travefyProposalUrl && !isValidUrl(travefyProposalUrl)) {
       setError("Travefy Proposal URL must be a valid http:// or https:// URL.");
       setSaving(false);
@@ -219,7 +208,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
       return;
     }
 
-    // Numeric validation
     const bookingValueNum = totalBookingValue ? parseFloat(totalBookingValue) : null;
     if (totalBookingValue && (isNaN(bookingValueNum!) || bookingValueNum! < 0)) {
       setError("Total Booking Value must be a valid number.");
@@ -249,8 +237,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           budgetRange,
           insuranceInterest: insuranceInterest || null,
           specialConsiderations: specialConsiderations || null,
-          travelInterests,
-          travelSeasons,
           inquirySource,
           intakeMethod,
           referralDetail: referralSource === "Referral" ? referralDetail || null : null,
@@ -258,7 +244,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           staffNotes: staffNotes || null,
           internalNotes: internalNotes || null,
           assignedAdvisorId: assignedAdvisorId || null,
-          // Booking / Planning
           proposalDueDate: proposalDueDate || null,
           dateBooked: dateBooked || null,
           totalBookingValue: bookingValueNum,
@@ -268,7 +253,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           primaryBookingNumber: primaryBookingNumber || null,
           travefyProposalUrl: travefyProposalUrl || null,
           travefyTripPlanUrl: travefyTripPlanUrl || null,
-          // Insurance / Pre-Trip
           insuranceStatus,
           insuranceWaiverSigned: insuranceWaiverSigned === "" ? null : insuranceWaiverSigned === "yes",
           pretripMeetingRequired: pretripMeetingRequired === "" ? null : pretripMeetingRequired === "yes",
@@ -281,7 +265,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         if (res.status === 409) {
           setError("This Travel File was modified by another user. Please reload the page and try again.");
@@ -307,7 +290,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8" ref={advisorLoaderRef}>
       <div className="w-full max-w-3xl rounded-lg bg-background shadow-xl my-4">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
             <Pencil className="h-5 w-5 text-primary" />
@@ -318,9 +300,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSave} className="space-y-6 px-6 py-6">
-          {/* Trip Details */}
           <Card>
             <CardHeader><CardTitle className="text-base">Trip Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -387,36 +367,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             </CardContent>
           </Card>
 
-          {/* Travel Profile */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Travel Profile</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="mb-2 block">Travel Interests</Label>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {travelInterestOptions.map((opt) => (
-                    <label key={opt.label} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 cursor-pointer hover:bg-accent transition-colors">
-                      <input type="checkbox" checked={travelInterests.includes(opt.label)} onChange={() => setTravelInterests((prev) => toggleArrayValue(prev, opt.label))} className="h-4 w-4 rounded border-border" />
-                      <span className="text-sm text-foreground">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label className="mb-2 block">Preferred Travel Seasons</Label>
-                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  {travelSeasonOptions.map((opt) => (
-                    <label key={opt.label} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 cursor-pointer hover:bg-accent transition-colors">
-                      <input type="checkbox" checked={travelSeasons.includes(opt.label)} onChange={() => setTravelSeasons((prev) => toggleArrayValue(prev, opt.label))} className="h-4 w-4 rounded border-border" />
-                      <span className="text-sm text-foreground">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Inquiry / Source */}
           <Card>
             <CardHeader><CardTitle className="text-base">Inquiry / Source</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -462,7 +412,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             </CardContent>
           </Card>
 
-          {/* Booking / Planning */}
           <Card>
             <CardHeader><CardTitle className="text-base">Booking / Planning</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -515,7 +464,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             </CardContent>
           </Card>
 
-          {/* Insurance / Pre-Trip */}
           <Card>
             <CardHeader><CardTitle className="text-base">Insurance / Pre-Trip</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -573,7 +521,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             </CardContent>
           </Card>
 
-          {/* Assignment */}
           <Card>
             <CardHeader><CardTitle className="text-base">Assignment</CardTitle></CardHeader>
             <CardContent>
@@ -591,7 +538,6 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</div>
           )}
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 border-t border-border pt-4">
             <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
               Cancel
