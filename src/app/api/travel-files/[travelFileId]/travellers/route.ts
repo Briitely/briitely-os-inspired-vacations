@@ -82,7 +82,7 @@ export async function GET(
 
   const { data: file, error: fileError } = await supabase
     .from("travel_files")
-    .select("id, briitely_contact_id")
+    .select("id, briitely_contact_id, departure_date")
     .eq("id", travelFileId)
     .maybeSingle();
 
@@ -122,7 +122,11 @@ export async function GET(
       : { data: [], error: null };
     if (relationshipError) throw new Error(relationshipError.message);
 
-    return NextResponse.json({ party: party ?? [], relationships: relationships ?? [] });
+    return NextResponse.json({
+      party: party ?? [],
+      relationships: relationships ?? [],
+      departureDate: file.departure_date ?? null,
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load travel party." }, { status: 500 });
   }
