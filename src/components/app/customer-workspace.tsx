@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CustomerDetailsCard } from "@/components/core/customer-details-card";
+import { CustomerTravelProfileCard } from "@/components/app/customer-travel-profile-card";
 import { CustomerTravelFiles } from "@/components/app/customer-travel-files";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 
@@ -20,6 +21,7 @@ export function CustomerWorkspace({ initialCustomer }: CustomerWorkspaceProps) {
         customer={customer}
         onCustomerUpdated={setCustomer}
       />
+      <CustomerTravelProfileCard customerId={customer.id} />
       <CustomerTravelFiles customer={customer} />
     </div>
   );
