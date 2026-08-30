@@ -1,51 +1,24 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X, CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import { Badge } from "@/components/core/ui/badge";
-import {
-  tripTypeOptions,
-  budgetRangeOptions,
-} from "@/lib/travel/tag-mappings";
+import { ConsultationTravelPartyEditor, type ConsultationPartyMember } from "@/components/app/consultation-travel-party-editor";
+import { tripTypeOptions, budgetRangeOptions } from "@/lib/travel/tag-mappings";
 import { formatReadableDateTime } from "@/lib/travel/format";
 
-interface Advisor {
-  id: string;
-  full_name: string;
-}
-
-interface PreviousNote {
-  id: string;
-  note_type: string;
-  note_text: string;
-  created_at: string;
-  author?: { id: string; full_name: string } | null;
-}
-
-interface CompleteConsultationModalProps {
-  travelFileId: string;
-  clientName: string;
-  destination: string | null;
-  tripType: string | null;
-  travelTimeframe: string | null;
-  departureDate: string | null;
-  returnDate: string | null;
-  numberOfAdults: number | null;
-  numberOfChildren: number | null;
-  childrenAges: string | null;
-  budgetRange: string | null;
-  specialConsiderations: string | null;
-  insuranceInterest: string | null;
-  assignedAdvisorId: string | null;
-  staffNotes: string | null;
-  previousNotes: PreviousNote[];
-  isOpen: boolean;
-  onClose: () => void;
+interface Advisor { id: string; full_name: string; }
+interface PreviousNote { id: string; note_type: string; note_text: string; created_at: string; author?: { id: string; full_name: string } | null; }
+interface Props {
+  travelFileId: string; clientName: string; destination: string | null; tripType: string | null; travelTimeframe: string | null;
+  departureDate: string | null; returnDate: string | null; numberOfAdults: number | null; numberOfChildren: number | null;
+  childrenAges: string | null; budgetRange: string | null; specialConsiderations: string | null; insuranceInterest: string | null;
+  assignedAdvisorId: string | null; staffNotes: string | null; previousNotes: PreviousNote[]; isOpen: boolean; onClose: () => void;
 }
 
 const insuranceOptions = [
@@ -57,617 +30,63 @@ const insuranceOptions = [
   "No, I DECLINE all travel insurance and will not hold the Travel Agent responsible for any potential losses that may occur",
 ];
 
-export function CompleteConsultationModal({
-  travelFileId,
-  clientName,
-  destination: initialDestination,
-  tripType: initialTripType,
-  travelTimeframe: initialTravelTimeframe,
-  departureDate: initialDepartureDate,
-  returnDate: initialReturnDate,
-  numberOfAdults: initialAdults,
-  numberOfChildren: initialChildren,
-  childrenAges: initialChildrenAges,
-  budgetRange: initialBudgetRange,
-  specialConsiderations: initialSpecialConsiderations,
-  insuranceInterest: initialInsuranceInterest,
-  assignedAdvisorId: initialAdvisor,
-  staffNotes,
-  previousNotes,
-  isOpen,
-  onClose,
-}: CompleteConsultationModalProps) {
+export function CompleteConsultationModal(props: Props) {
   const router = useRouter();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [advisors, setAdvisors] = useState<Advisor[]>([]);
+  const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null); const [advisors, setAdvisors] = useState<Advisor[]>([]);
+  const [destination, setDestination] = useState(props.destination ?? ""); const [tripType, setTripType] = useState(props.tripType ?? ""); const [travelTimeframe, setTravelTimeframe] = useState(props.travelTimeframe ?? "");
+  const [departureDate, setDepartureDate] = useState(props.departureDate ?? ""); const [returnDate, setReturnDate] = useState(props.returnDate ?? ""); const [budgetRange, setBudgetRange] = useState(props.budgetRange ?? "");
+  const [specialConsiderations, setSpecialConsiderations] = useState(props.specialConsiderations ?? ""); const [insuranceInterest, setInsuranceInterest] = useState(props.insuranceInterest ?? "");
+  const [party, setParty] = useState<ConsultationPartyMember[]>([]);
+  const [isFit, setIsFit] = useState<"yes" | "no" | "">(""); const [agreementType, setAgreementType] = useState<"ivt" | "all_inclusive" | "">(""); const [tmfAmount, setTmfAmount] = useState("");
+  const [assignedAdvisor, setAssignedAdvisor] = useState(props.assignedAdvisorId ?? ""); const [revisionsIncluded, setRevisionsIncluded] = useState(""); const [notFitReason, setNotFitReason] = useState("");
+  const [consultationNote, setConsultationNote] = useState(""); const [consultationNoteType, setConsultationNoteType] = useState<"client_facing" | "internal">("internal");
 
-  // Editable trip detail fields
-  const [destination, setDestination] = useState(initialDestination ?? "");
-  const [tripType, setTripType] = useState(initialTripType ?? "");
-  const [travelTimeframe, setTravelTimeframe] = useState(initialTravelTimeframe ?? "");
-  const [departureDate, setDepartureDate] = useState(initialDepartureDate ?? "");
-  const [returnDate, setReturnDate] = useState(initialReturnDate ?? "");
-  const [numberOfAdults, setNumberOfAdults] = useState(String(initialAdults ?? 1));
-  const [numberOfChildren, setNumberOfChildren] = useState(
-    initialChildren != null ? String(initialChildren) : "0"
-  );
-  const [childrenAges, setChildrenAges] = useState(initialChildrenAges ?? "");
-  const [budgetRange, setBudgetRange] = useState(initialBudgetRange ?? "");
-  const [specialConsiderations, setSpecialConsiderations] = useState(initialSpecialConsiderations ?? "");
-  const [insuranceInterest, setInsuranceInterest] = useState(initialInsuranceInterest ?? "");
+  const loadAdvisors = useCallback(async () => { try { const r = await fetch("/api/travel-files/advisors"); if (r.ok) setAdvisors((await r.json()).advisors ?? []); } catch {} }, []);
+  const advisorRef = useCallback((node: HTMLDivElement | null) => { if (node && props.isOpen && advisors.length === 0) loadAdvisors(); }, [props.isOpen, advisors.length, loadAdvisors]);
+  const childCount = party.filter((m) => m.relationship_to_primary === "child").length; const travellerTotal = party.length; const adultCount = Math.max(0, travellerTotal - childCount);
 
-  // Fit decision + TMF fields
-  const [isFit, setIsFit] = useState<"yes" | "no" | "">("");
-  const [agreementType, setAgreementType] = useState<"ivt" | "all_inclusive" | "">("");
-  const [tmfAmount, setTmfAmount] = useState("");
-  const [assignedAdvisor, setAssignedAdvisor] = useState(initialAdvisor ?? "");
-  const [revisionsIncluded, setRevisionsIncluded] = useState("");
-  const [notFitReason, setNotFitReason] = useState("");
-
-  // Consultation note
-  const [consultationNote, setConsultationNote] = useState("");
-  const [consultationNoteType, setConsultationNoteType] = useState<"client_facing" | "internal">("internal");
-
-  const loadAdvisors = useCallback(async () => {
-    try {
-      const res = await fetch("/api/travel-files/advisors");
-      if (res.ok) {
-        const data = await res.json();
-        setAdvisors(data.advisors ?? []);
-      }
-    } catch {
-      // Non-fatal
-    }
-  }, []);
-
-  const advisorLoaderRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node && isOpen && advisors.length === 0) {
-        loadAdvisors();
-      }
-    },
-    [isOpen, advisors.length, loadAdvisors]
-  );
-
-  function handleClose() {
-    if (saving) return;
-    setError(null);
-    onClose();
+  function validate() {
+    if (travellerTotal < 1) return "Add at least one traveller to the Travel Party.";
+    if (departureDate && returnDate && new Date(returnDate + "T00:00:00") < new Date(departureDate + "T00:00:00")) return "Return date cannot be before departure date.";
+    if (!insuranceInterest) return "Travel Insurance preference is required."; if (!isFit) return "Please select whether this client is a fit.";
+    if (isFit === "no") return notFitReason.trim() ? null : "Reason / Notes is required when client is not a fit.";
+    if (!agreementType) return "Please select an agreement / trip category."; if (!tmfAmount || isNaN(parseFloat(tmfAmount)) || parseFloat(tmfAmount) < 0) return "TMF Amount is required and must be valid.";
+    if (!assignedAdvisor) return "Assigned Advisor is required."; if (agreementType === "ivt" && (revisionsIncluded === "" || parseInt(revisionsIncluded, 10) < 0)) return "Number of Revisions Included is required for IVT agreements."; return null;
   }
 
-  const adultCount = parseInt(numberOfAdults, 10) || 0;
-  const childCount = parseInt(numberOfChildren, 10) || 0;
-  const travellerTotal = adultCount + childCount;
-
-  function validate(): string | null {
-    if (adultCount < 1) return "Number of adults must be at least 1.";
-
-    if (departureDate && returnDate) {
-      const dep = new Date(departureDate + "T00:00:00");
-      const ret = new Date(returnDate + "T00:00:00");
-      if (ret < dep) return "Return date cannot be before departure date.";
-    }
-
-    if (childCount > 0 && !childrenAges.trim()) {
-      return "Ages of Children is required when there are children.";
-    }
-
-    if (!insuranceInterest) return "Travel Insurance preference is required.";
-
-    if (!isFit) return "Please select whether this client is a fit.";
-    if (isFit === "no") {
-      if (!notFitReason.trim()) return "Reason / Notes is required when client is not a fit.";
-      return null;
-    }
-    // isFit === "yes"
-    if (!agreementType) return "Please select an agreement / trip category.";
-    if (!tmfAmount || isNaN(parseFloat(tmfAmount)) || parseFloat(tmfAmount) < 0) {
-      return "TMF Amount is required and must be a valid non-negative number.";
-    }
-    if (!assignedAdvisor) return "Assigned Advisor is required.";
-    if (agreementType === "ivt") {
-      const rev = parseInt(revisionsIncluded, 10);
-      if (revisionsIncluded === "" || isNaN(rev) || rev < 0 || !Number.isInteger(rev)) {
-        return "Number of Revisions Included is required for IVT agreements and must be a non-negative integer.";
-      }
-    }
-    return null;
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); const validation = validate(); if (validation) return setError(validation); setSaving(true); setError(null);
+    const payload: Record<string, unknown> = { isFit, destination: destination.trim() || null, tripType: tripType || null, travelTimeframe: travelTimeframe.trim() || null, departureDate: departureDate || null, returnDate: returnDate || null,
+      numberOfAdults: adultCount, numberOfChildren: childCount, childrenAges: null, budgetRange: budgetRange || null, specialConsiderations: specialConsiderations.trim() || null, insuranceInterest,
+      consultationNote: consultationNote.trim() || null, consultationNoteType };
+    if (isFit === "no") payload.notFitReason = notFitReason.trim(); else { payload.agreementType = agreementType; payload.tmfAmount = parseFloat(tmfAmount); payload.assignedAdvisorId = assignedAdvisor; if (agreementType === "ivt") payload.revisionsIncluded = parseInt(revisionsIncluded, 10); }
+    try { const r = await fetch(`/api/travel-files/${props.travelFileId}/complete-consultation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await r.json(); if (!r.ok) return setError(data.error ?? "Failed to complete consultation."); props.onClose(); router.refresh(); }
+    catch { setError("Something went wrong submitting the consultation."); } finally { setSaving(false); }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const payload: Record<string, unknown> = {
-        isFit,
-        // Trip detail edits
-        destination: destination.trim() || null,
-        tripType: tripType || null,
-        travelTimeframe: travelTimeframe.trim() || null,
-        departureDate: departureDate || null,
-        returnDate: returnDate || null,
-        numberOfAdults: adultCount,
-        numberOfChildren: childCount,
-        childrenAges: childCount > 0 ? childrenAges.trim() : null,
-        budgetRange: budgetRange || null,
-        specialConsiderations: specialConsiderations.trim() || null,
-        // Insurance preference
-        insuranceInterest,
-        // Consultation note (optional)
-        consultationNote: consultationNote.trim() || null,
-        consultationNoteType,
-      };
-
-      if (isFit === "no") {
-        payload.notFitReason = notFitReason.trim();
-      } else {
-        payload.agreementType = agreementType;
-        payload.tmfAmount = parseFloat(tmfAmount);
-        payload.assignedAdvisorId = assignedAdvisor;
-        if (agreementType === "ivt") {
-          payload.revisionsIncluded = parseInt(revisionsIncluded, 10);
-        }
-      }
-
-      const res = await fetch(`/api/travel-files/${travelFileId}/complete-consultation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "Failed to complete consultation.");
-        return;
-      }
-
-      onClose();
-      router.refresh();
-    } catch {
-      setError("Something went wrong submitting the consultation.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
-        <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border">
-          <CardTitle>Complete Initial Consultation</CardTitle>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </CardHeader>
-
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <CardContent className="space-y-6 overflow-y-auto flex-1 p-6">
-            {/* Context: client name only */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                Client
-              </p>
-              <p className="text-sm font-medium text-foreground">{clientName}</p>
-            </div>
-
-            {/* Previous Notes (read-only) */}
-            {(staffNotes?.trim() || previousNotes.length > 0) && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Previous Notes</h3>
-                {staffNotes?.trim() && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline">Original Intake Note</Badge>
-                    </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{staffNotes}</p>
-                  </div>
-                )}
-                {previousNotes.map((note) => (
-                  <div key={note.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant={note.note_type === "client_facing" ? "default" : "secondary"}>
-                        {note.note_type === "client_facing" ? "Client-facing" : "Internal"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {note.author?.full_name ?? "Unknown"}
-                        {" · "}
-                        {formatReadableDateTime(note.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Editable Inquiry Summary */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Review / Update Trip Details</h3>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="destination">Destination</Label>
-                  <Input
-                    id="destination"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="e.g. Hawaii"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tripType">Trip Type</Label>
-                  <select
-                    id="tripType"
-                    value={tripType}
-                    onChange={(e) => setTripType(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">Select...</option>
-                    {tripTypeOptions.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="travelTimeframe">Travel Timeframe</Label>
-                  <Input
-                    id="travelTimeframe"
-                    value={travelTimeframe}
-                    onChange={(e) => setTravelTimeframe(e.target.value)}
-                    placeholder="e.g. Spring 2027"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="budgetRange">Budget Range</Label>
-                  <select
-                    id="budgetRange"
-                    value={budgetRange}
-                    onChange={(e) => setBudgetRange(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">Select...</option>
-                    {budgetRangeOptions.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="departureDate">Departure Date</Label>
-                  <Input
-                    id="departureDate"
-                    type="date"
-                    value={departureDate}
-                    onChange={(e) => setDepartureDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="returnDate">Return Date</Label>
-                  <Input
-                    id="returnDate"
-                    type="date"
-                    value={returnDate}
-                    onChange={(e) => setReturnDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="numberOfAdults">Adults</Label>
-                  <Input
-                    id="numberOfAdults"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={numberOfAdults}
-                    onChange={(e) => setNumberOfAdults(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="numberOfChildren">Children</Label>
-                  <Input
-                    id="numberOfChildren"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={numberOfChildren}
-                    onChange={(e) => {
-                      setNumberOfChildren(e.target.value);
-                      if (parseInt(e.target.value, 10) === 0) {
-                        setChildrenAges("");
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                {childCount > 0 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="childrenAges">
-                      Ages of Children <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="childrenAges"
-                      value={childrenAges}
-                      onChange={(e) => setChildrenAges(e.target.value)}
-                      placeholder="e.g. 5, 8, 12"
-                      required
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="travellerTotal">Total Travellers</Label>
-                  <Input
-                    id="travellerTotal"
-                    value={String(travellerTotal)}
-                    readOnly
-                    className="bg-muted/50"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="specialConsiderations">Special Considerations</Label>
-                <textarea
-                  id="specialConsiderations"
-                  value={specialConsiderations}
-                  onChange={(e) => setSpecialConsiderations(e.target.value)}
-                  rows={2}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Any special requests, accessibility needs, etc."
-                />
-              </div>
-
-              {/* Travel Insurance */}
-              <div className="space-y-2">
-                <Label htmlFor="insuranceInterest">
-                  Travel Insurance <span className="text-destructive">*</span>
-                </Label>
-                <select
-                  id="insuranceInterest"
-                  value={insuranceInterest}
-                  onChange={(e) => setInsuranceInterest(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  required
-                >
-                  <option value="">Select...</option>
-                  {insuranceOptions.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Decision: Is this client a fit? */}
-            <div className="space-y-2">
-              <Label>Is this client a fit? <span className="text-destructive">*</span></Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="isFit"
-                    value="yes"
-                    checked={isFit === "yes"}
-                    onChange={(e) => {
-                      setIsFit(e.target.value as "yes");
-                      setError(null);
-                    }}
-                    className="h-4 w-4"
-                  />
-                  <span className="flex items-center gap-1 text-sm text-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    Yes
-                  </span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="isFit"
-                    value="no"
-                    checked={isFit === "no"}
-                    onChange={(e) => {
-                      setIsFit(e.target.value as "no");
-                      setError(null);
-                    }}
-                    className="h-4 w-4"
-                  />
-                  <span className="flex items-center gap-1 text-sm text-foreground">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    No
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Not-a-fit fields */}
-            {isFit === "no" && (
-              <div className="space-y-2">
-                <Label htmlFor="notFitReason">
-                  Reason / Notes <span className="text-destructive">*</span>
-                </Label>
-                <textarea
-                  id="notFitReason"
-                  value={notFitReason}
-                  onChange={(e) => setNotFitReason(e.target.value)}
-                  rows={3}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Brief reason why this client is not a fit..."
-                  required
-                />
-              </div>
-            )}
-
-            {/* Fit / Proceed fields */}
-            {isFit === "yes" && (
-              <>
-                <div className="space-y-2">
-                  <Label>
-                    Agreement / Trip Category <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="agreementType"
-                        value="ivt"
-                        checked={agreementType === "ivt"}
-                        onChange={(e) => {
-                          setAgreementType(e.target.value as "ivt");
-                          setError(null);
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm text-foreground">IVT</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="agreementType"
-                        value="all_inclusive"
-                        checked={agreementType === "all_inclusive"}
-                        onChange={(e) => {
-                          setAgreementType(e.target.value as "all_inclusive");
-                          setRevisionsIncluded("");
-                          setError(null);
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm text-foreground">All-Inclusive</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="tmfAmount">
-                      TMF Amount <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="tmfAmount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={tmfAmount}
-                      onChange={(e) => setTmfAmount(e.target.value)}
-                      placeholder="0.00"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2" ref={advisorLoaderRef}>
-                    <Label htmlFor="assignedAdvisor">
-                      Assigned Advisor <span className="text-destructive">*</span>
-                    </Label>
-                    <select
-                      id="assignedAdvisor"
-                      value={assignedAdvisor}
-                      onChange={(e) => setAssignedAdvisor(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      required
-                    >
-                      <option value="">Select an advisor...</option>
-                      {advisors.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.full_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {agreementType === "ivt" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="revisionsIncluded">
-                      Number of Revisions Included <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="revisionsIncluded"
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={revisionsIncluded}
-                      onChange={(e) => setRevisionsIncluded(e.target.value)}
-                      placeholder="0"
-                      required
-                    />
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Consultation Note (optional) */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Consultation Note (Optional)</h3>
-              <div className="space-y-2">
-                <Label htmlFor="consultationNoteType">Note Type</Label>
-                <select
-                  id="consultationNoteType"
-                  value={consultationNoteType}
-                  onChange={(e) => setConsultationNoteType(e.target.value as "client_facing" | "internal")}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="internal">Internal</option>
-                  <option value="client_facing">Client-facing</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="consultationNote">Note</Label>
-                <textarea
-                  id="consultationNote"
-                  value={consultationNote}
-                  onChange={(e) => setConsultationNote(e.target.value)}
-                  rows={3}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Add a note about this consultation..."
-                />
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-          </CardContent>
-
-          <div className="flex justify-end gap-3 border-t border-border p-4">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Complete Consultation"
-              )}
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </div>
-  );
+  if (!props.isOpen) return null;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><Card className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden shadow-xl">
+    <CardHeader className="flex-row items-center justify-between space-y-0 border-b"><CardTitle>Complete Initial Consultation</CardTitle><button type="button" onClick={props.onClose}><X className="h-5 w-5" /></button></CardHeader>
+    <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden"><CardContent className="flex-1 space-y-6 overflow-y-auto p-6">
+      <div className="rounded-lg border bg-muted/30 p-4"><p className="text-xs font-medium uppercase text-muted-foreground">Client</p><p className="text-sm font-medium">{props.clientName}</p></div>
+      {(props.staffNotes?.trim() || props.previousNotes.length > 0) && <section className="space-y-3"><h3 className="text-sm font-semibold">Previous Notes</h3>{props.staffNotes?.trim() && <div className="rounded-lg border bg-muted/30 p-3"><Badge variant="outline">Original Intake Note</Badge><p className="mt-1 whitespace-pre-wrap text-sm">{props.staffNotes}</p></div>}{props.previousNotes.map(n => <div key={n.id} className="rounded-lg border p-3"><div className="mb-1 flex items-center gap-2"><Badge variant={n.note_type === "client_facing" ? "default" : "secondary"}>{n.note_type === "client_facing" ? "Client-facing" : "Internal"}</Badge><span className="text-xs text-muted-foreground">{n.author?.full_name ?? "Unknown"} · {formatReadableDateTime(n.created_at)}</span></div><p className="whitespace-pre-wrap text-sm">{n.note_text}</p></div>)}</section>}
+      <section className="space-y-4"><h3 className="text-sm font-semibold">Review / Update Trip Details</h3><div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Destination"><Input value={destination} onChange={e=>setDestination(e.target.value)} /></Field><Field label="Trip Type"><Select value={tripType} set={setTripType} options={tripTypeOptions} /></Field>
+        <Field label="Travel Timeframe"><Input value={travelTimeframe} onChange={e=>setTravelTimeframe(e.target.value)} /></Field><Field label="Budget Range"><Select value={budgetRange} set={setBudgetRange} options={budgetRangeOptions} /></Field>
+        <Field label="Departure Date"><Input type="date" value={departureDate} onChange={e=>setDepartureDate(e.target.value)} /></Field><Field label="Return Date"><Input type="date" value={returnDate} onChange={e=>setReturnDate(e.target.value)} /></Field>
+      </div><ConsultationTravelPartyEditor travelFileId={props.travelFileId} onPartyChange={setParty} /><div className="grid gap-4 sm:grid-cols-3"><Summary label="Adults" value={adultCount} /><Summary label="Children" value={childCount} /><Summary label="Total Travellers" value={travellerTotal} /></div>
+      <Field label="Special Considerations"><textarea value={specialConsiderations} onChange={e=>setSpecialConsiderations(e.target.value)} rows={2} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></Field>
+      <Field label="Travel Insurance *"><Select value={insuranceInterest} set={setInsuranceInterest} options={insuranceOptions} /></Field></section>
+      <section className="space-y-2"><Label>Is this client a fit? *</Label><div className="flex gap-4"><Radio label="Yes" value="yes" checked={isFit === "yes"} set={()=>setIsFit("yes")} icon={<CheckCircle2 className="h-4 w-4" />} /><Radio label="No" value="no" checked={isFit === "no"} set={()=>setIsFit("no")} icon={<XCircle className="h-4 w-4" />} /></div></section>
+      {isFit === "no" && <Field label="Reason / Notes *"><textarea value={notFitReason} onChange={e=>setNotFitReason(e.target.value)} rows={3} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></Field>}
+      {isFit === "yes" && <section className="space-y-4"><Field label="Agreement / Trip Category *"><div className="flex gap-4"><Radio label="IVT" value="ivt" checked={agreementType === "ivt"} set={()=>setAgreementType("ivt")} /><Radio label="All-Inclusive" value="all_inclusive" checked={agreementType === "all_inclusive"} set={()=>{setAgreementType("all_inclusive");setRevisionsIncluded("");}} /></div></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="TMF Amount *"><Input type="number" min="0" step="0.01" value={tmfAmount} onChange={e=>setTmfAmount(e.target.value)} /></Field><div ref={advisorRef}><Field label="Assigned Advisor *"><select value={assignedAdvisor} onChange={e=>setAssignedAdvisor(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select an advisor...</option>{advisors.map(a=><option key={a.id} value={a.id}>{a.full_name}</option>)}</select></Field></div></div>{agreementType === "ivt" && <Field label="Number of Revisions Included *"><Input type="number" min="0" step="1" value={revisionsIncluded} onChange={e=>setRevisionsIncluded(e.target.value)} /></Field>}</section>}
+      <section className="space-y-3"><h3 className="text-sm font-semibold">Consultation Note (Optional)</h3><Field label="Note Type"><select value={consultationNoteType} onChange={e=>setConsultationNoteType(e.target.value as "client_facing"|"internal")} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="internal">Internal</option><option value="client_facing">Client-facing</option></select></Field><Field label="Note"><textarea value={consultationNote} onChange={e=>setConsultationNote(e.target.value)} rows={3} className="w-full rounded-md border bg-background px-3 py-2 text-sm" /></Field></section>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </CardContent><div className="flex justify-end gap-3 border-t p-4"><Button type="button" variant="outline" onClick={props.onClose} disabled={saving}>Cancel</Button><Button type="submit" disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? "Saving..." : "Complete Consultation"}</Button></div></form>
+  </Card></div>;
 }
+
+function Field({label,children}:{label:string;children:React.ReactNode}) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
+function Select({value,set,options}:{value:string;set:(v:string)=>void;options:readonly string[]|string[]}) { return <select value={value} onChange={e=>set(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select...</option>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>; }
+function Summary({label,value}:{label:string;value:number}) { return <div className="rounded-md border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="text-lg font-semibold">{value}</p></div>; }
+function Radio({label,value,checked,set,icon}:{label:string;value:string;checked:boolean;set:()=>void;icon?:React.ReactNode}) { return <label className="flex cursor-pointer items-center gap-2"><input type="radio" value={value} checked={checked} onChange={set} /><span className="flex items-center gap-1 text-sm">{icon}{label}</span></label>; }
