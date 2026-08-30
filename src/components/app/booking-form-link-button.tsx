@@ -4,6 +4,16 @@ import { useState } from "react";
 import { Check, Clipboard, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 
+async function readResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return {} as { url?: string; error?: string };
+  try {
+    return JSON.parse(text) as { url?: string; error?: string };
+  } catch {
+    return { error: response.ok ? "The server returned an invalid response." : `Booking form link request failed (${response.status}).` };
+  }
+}
+
 export function BookingFormLinkButton({ travelFileId }: { travelFileId: string }) {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -15,8 +25,9 @@ export function BookingFormLinkButton({ travelFileId }: { travelFileId: string }
     setCopied(false);
     try {
       const response = await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/booking-form-link`, { method: "POST" });
-      const data = await response.json();
+      const data = await readResponse(response);
       if (!response.ok) throw new Error(data.error ?? "Could not create booking form link.");
+      if (!data.url) throw new Error(data.error ?? "Booking form link was not returned by the server.");
       await navigator.clipboard.writeText(data.url);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 3000);
