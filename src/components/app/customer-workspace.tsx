@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { CustomerDetailsCard } from "@/components/core/customer-details-card";
 import { CustomerTravelProfileCard } from "@/components/app/customer-travel-profile-card";
+import { CustomerRelationshipsCard } from "@/components/app/customer-relationships-card";
 import { CustomerTravelFiles } from "@/components/app/customer-travel-files";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 
@@ -12,7 +12,6 @@ interface CustomerWorkspaceProps {
 }
 
 export function CustomerWorkspace({ initialCustomer }: CustomerWorkspaceProps) {
-  const router = useRouter();
   const [customer, setCustomer] = useState<BriitelyCustomer>(initialCustomer);
 
   return (
@@ -22,6 +21,7 @@ export function CustomerWorkspace({ initialCustomer }: CustomerWorkspaceProps) {
         onCustomerUpdated={setCustomer}
       />
       <CustomerTravelProfileCard customerId={customer.id} />
+      <CustomerRelationshipsCard customerId={customer.id} />
       <CustomerTravelFiles customer={customer} />
     </div>
   );
