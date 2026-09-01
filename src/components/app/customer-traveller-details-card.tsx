@@ -1,82 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Loader2, X } from "lucide-react";
+import { Loader2, Pencil, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 
-type Profile = {
-  first_name: string; middle_name: string | null; last_name: string; preferred_name: string | null;
-  date_of_birth: string | null; passport_number: string | null; passport_country: string | null;
-  passport_issue_date: string | null; passport_expiry_date: string | null;
-  emergency_contact_name: string | null; emergency_contact_relationship: string | null;
-  emergency_contact_phone: string | null; emergency_contact_email: string | null;
-};
-
-const empty = { firstName:"", middleName:"", lastName:"", preferredName:"", dateOfBirth:"", passportNumber:"", passportCountry:"", passportIssueDate:"", passportExpiryDate:"", emergencyContactName:"", emergencyContactRelationship:"", emergencyContactPhone:"", emergencyContactEmail:"" };
-const emergencyRelationshipOptions = ["Spouse / Partner", "Parent", "Adult Child", "Family Member", "Other"];
-
-function formatPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+type Profile = { first_name:string;middle_name:string|null;last_name:string;preferred_name:string|null;date_of_birth:string|null;passport_number:string|null;passport_country:string|null;passport_issue_date:string|null;passport_expiry_date:string|null;emergency_contact_name:string|null;emergency_contact_relationship:string|null;emergency_contact_phone:string|null;emergency_contact_email:string|null; };
+const empty={firstName:"",middleName:"",lastName:"",preferredName:"",dateOfBirth:"",passportNumber:"",passportCountry:"",passportIssueDate:"",passportExpiryDate:"",emergencyContactName:"",emergencyContactRelationship:"",emergencyContactPhone:"",emergencyContactEmail:""};
+const emergencyRelationshipOptions=["Spouse / Partner","Parent","Adult Child","Family Member","Other"];
+function formatPhone(value:string){const d=value.replace(/\D/g,"").slice(0,10);if(d.length<=3)return d;if(d.length<=6)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;}
+function Item({label,value}:{label:string;value:string}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>}
+export function CustomerTravellerDetailsCard({customerId}:{customerId:string}){
+ const[profile,setProfile]=useState<Profile|null>(null);const[loading,setLoading]=useState(true);const[editing,setEditing]=useState(false);const[error,setError]=useState<string|null>(null);
+ const load=useCallback(async()=>{setLoading(true);setError(null);try{const r=await fetch(`/api/customers/${encodeURIComponent(customerId)}/traveller-profile`);const d=await r.json();if(!r.ok)throw new Error(d.error??"Could not load traveller details.");setProfile(d.profile);}catch(e){setError(e instanceof Error?e.message:"Could not load traveller details.");}finally{setLoading(false);}},[customerId]);useEffect(()=>{load();},[load]);
+ const passportComplete=Boolean(profile?.passport_number&&profile?.passport_country&&profile?.passport_expiry_date);const emergencyComplete=Boolean(profile?.emergency_contact_name&&profile?.emergency_contact_phone);
+ return <div className="rounded-xl border bg-[#fffefa] p-5 shadow-sm"><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><div className="flex flex-col items-start"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">Traveller</p><h2 className="mt-1 font-serif text-xl leading-tight">Identity details</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Permanent identity, passport and emergency-contact information.</p><Button variant="outline" size="sm" className="mt-3 w-full justify-start" onClick={()=>setEditing(true)} disabled={!profile}><Pencil className="h-4 w-4"/>Edit Traveller Details</Button></div><div><h3 className="mb-3 border-b pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Identity & documents</h3>{loading?<p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/>Loading traveller details...</p>:error?<p className="text-sm text-destructive">{error}</p>:profile?<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4"><Item label="Legal name" value={[profile.first_name,profile.middle_name,profile.last_name].filter(Boolean).join(" ")}/><Item label="Date of birth" value={profile.date_of_birth||"Not provided"}/><Item label="Passport" value={passportComplete?`On file • expires ${profile.passport_expiry_date}`:"Not complete"}/><Item label="Emergency contact" value={emergencyComplete?`${profile.emergency_contact_name}${profile.emergency_contact_relationship?` • ${profile.emergency_contact_relationship}`:""}`:"Not provided"}/></div>:null}</div></div>{editing&&profile&&<EditModal profile={profile} customerId={customerId} onClose={()=>setEditing(false)} onSaved={async()=>{setEditing(false);await load();}}/>}</div>;
 }
-
-export function CustomerTravellerDetailsCard({ customerId }: { customerId: string }) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const r = await fetch(`/api/customers/${encodeURIComponent(customerId)}/traveller-profile`);
-      const d = await r.json(); if (!r.ok) throw new Error(d.error ?? "Could not load traveller details.");
-      setProfile(d.profile);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not load traveller details."); }
-    finally { setLoading(false); }
-  }, [customerId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const passportComplete = Boolean(profile?.passport_number && profile?.passport_country && profile?.passport_expiry_date);
-  const emergencyComplete = Boolean(profile?.emergency_contact_name && profile?.emergency_contact_phone);
-
-  return <Card>
-    <CardHeader className="flex-row items-center justify-between space-y-0">
-      <div><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Traveller Details</CardTitle><p className="mt-1 text-sm text-muted-foreground">Permanent identity and travel-document details for this person.</p></div>
-      <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Edit Traveller Details</Button>
-    </CardHeader>
-    <CardContent>
-      {loading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading traveller details...</p> : error ? <p className="text-sm text-destructive">{error}</p> : profile ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Item label="Legal Name" value={[profile.first_name, profile.middle_name, profile.last_name].filter(Boolean).join(" ")} />
-        <Item label="Date of Birth" value={profile.date_of_birth || "Not provided"} />
-        <Item label="Passport" value={passportComplete ? `On file • expires ${profile.passport_expiry_date}` : "Not complete"} />
-        <Item label="Emergency Contact" value={emergencyComplete ? `${profile.emergency_contact_name}${profile.emergency_contact_relationship ? ` • ${profile.emergency_contact_relationship}` : ""}` : "Not provided"} />
-      </div> : null}
-    </CardContent>
-    {editing && profile && <EditModal profile={profile} customerId={customerId} onClose={() => setEditing(false)} onSaved={async () => { setEditing(false); await load(); }} />}
-  </Card>;
-}
-
-function Item({ label, value }: { label:string; value:string }) { return <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm">{value}</p></div>; }
-function Field({ label, children }: { label:string; children:React.ReactNode }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
-
-function EditModal({ profile, customerId, onClose, onSaved }: { profile:Profile; customerId:string; onClose:()=>void; onSaved:()=>void|Promise<void> }) {
-  const [form, setForm] = useState({ ...empty, firstName:profile.first_name||"", middleName:profile.middle_name||"", lastName:profile.last_name||"", preferredName:profile.preferred_name||"", dateOfBirth:profile.date_of_birth||"", passportNumber:profile.passport_number||"", passportCountry:profile.passport_country||"", passportIssueDate:profile.passport_issue_date||"", passportExpiryDate:profile.passport_expiry_date||"", emergencyContactName:profile.emergency_contact_name||"", emergencyContactRelationship:profile.emergency_contact_relationship||"", emergencyContactPhone:formatPhone(profile.emergency_contact_phone||""), emergencyContactEmail:profile.emergency_contact_email||"" });
-  const [saving,setSaving]=useState(false); const [error,setError]=useState<string|null>(null);
-  const set=(key:keyof typeof form,value:string)=>setForm(prev=>({...prev,[key]:value}));
-  async function save(){ setSaving(true);setError(null);try{const r=await fetch(`/api/customers/${encodeURIComponent(customerId)}/traveller-profile`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});const d=await r.json();if(!r.ok)throw new Error(d.error??"Could not save traveller details.");await onSaved();}catch(e){setError(e instanceof Error?e.message:"Could not save traveller details.");}finally{setSaving(false);} }
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-background shadow-xl">
-    <div className="flex items-start justify-between border-b p-5"><div><h2 className="text-lg font-semibold">Edit Traveller Details</h2><p className="text-sm text-muted-foreground">Use the traveller's legal name exactly as it appears on their passport.</p></div><Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button></div>
-    <div className="space-y-6 p-5">
-      <section><h3 className="mb-3 font-medium">Identity</h3><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Field label="First Name"><Input value={form.firstName} onChange={e=>set("firstName",e.target.value)} /></Field><Field label="Middle Name"><Input value={form.middleName} onChange={e=>set("middleName",e.target.value)} /></Field><Field label="Last Name"><Input value={form.lastName} onChange={e=>set("lastName",e.target.value)} /></Field><Field label="Preferred Name"><Input value={form.preferredName} onChange={e=>set("preferredName",e.target.value)} /></Field><Field label="Date of Birth"><Input type="date" value={form.dateOfBirth} onChange={e=>set("dateOfBirth",e.target.value)} /></Field></div></section>
-      <section><h3 className="mb-3 font-medium">Passport</h3><p className="mb-3 text-xs text-muted-foreground">Sensitive information. The passport number is hidden from the Customer summary after saving.</p><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Field label="Passport Number"><Input value={form.passportNumber} onChange={e=>set("passportNumber",e.target.value)} autoComplete="off" /></Field><Field label="Country of Issue"><Input value={form.passportCountry} onChange={e=>set("passportCountry",e.target.value)} /></Field><Field label="Issue Date"><Input type="date" value={form.passportIssueDate} onChange={e=>set("passportIssueDate",e.target.value)} /></Field><Field label="Expiry Date"><Input type="date" value={form.passportExpiryDate} onChange={e=>set("passportExpiryDate",e.target.value)} /></Field></div></section>
-      <section><h3 className="mb-3 font-medium">Emergency Contact</h3><div className="grid gap-4 sm:grid-cols-2"><Field label="Name"><Input value={form.emergencyContactName} onChange={e=>set("emergencyContactName",e.target.value)} /></Field><Field label="Relationship"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.emergencyContactRelationship} onChange={e=>set("emergencyContactRelationship",e.target.value)}><option value="">Select relationship</option>{emergencyRelationshipOptions.map(option=><option key={option} value={option}>{option}</option>)}</select></Field><Field label="Phone"><Input type="tel" inputMode="tel" placeholder="(403) 555-1234" value={form.emergencyContactPhone} onChange={e=>set("emergencyContactPhone",formatPhone(e.target.value))} /></Field><Field label="Email"><Input type="email" value={form.emergencyContactEmail} onChange={e=>set("emergencyContactEmail",e.target.value)} /></Field></div></section>
-      {error&&<p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-3 border-t pt-4"><Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button><Button onClick={save} disabled={saving}>{saving&&<Loader2 className="h-4 w-4 animate-spin" />}{saving?"Saving...":"Save Traveller Details"}</Button></div>
-    </div></div></div>;
-}
+function Field({label,children}:{label:string;children:React.ReactNode}){return <div className="space-y-2"><Label>{label}</Label>{children}</div>}
+function EditModal({profile,customerId,onClose,onSaved}:{profile:Profile;customerId:string;onClose:()=>void;onSaved:()=>void|Promise<void>}){const[form,setForm]=useState({...empty,firstName:profile.first_name||"",middleName:profile.middle_name||"",lastName:profile.last_name||"",preferredName:profile.preferred_name||"",dateOfBirth:profile.date_of_birth||"",passportNumber:profile.passport_number||"",passportCountry:profile.passport_country||"",passportIssueDate:profile.passport_issue_date||"",passportExpiryDate:profile.passport_expiry_date||"",emergencyContactName:profile.emergency_contact_name||"",emergencyContactRelationship:profile.emergency_contact_relationship||"",emergencyContactPhone:formatPhone(profile.emergency_contact_phone||""),emergencyContactEmail:profile.emergency_contact_email||""});const[saving,setSaving]=useState(false);const[error,setError]=useState<string|null>(null);const set=(key:keyof typeof form,value:string)=>setForm(p=>({...p,[key]:value}));async function save(){setSaving(true);setError(null);try{const r=await fetch(`/api/customers/${encodeURIComponent(customerId)}/traveller-profile`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});const d=await r.json();if(!r.ok)throw new Error(d.error??"Could not save traveller details.");await onSaved();}catch(e){setError(e instanceof Error?e.message:"Could not save traveller details.");}finally{setSaving(false);}}
+return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-background shadow-xl"><div className="flex items-start justify-between border-b p-5"><div><h2 className="text-lg font-semibold">Edit Traveller Details</h2><p className="text-sm text-muted-foreground">Use the traveller's legal name exactly as it appears on their passport.</p></div><Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4"/></Button></div><div className="space-y-6 p-5"><section><h3 className="mb-3 font-medium">Identity</h3><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Field label="First Name"><Input value={form.firstName} onChange={e=>set("firstName",e.target.value)}/></Field><Field label="Middle Name"><Input value={form.middleName} onChange={e=>set("middleName",e.target.value)}/></Field><Field label="Last Name"><Input value={form.lastName} onChange={e=>set("lastName",e.target.value)}/></Field><Field label="Preferred Name"><Input value={form.preferredName} onChange={e=>set("preferredName",e.target.value)}/></Field><Field label="Date of Birth"><Input type="date" value={form.dateOfBirth} onChange={e=>set("dateOfBirth",e.target.value)}/></Field></div></section><section><h3 className="mb-3 font-medium">Passport</h3><p className="mb-3 text-xs text-muted-foreground">Sensitive information. The passport number is hidden from the Client summary after saving.</p><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Field label="Passport Number"><Input value={form.passportNumber} onChange={e=>set("passportNumber",e.target.value)} autoComplete="off"/></Field><Field label="Country of Issue"><Input value={form.passportCountry} onChange={e=>set("passportCountry",e.target.value)}/></Field><Field label="Issue Date"><Input type="date" value={form.passportIssueDate} onChange={e=>set("passportIssueDate",e.target.value)}/></Field><Field label="Expiry Date"><Input type="date" value={form.passportExpiryDate} onChange={e=>set("passportExpiryDate",e.target.value)}/></Field></div></section><section><h3 className="mb-3 font-medium">Emergency Contact</h3><div className="grid gap-4 sm:grid-cols-2"><Field label="Name"><Input value={form.emergencyContactName} onChange={e=>set("emergencyContactName",e.target.value)}/></Field><Field label="Relationship"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.emergencyContactRelationship} onChange={e=>set("emergencyContactRelationship",e.target.value)}><option value="">Select relationship</option>{emergencyRelationshipOptions.map(o=><option key={o}>{o}</option>)}</select></Field><Field label="Phone"><Input type="tel" value={form.emergencyContactPhone} onChange={e=>set("emergencyContactPhone",formatPhone(e.target.value))}/></Field><Field label="Email"><Input type="email" value={form.emergencyContactEmail} onChange={e=>set("emergencyContactEmail",e.target.value)}/></Field></div></section>{error&&<p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-3 border-t pt-4"><Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button><Button onClick={save} disabled={saving}>{saving&&<Loader2 className="h-4 w-4 animate-spin"/>}{saving?"Saving...":"Save Traveller Details"}</Button></div></div></div></div>}
