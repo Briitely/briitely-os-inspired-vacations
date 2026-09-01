@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Building2, FileText, Mail, MapPin, Pencil, Phone, UserRound, CreditCard } from "lucide-react";
+import { ArrowLeft, FileText, Pencil, CreditCard } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { CustomerEditModal } from "@/components/core/customer-edit-modal";
 import { getProvinceName } from "@/lib/briitely/provinces";
 import { formatPhoneNumber } from "@/lib/format/phone";
@@ -19,50 +18,35 @@ interface CustomerDetailsCardProps {
   showChangeCustomer?: boolean;
 }
 
-const details = [
-  { key: "companyName", label: "Business Name", icon: Building2 },
-  { key: "name", label: "Contact Name", icon: UserRound },
-  { key: "email", label: "Email", icon: Mail },
-  { key: "phone", label: "Phone", icon: Phone },
-  { key: "address1", label: "Address", icon: MapPin },
-  { key: "city", label: "City", icon: MapPin },
-  { key: "state", label: "Province", icon: MapPin },
-  { key: "postalCode", label: "Postal Code", icon: MapPin },
-] as const;
+function Item({label,value}:{label:string;value:string|null|undefined}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium break-words">{value||"Not provided"}</p></div>}
 
 export function CustomerDetailsCard({ customer, onCustomerUpdated, onChangeCustomer, onBackToSearch, onCreateInvoice, onReceivePayment, showChangeCustomer = false }: CustomerDetailsCardProps) {
   const [editing, setEditing] = useState(false);
   const hasSecondaryActions = Boolean(onCreateInvoice || onReceivePayment || (showChangeCustomer && onChangeCustomer));
-
-  return (
-    <>
-      <Card className="border-primary/20 shadow-md">
-        <CardHeader className="space-y-3">
-          {onBackToSearch && <Button variant="ghost" className="-ml-3 w-fit" onClick={onBackToSearch}><ArrowLeft className="h-4 w-4" />Back to Search</Button>}
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-primary">Customer selected</p>
-              <CardTitle className="mt-1 text-2xl">{customer.companyName || customer.name || "Customer"}</CardTitle>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" />Update Customer</Button>
+  return <>
+    <div className="rounded-xl border bg-[#fffefa] p-5 shadow-sm">
+      <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="flex flex-col items-start">
+          {onBackToSearch && <Button variant="ghost" className="-ml-3 mb-2 w-fit" onClick={onBackToSearch}><ArrowLeft className="h-4 w-4"/>Back to Search</Button>}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">Client</p>
+          <h2 className="mt-1 font-serif text-xl leading-tight">Contact details</h2>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Core contact and mailing information synced with Briitely.</p>
+          <div className="mt-3 flex w-full flex-col gap-2">
+            <Button variant="outline" size="sm" onClick={()=>setEditing(true)} className="justify-start"><Pencil className="h-4 w-4"/>Edit Contact Details</Button>
+            {onCreateInvoice&&<Button variant="outline" size="sm" onClick={onCreateInvoice} className="justify-start"><FileText className="h-4 w-4"/>Create Invoice</Button>}
+            {onReceivePayment&&<Button variant="outline" size="sm" onClick={onReceivePayment} className="justify-start"><CreditCard className="h-4 w-4"/>Receive Payment</Button>}
+            {showChangeCustomer&&onChangeCustomer&&<Button variant="outline" size="sm" onClick={onChangeCustomer} className="justify-start">Change Customer</Button>}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            {details.map(({ key, label, icon: Icon }) => {
-              const rawValue = customer[key];
-              const value = key === "state" && rawValue ? getProvinceName(rawValue) : key === "phone" ? formatPhoneNumber(rawValue) : rawValue;
-              return <div key={key} className="flex gap-3"><Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="text-xs text-muted-foreground">{label}</p><p className="break-words font-medium">{value || "Not provided"}</p></div></div>;
-            })}
+        </div>
+        <div>
+          <h3 className="mb-3 border-b pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact & address</h3>
+          <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Item label="Contact name" value={customer.name}/><Item label="Business name" value={customer.companyName}/><Item label="Email" value={customer.email}/><Item label="Phone" value={formatPhoneNumber(customer.phone)}/>
+            <Item label="Address" value={customer.address1}/><Item label="City" value={customer.city}/><Item label="Province" value={customer.state?getProvinceName(customer.state):null}/><Item label="Postal code" value={customer.postalCode}/>
           </div>
-          {hasSecondaryActions && <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-            {onCreateInvoice && <Button variant="secondary" onClick={onCreateInvoice}><FileText className="h-4 w-4" />Create Invoice</Button>}
-            {onReceivePayment && <Button variant="secondary" onClick={onReceivePayment}><CreditCard className="h-4 w-4" />Receive Payment</Button>}
-            {showChangeCustomer && onChangeCustomer && <Button variant="outline" onClick={onChangeCustomer}>Change Customer</Button>}
-          </div>}
-        </CardContent>
-      </Card>
-      <CustomerEditModal key={`${customer.id}-${editing}`} customer={customer} open={editing} onOpenChange={setEditing} onUpdated={onCustomerUpdated} />
-    </>
-  );
+        </div>
+      </div>
+    </div>
+    <CustomerEditModal key={`${customer.id}-${editing}`} customer={customer} open={editing} onOpenChange={setEditing} onUpdated={onCustomerUpdated}/>
+  </>;
 }
