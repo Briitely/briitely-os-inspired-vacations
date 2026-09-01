@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
+export async function GET(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
+ const {user}=await getAuthenticatedUser();if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
+ const {travelFileId}=await params;const supabase=await createClient();
+ const {data:file}=await supabase.from("travel_files").select("current_action_id").eq("id",travelFileId).maybeSingle();
+ if(!file?.current_action_id)return NextResponse.json({action:null});
+ const {data:action,error}=await supabase.from("travel_actions").select("id,due_at,notes").eq("id",file.current_action_id).maybeSingle();
+ if(error)return NextResponse.json({error:"Could not load current action."},{status:500});return NextResponse.json({action});
+}
+
 export async function PATCH(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
  const {user}=await getAuthenticatedUser();
  if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
