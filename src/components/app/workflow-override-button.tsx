@@ -19,7 +19,7 @@ export function WorkflowOverrideButton({travelFileId,currentStage,currentActionC
   const [open,setOpen]=useState(false);const[openKey,setOpenKey]=useState(0);const[dueAt,setDueAt]=useState<string|null>(null);const[notes,setNotes]=useState<string|null>(null);
   useEffect(()=>{let active=true;fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/current-action`).then(r=>r.ok?r.json():null).then(d=>{if(active&&d?.action){setDueAt(d.action.due_at??null);setNotes(d.action.notes??null)}}).catch(()=>{});return()=>{active=false}},[travelFileId,currentActionCode]);
   return <>
-    <div className="w-full">
+    <div className="workflow-action-controls w-full">
       <Button variant="outline" size="sm" onClick={()=>{setOpenKey(k=>k+1);setOpen(true)}} className="h-7 justify-start gap-1 text-xs"><Settings2 className="h-3.5 w-3.5"/>Override</Button>
       {currentActionCode&&<CurrentActionControls travelFileId={travelFileId} dueAt={dueAt} notes={notes}/>} 
     </div>
