@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { getContact } from "@/lib/briitely/contacts";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/core/ui/card";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Customer — Briitely OS",
+  title: "Client — Briitely OS",
 };
 
 export default async function CustomerPage({ params }: { params: Promise<{ customerId: string }> }) {
@@ -27,40 +27,36 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
   try {
     customer = await getContact(customerId);
   } catch {
-    loadError = "We couldn't load this customer. Please try again.";
+    loadError = "We couldn't load this client. Please try again.";
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f7f4ff]">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
-      <main className="mx-auto max-w-4xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-5 sm:px-6 lg:px-8">
         <div className="space-y-5">
           <Button variant="ghost" asChild className="-ml-3">
             <Link href="/dashboard"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
           </Button>
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><UserRound className="h-6 w-6" /></div>
+          {customer && (
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Customer</h1>
-              <p className="mt-2 text-base text-muted-foreground">Manage customer details and Travel Files.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/60">Client file</p>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight">{customer.name || customer.companyName || "Client"}</h1>
+              {customer.companyName && customer.companyName !== customer.name && <p className="mt-1 text-sm text-muted-foreground">{customer.companyName}</p>}
             </div>
-          </div>
+          )}
         </div>
 
         {loadError && !customer && (
           <Card><CardContent className="space-y-4 p-6">
             <p className="text-sm text-destructive" role="alert">{loadError}</p>
-            <Button variant="outline" asChild><Link href="/customers"><ArrowLeft className="h-4 w-4" />Back to Customer Search</Link></Button>
+            <Button variant="outline" asChild><Link href="/customers"><ArrowLeft className="h-4 w-4" />Back to Client Search</Link></Button>
           </CardContent></Card>
         )}
 
-        {customer && (
-          <CustomerWorkspace
-            initialCustomer={customer}
-          />
-        )}
+        {customer && <CustomerWorkspace initialCustomer={customer} />}
       </main>
-      <SharedFooter maxWidth="max-w-4xl" />
+      <SharedFooter maxWidth="max-w-6xl" />
     </div>
   );
 }
