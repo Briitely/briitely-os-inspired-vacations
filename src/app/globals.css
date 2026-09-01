@@ -4,275 +4,29 @@
 
 @layer base {
   :root {
-    --background: 40 23% 97%;
-    --foreground: 30 10% 15%;
-    --card: 0 0% 100%;
-    --card-foreground: 30 10% 15%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 30 10% 15%;
-    --primary: 96 32% 30%;
-    --primary-foreground: 40 23% 97%;
-    --secondary: 40 23% 92%;
-    --secondary-foreground: 30 10% 15%;
-    --muted: 40 23% 92%;
-    --muted-foreground: 30 5% 40%;
-    --accent: 35 40% 90%;
-    --accent-foreground: 30 10% 15%;
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 40 23% 97%;
-    --border: 30 10% 85%;
-    --input: 30 10% 85%;
-    --ring: 96 32% 30%;
-    --radius: 0.5rem;
+    --background: 40 23% 97%; --foreground: 30 10% 15%; --card: 0 0% 100%; --card-foreground: 30 10% 15%; --popover: 0 0% 100%; --popover-foreground: 30 10% 15%; --primary: 96 32% 30%; --primary-foreground: 40 23% 97%; --secondary: 40 23% 92%; --secondary-foreground: 30 10% 15%; --muted: 40 23% 92%; --muted-foreground: 30 5% 40%; --accent: 35 40% 90%; --accent-foreground: 30 10% 15%; --destructive: 0 72% 45%; --destructive-foreground: 40 23% 97%; --border: 30 10% 85%; --input: 30 10% 85%; --ring: 96 32% 30%; --radius: 0.5rem;
   }
-
-  .dark {
-    --background: 30 10% 10%;
-    --foreground: 40 23% 95%;
-    --card: 30 10% 14%;
-    --card-foreground: 40 23% 95%;
-    --popover: 30 10% 14%;
-    --popover-foreground: 40 23% 95%;
-    --primary: 96 32% 40%;
-    --primary-foreground: 30 10% 10%;
-    --secondary: 30 10% 20%;
-    --secondary-foreground: 40 23% 95%;
-    --muted: 30 10% 20%;
-    --muted-foreground: 40 10% 65%;
-    --accent: 30 10% 22%;
-    --accent-foreground: 40 23% 95%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 40 23% 95%;
-    --border: 30 10% 22%;
-    --input: 30 10% 22%;
-    --ring: 96 32% 40%;
-  }
+  .dark { --background:30 10% 10%;--foreground:40 23% 95%;--card:30 10% 14%;--card-foreground:40 23% 95%;--popover:30 10% 14%;--popover-foreground:40 23% 95%;--primary:96 32% 40%;--primary-foreground:30 10% 10%;--secondary:30 10% 20%;--secondary-foreground:40 23% 95%;--muted:30 10% 20%;--muted-foreground:40 10% 65%;--accent:30 10% 22%;--accent-foreground:40 23% 95%;--destructive:0 62% 50%;--destructive-foreground:40 23% 95%;--border:30 10% 22%;--input:30 10% 22%;--ring:96 32% 40%; }
 }
+@layer base { *{@apply border-border;} html{scroll-behavior:smooth} body{@apply bg-background text-foreground;font-feature-settings:"rlig" 1,"calt" 1;} }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  html {
-    scroll-behavior: smooth;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
-
-@media (min-width: 768px) {
-  main.max-w-6xl > .rounded-xl.border.bg-\[\#fffefa\] > .grid {
-    grid-template-columns: 220px minmax(0, 1fr) !important;
-  }
-
-  main.max-w-6xl > .rounded-xl.border.bg-\[\#fffefa\] > .grid > div:first-child {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  main.max-w-6xl > .rounded-xl.border.bg-\[\#fffefa\] > .grid > div:first-child > div:first-child {
-    display: contents;
-  }
-
-  main.max-w-6xl > .rounded-xl.border.bg-\[\#fffefa\] > .grid > div:first-child > div:first-child > button {
-    order: 3;
-    margin-top: 0.75rem;
-    align-self: flex-start;
-  }
-
-  main.max-w-6xl > .rounded-xl.border.bg-\[\#fffefa\] > .grid > div:first-child > p {
-    order: 2;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) {
-    display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 1.25rem;
-    padding: 1.25rem;
-    background: #fffefa;
-    border-radius: 0.75rem;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child {
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child::before {
-    content: "TRAVELLERS";
-    margin-bottom: 0.25rem;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    color: hsl(var(--primary));
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child .lucide-users-round {
-    display: none;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child h3 {
-    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-    font-size: 1.25rem;
-    line-height: 1.2;
-    font-weight: 400;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child > div:last-child {
-    margin-top: 0.75rem;
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:first-child > div:last-child button {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  main.max-w-6xl > div:has(.lucide-users-round) > div:nth-child(2) {
-    padding: 0;
-  }
+@media (min-width:768px){
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid{grid-template-columns:220px minmax(0,1fr)!important}
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid>div:first-child{display:flex;flex-direction:column;align-items:flex-start}
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid>div:first-child>div:first-child{display:contents}
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid>div:first-child>div:first-child>button{order:3;margin-top:.75rem;align-self:flex-start}
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid>div:first-child>p{order:2}
+ main.max-w-6xl>div:has(.lucide-users-round){display:grid;grid-template-columns:220px minmax(0,1fr);gap:1.25rem;padding:1.25rem;background:#fffefa;border-radius:.75rem}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child{padding:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child::before{content:"TRAVELLERS";margin-bottom:.25rem;font-size:10px;font-weight:600;letter-spacing:.12em;color:hsl(var(--primary))}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child .lucide-users-round{display:none}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child h3{font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif;font-size:1.25rem;line-height:1.2;font-weight:400}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child{margin-top:.75rem;width:100%;flex-direction:column;align-items:stretch}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child button{width:100%;justify-content:flex-start}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:nth-child(2){padding:0}
+ main.max-w-6xl>.rounded-xl.border.bg-\[\#fffefa\]>.grid>div:first-child:has(+div>p.italic)::after{content:"+  Add / Edit Payments";order:3;margin-top:.75rem;display:inline-flex;min-height:2.25rem;align-items:center;border:1px solid hsl(var(--border));border-radius:.375rem;padding:0 .75rem;font-size:.875rem;font-weight:500;background:hsl(var(--background));color:hsl(var(--foreground));cursor:not-allowed;opacity:.8}
 }
 
 @media print {
-  @page {
-    size: Letter portrait;
-    margin: 0.6in;
-  }
-
-  html,
-  body {
-    width: 100%;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    background: #fff;
-  }
-
-  .invoice-print-page {
-    width: 100%;
-    min-height: 0;
-    margin: 0;
-    padding: 0 !important;
-    overflow: visible;
-    box-sizing: border-box;
-  }
-
-  .invoice-print-container {
-    width: 100%;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-sizing: border-box;
-    overflow: visible;
-  }
-
-  .invoice-print-container table {
-    width: 100%;
-    max-width: 100%;
-    table-layout: fixed;
-    box-sizing: border-box;
-  }
-
-  .invoice-print-container th,
-  .invoice-print-container td {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .invoice-business-details,
-  .invoice-customer-details {
-    font-size: 9px;
-    line-height: 1.35;
-  }
-
-  .invoice-business-details h1,
-  .invoice-business-details p,
-  .invoice-customer-details p {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
-  .invoice-business-details p {
-    margin-top: 0.125rem;
-  }
-
-  .invoice-customer-section {
-    gap: 16px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-
-  .invoice-customer-details p {
-    margin-top: 0.125rem;
-  }
-
-  .invoice-item-row {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .invoice-item-row td {
-    padding-top: 5px !important;
-    padding-bottom: 5px !important;
-    border-bottom: 0 !important;
-  }
-
-  .invoice-print-container tbody tr:last-child td {
-    border-bottom: 0 !important;
-  }
-
-  .invoice-totals {
-    margin-top: 20px !important;
-    margin-bottom: 0;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .invoice-terms {
-    margin-top: 24px !important;
-    padding-top: 12px !important;
-    font-size: 9px;
-    line-height: 1.4;
-  }
-
-  .invoice-terms h2,
-  .invoice-terms p {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
-  .invoice-terms h2 {
-    font-size: 10px;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-
-  .invoice-terms h2 + p {
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-
-  .invoice-print-container img {
-    max-width: 100%;
-    height: auto;
-  }
-
-  .invoice-print-container .invoice-logo {
-    width: 2.25in !important;
-    max-width: 2.25in !important;
-    height: auto !important;
-    object-fit: contain;
-  }
-
-  .invoice-print-container * {
-    max-width: 100%;
-  }
+ @page{size:Letter portrait;margin:.6in} html,body{width:100%;min-width:0;margin:0;padding:0;background:#fff}.invoice-print-page{width:100%;min-height:0;margin:0;padding:0!important;overflow:visible;box-sizing:border-box}.invoice-print-container{width:100%;max-width:100%!important;margin:0!important;padding:0!important;box-sizing:border-box;overflow:visible}.invoice-print-container table{width:100%;max-width:100%;table-layout:fixed;box-sizing:border-box}.invoice-print-container th,.invoice-print-container td{overflow-wrap:anywhere;word-break:break-word}.invoice-business-details,.invoice-customer-details{font-size:9px;line-height:1.35}.invoice-business-details h1,.invoice-business-details p,.invoice-customer-details p{font-size:inherit;line-height:inherit}.invoice-business-details p{margin-top:.125rem}.invoice-customer-section{gap:16px;padding-top:16px;padding-bottom:16px}.invoice-customer-details p{margin-top:.125rem}.invoice-item-row{break-inside:avoid;page-break-inside:avoid}.invoice-item-row td{padding-top:5px!important;padding-bottom:5px!important;border-bottom:0!important}.invoice-print-container tbody tr:last-child td{border-bottom:0!important}.invoice-totals{margin-top:20px!important;margin-bottom:0;break-inside:avoid;page-break-inside:avoid}.invoice-terms{margin-top:24px!important;padding-top:12px!important;font-size:9px;line-height:1.4}.invoice-terms h2,.invoice-terms p{font-size:inherit;line-height:inherit}.invoice-terms h2{font-size:10px;break-after:avoid;page-break-after:avoid}.invoice-terms h2+p{break-before:avoid;page-break-before:avoid}.invoice-print-container img{max-width:100%;height:auto}.invoice-print-container .invoice-logo{width:2.25in!important;max-width:2.25in!important;height:auto!important;object-fit:contain}.invoice-print-container *{max-width:100%}
 }
