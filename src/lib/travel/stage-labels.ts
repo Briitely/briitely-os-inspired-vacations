@@ -4,8 +4,8 @@ const STAGE_LABELS: Record<TravelStage, string> = {
   new_inquiry: "New Inquiry",
   consult_booked: "Consult Booked",
   consultation_complete: "Consultation Complete",
-  tmf_sent: "TMF Sent",
-  tmf_processing: "TMF Processing",
+  tmf_sent: "Retainer Sent",
+  tmf_processing: "Retainer Processing",
   planning_proposal: "Planning / Proposal",
   proposal_sent: "Proposal Sent",
   negotiating: "Negotiating",
@@ -21,23 +21,5 @@ const STAGE_LABELS: Record<TravelStage, string> = {
   lost_not_qualified: "Lost / Not Qualified",
 };
 
-export function formatStageLabel(stage: TravelStage): string {
-  return STAGE_LABELS[stage] ?? stage;
-}
-
-export function formatStageBadgeVariant(
-  stage: TravelStage
-): "default" | "secondary" | "destructive" | "outline" {
-  switch (stage) {
-    case "lost_not_qualified":
-      return "destructive";
-    case "travel_complete":
-      return "secondary";
-    case "booking_confirmed":
-    case "deposit_received":
-    case "paid_in_full":
-      return "default";
-    default:
-      return "outline";
-  }
-}
+export function formatStageLabel(stage: TravelStage): string { return STAGE_LABELS[stage] ?? stage; }
+export function formatStageBadgeVariant(stage: TravelStage): "default"|"secondary"|"destructive"|"outline" {switch(stage){case"lost_not_qualified":return"destructive";case"travel_complete":return"secondary";case"booking_confirmed":case"deposit_received":case"paid_in_full":return"default";default:return"outline"}}
