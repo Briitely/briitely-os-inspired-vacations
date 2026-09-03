@@ -3,8 +3,18 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getBookingFormSession } from "@/lib/travel/booking-form";
 
 const PROFILE_FIELDS="id, first_name, middle_name, last_name, preferred_name, date_of_birth, email, phone, passport_number, passport_country, passport_issue_date, passport_expiry_date, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email";
-const AGREEMENT_VERSION="2026-09-03-v1";
-const AGREEMENT_TEXT=`I understand that Inspired Vacations will begin professional travel planning services once this Retainer Agreement is accepted. The retainer covers the planning services and revisions described for my trip and is non-refundable once planning has begun. Travel pricing and availability are not guaranteed until reservations are confirmed and supplier terms may apply. I confirm that the traveller information I provide is accurate and authorize Inspired Vacations to use it to plan and book my travel.`;
+const AGREEMENT_VERSION="2026-09-03-v2";
+const AGREEMENT_TEXT=`Retainer
+
+A Retainer is charged to cover the time and expertise involved in researching, curating, and presenting your travel options. This fee reflects the professional service provided by your Inspired Vacations advisor.
+
+Research & Revision Policy
+
+Your Retainer includes a set number of research presentations and revisions. A revision is defined as a change to the core scope of the trip — including destination, travel dates, trip type, or overall budget. Minor clarifications or questions do not constitute a revision. Additional revisions beyond the agreed number may be subject to additional fees.
+
+Planning Services Agreement
+
+I understand that Inspired Vacations will begin professional travel planning services once this Retainer Agreement is accepted and the fee is paid. The retainer covers the planning services and revisions described for my trip and is non-refundable once planning has begun. Travel pricing and availability are not guaranteed until reservations are confirmed and supplier terms may apply. I confirm that the traveller information I provide is accurate and authorize Inspired Vacations to use it to plan and book my travel.`;
 type TravellerInput={id?:string;firstName?:string;middleName?:string;lastName?:string;preferredName?:string;dateOfBirth?:string;email?:string;phone?:string;passportNumber?:string;passportCountry?:string;passportIssueDate?:string;passportExpiryDate?:string};type EmergencyContactInput={name?:string;relationship?:string;phone?:string;email?:string};type PartyMember={id:string;traveller_profile_id:string;traveller_role:string;relationship_to_primary:string|null;receive_trip_communications:boolean;booking_form_required:boolean;booking_form_completed_at:string|null;traveller_profiles:any};
 function text(value:unknown){return typeof value==="string"&&value.trim()?value.trim():null}function serverError(error:unknown){console.error("PUBLIC_BOOKING_FORM_FAILED",error);return NextResponse.json({error:error instanceof Error?error.message:"Booking form request failed."},{status:500})}function profileOf(member:PartyMember){return Array.isArray(member.traveller_profiles)?member.traveller_profiles[0]:member.traveller_profiles}function ageOnDate(dob:string|null,date:string|null){if(!dob||!date)return null;const birth=new Date(`${dob}T00:00:00`),asOf=new Date(`${date}T00:00:00`);if(Number.isNaN(birth.getTime())||Number.isNaN(asOf.getTime()))return null;let age=asOf.getFullYear()-birth.getFullYear();if(asOf.getMonth()<birth.getMonth()||(asOf.getMonth()===birth.getMonth()&&asOf.getDate()<birth.getDate()))age--;return age}function onFamilyForm(member:PartyMember,departureDate:string|null){if(member.traveller_role==="primary")return true;if(member.booking_form_required)return false;if(member.relationship_to_primary==="spouse_partner")return true;if(member.relationship_to_primary==="child"){const age=ageOnDate(profileOf(member)?.date_of_birth??null,departureDate);return age===null||age<21}return false}
 
