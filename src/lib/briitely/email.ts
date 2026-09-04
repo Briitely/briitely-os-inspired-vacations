@@ -45,12 +45,25 @@ export async function getEmailTemplateByName(name: string): Promise<EmailTemplat
     method: "GET",
     path: `/locations/${encodeURIComponent(locationId)}/templates`,
     version: "v3",
-    query: { type: "email", limit: 100, deleted: false },
+    query: {
+      originId: locationId,
+      type: "email",
+      limit: 100,
+      skip: 0,
+      deleted: false,
+    },
   });
   const exact = (list.templates ?? []).find(
     (x) => x.name.trim().toLowerCase() === name.trim().toLowerCase()
   );
-  if (!exact) throw new Error(`Briitely email template "${name}" was not found.`);
+  if (!exact) {
+    console.error("BRIITELY_EMAIL_TEMPLATE_NOT_FOUND", {
+      requestedName: name,
+      totalCount: list.totalCount ?? null,
+      returnedNames: (list.templates ?? []).map((x) => x.name),
+    });
+    throw new Error(`Briitely email template "${name}" was not found.`);
+  }
   return {
     id: exact.id,
     name: exact.name,
