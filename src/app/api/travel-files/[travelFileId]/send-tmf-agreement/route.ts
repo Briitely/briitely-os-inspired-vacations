@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
-import { sendNamedEmailTemplate, setContactCustomFieldByKey } from "@/lib/briitely/email";
+import { getEmailTemplateByName, sendEmailTemplateById, setContactCustomFieldByKey } from "@/lib/briitely/email";
 import { BOOKING_FORM_TTL_DAYS, hashBookingFormToken, newBookingFormToken } from "@/lib/travel/booking-form";
 
 const RETAINER_EMAIL_TEMPLATE = "Retainer Agreement & Booking Form";
@@ -14,12 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
   const { travelFileId } = await params;
   const supabase = await createClient();
-  const { data: file, error: fileError } = await supabase
-    .from("travel_files")
-    .select(`id,stage,briitely_contact_id,client_name,destination,tmf_agreement_type,tmf_amount,revisions_included,current_action:travel_actions!current_action_id(id,action_code,status,responsible_type,responsible_user_id),assigned_advisor:profiles!assigned_advisor_id(id,full_name,ghl_user_id)`)
-    .eq("id", travelFileId)
-    .maybeSingle();
-
+  const { data: file, error: fileError } = await supabase.from("travel_files").select(`id,stage,briitely_contact_id,client_name,destination,tmf_agreement_type,tmf_amount,revisions_included,current_action:travel_actions!current_action_id(id,action_code,status,responsible_type,responsible_user_id),assigned_advisor:profiles!assigned_advisor_id(id,full_name,ghl_user_id)`).eq("id", travelFileId).maybeSingle();
   if (fileError || !file) return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
   const f = file as any;
   const a = f.current_action;
@@ -40,11 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
   const token = newBookingFormToken();
   const expiresAt = new Date(Date.now() + BOOKING_FORM_TTL_DAYS * 86400000).toISOString();
-  const { data: session, error: sessionError } = await supabase
-    .from("booking_form_sessions")
-    .insert({ travel_file_id: travelFileId, token_hash: hashBookingFormToken(token), expires_at: expiresAt, created_by: user.id, include_retainer: true })
-    .select("id")
-    .single();
+  const { data: session, error: sessionError } = await supabase.from("booking_form_sessions").insert({ travel_file_id: travelFileId, token_hash: hashBookingFormToken(token), expires_at: expiresAt, created_by: user.id, include_retainer: true }).select("id").single();
   if (sessionError) return NextResponse.json({ error: sessionError.message }, { status: 500 });
 
   const bookingUrl = `${new URL(request.url).origin}/booking/${encodeURIComponent(token)}`;
@@ -60,10 +51,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return fail("booking_form_link", "Could not update the client's Briitely Booking Form Link custom field.", error);
   }
 
+  let template;
   try {
-    await sendNamedEmailTemplate({ contactId: f.briitely_contact_id, templateName: RETAINER_EMAIL_TEMPLATE });
+    template = await getEmailTemplateByName(RETAINER_EMAIL_TEMPLATE);
   } catch (error) {
-    return fail("email_template", `The Booking Form Link was updated, but Briitely could not send the "${RETAINER_EMAIL_TEMPLATE}" email template.`, error);
+    return fail("email_template_lookup", `The Booking Form Link was updated, but Briitely could not load the "${RETAINER_EMAIL_TEMPLATE}" email template.`, error);
+  }
+
+  try {
+    await sendEmailTemplateById({ contactId: f.briitely_contact_id, templateId: template.id });
+  } catch (error) {
+    return fail("email_message_send", `The email template was found, but Briitely could not send it to the client.`, error);
   }
 
   const now = new Date().toISOString();
