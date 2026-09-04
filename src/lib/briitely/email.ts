@@ -9,7 +9,7 @@ interface SendEmailInput {
   templateId?: string;
 }
 interface TemplateListResponse { items?: Array<{ id: string; name: string; type?: string }> }
-interface EmailTemplate { id: string; name: string; subject?: string; fromEmail?: string }
+export interface EmailTemplate { id: string; name: string; subject?: string; fromEmail?: string }
 interface CustomFieldResponse {
   customField?: { id?: string; name?: string; fieldKey?: string; model?: string };
 }
@@ -84,18 +84,17 @@ export async function setContactCustomFieldByKey(input: {
     method: "PUT",
     path: `/contacts/${encodeURIComponent(input.contactId)}`,
     version: "v3",
-    body: {
-      customFields: [{ id: field.id, fieldValue: input.value }],
-    },
+    body: { customFields: [{ id: field.id, fieldValue: input.value }] },
   });
 
   return field;
 }
 
+export async function sendEmailTemplateById(input: { contactId: string; templateId: string }) {
+  return sendContactEmail({ contactId: input.contactId, templateId: input.templateId });
+}
+
 export async function sendNamedEmailTemplate(input: { contactId: string; templateName: string }) {
   const template = await getEmailTemplateByName(input.templateName);
-  return sendContactEmail({
-    contactId: input.contactId,
-    templateId: template.id,
-  });
+  return sendEmailTemplateById({ contactId: input.contactId, templateId: template.id });
 }
