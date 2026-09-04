@@ -1,24 +1,10 @@
 import "server-only";
-import { briitelyRequest } from "./client";
+import { briitelyRequest, getLocationId } from "./client";
 
-interface SendEmailInput {
-  contactId: string;
-  subject: string;
-  html: string;
-  emailFrom?: string;
-}
+interface SendEmailInput { contactId:string; subject:string; html:string; emailFrom?:string }
+interface TemplateListResponse { items?:Array<{id:string;name:string;type?:string}> }
+interface EmailTemplate { id:string;name:string;subject?:string;fromEmail?:string;editorContentUrl?:string }
 
-export async function sendContactEmail(input: SendEmailInput) {
-  return briitelyRequest<{ messageId?: string; conversationId?: string }>({
-    method: "POST",
-    path: "/conversations/messages",
-    version: "2021-04-15",
-    body: {
-      type: "Email",
-      contactId: input.contactId,
-      subject: input.subject,
-      html: input.html,
-      ...(input.emailFrom ? { emailFrom: input.emailFrom } : {}),
-    },
-  });
-}
+export async function sendContactEmail(input:SendEmailInput){return briitelyRequest<{messageId?:string;conversationId?:string}>({method:"POST",path:"/conversations/messages",version:"v3",body:{type:"Email",contactId:input.contactId,subject:input.subject,html:input.html,status:"pending",...(input.emailFrom?{emailFrom:input.emailFrom}:{})}})}
+export async function getEmailTemplateByName(name:string):Promise<EmailTemplate>{const locationId=getLocationId(),list=await briitelyRequest<TemplateListResponse>({method:"GET",path:`/emails/locations/${encodeURIComponent(locationId)}/templates`,version:"v3",query:{search:name,include:"templates",limit:20}}),exact=(list.items??[]).find(x=>x.type!=="folder"&&x.name.trim().toLowerCase()===name.trim().toLowerCase());if(!exact)throw new Error(`Briitely email template "${name}" was not found.`);return briitelyRequest<EmailTemplate>({method:"GET",path:`/emails/locations/${encodeURIComponent(locationId)}/templates/${encodeURIComponent(exact.id)}`,version:"v3"})}
+export async function sendNamedEmailTemplate(input:{contactId:string;templateName:string;replacements:Record<string,string>}){const template=await getEmailTemplateByName(input.templateName);if(!template.editorContentUrl)throw new Error(`Briitely email template "${input.templateName}" has no rendered content URL.`);const response=await fetch(template.editorContentUrl,{cache:"no-store"});if(!response.ok)throw new Error(`Could not load Briitely email template content (${response.status}).`);let html=await response.text();for(const[marker,value]of Object.entries(input.replacements))html=html.split(marker).join(value);return sendContactEmail({contactId:input.contactId,subject:template.subject||"Inspired Vacations",html,emailFrom:template.fromEmail})}
