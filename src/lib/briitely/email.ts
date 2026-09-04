@@ -8,7 +8,15 @@ interface SendEmailInput {
   emailFrom?: string;
   templateId?: string;
 }
-interface TemplateListResponse { items?: Array<{ id: string; name: string; type?: string }> }
+interface LocationTemplateListResponse {
+  templates?: Array<{
+    id: string;
+    name: string;
+    type?: string;
+    template?: { subject?: string; html?: string };
+  }>;
+  totalCount?: number;
+}
 export interface EmailTemplate { id: string; name: string; subject?: string; fromEmail?: string }
 interface CustomFieldResponse {
   customField?: { id?: string; name?: string; fieldKey?: string; model?: string };
@@ -33,21 +41,21 @@ export async function sendContactEmail(input: SendEmailInput) {
 
 export async function getEmailTemplateByName(name: string): Promise<EmailTemplate> {
   const locationId = getLocationId();
-  const list = await briitelyRequest<TemplateListResponse>({
+  const list = await briitelyRequest<LocationTemplateListResponse>({
     method: "GET",
-    path: `/emails/locations/${encodeURIComponent(locationId)}/templates`,
+    path: `/locations/${encodeURIComponent(locationId)}/templates`,
     version: "v3",
-    query: { search: name, include: "templates", limit: 20 },
+    query: { type: "email", limit: 100, deleted: false },
   });
-  const exact = (list.items ?? []).find(
-    (x) => x.type !== "folder" && x.name.trim().toLowerCase() === name.trim().toLowerCase()
+  const exact = (list.templates ?? []).find(
+    (x) => x.name.trim().toLowerCase() === name.trim().toLowerCase()
   );
   if (!exact) throw new Error(`Briitely email template "${name}" was not found.`);
-  return briitelyRequest<EmailTemplate>({
-    method: "GET",
-    path: `/emails/locations/${encodeURIComponent(locationId)}/templates/${encodeURIComponent(exact.id)}`,
-    version: "v3",
-  });
+  return {
+    id: exact.id,
+    name: exact.name,
+    subject: exact.template?.subject,
+  };
 }
 
 export async function getContactCustomFieldByKey(fieldKey: string) {
