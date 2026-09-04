@@ -8,14 +8,19 @@ interface SendEmailInput {
   emailFrom?: string;
   templateId?: string;
 }
-interface LocationTemplateListResponse {
+interface BuilderTemplateListResponse {
   templates?: Array<{
-    id: string;
-    name: string;
+    id?: string;
+    _id?: string;
+    name?: string;
     type?: string;
-    template?: { subject?: string; html?: string };
   }>;
-  totalCount?: number;
+  data?: Array<{
+    id?: string;
+    _id?: string;
+    name?: string;
+    type?: string;
+  }>;
 }
 export interface EmailTemplate { id: string; name: string; subject?: string; fromEmail?: string }
 interface CustomFieldResponse {
@@ -41,34 +46,35 @@ export async function sendContactEmail(input: SendEmailInput) {
 
 export async function getEmailTemplateByName(name: string): Promise<EmailTemplate> {
   const locationId = getLocationId();
-  const list = await briitelyRequest<LocationTemplateListResponse>({
+  const response = await briitelyRequest<BuilderTemplateListResponse>({
     method: "GET",
-    path: `/locations/${encodeURIComponent(locationId)}/templates`,
-    version: "v3",
+    path: "/emails/builder",
+    version: "2023-02-21",
     query: {
-      originId: locationId,
-      type: "email",
-      limit: 100,
-      skip: 0,
-      deleted: false,
+      locationId,
+      limit: 20,
+      offset: 0,
+      search: name,
+      archived: false,
+      builderVersion: 2,
+      templatesOnly: true,
     },
   });
-  const exact = (list.templates ?? []).find(
-    (x) => x.name.trim().toLowerCase() === name.trim().toLowerCase()
+
+  const candidates = response.templates ?? response.data ?? [];
+  const exact = candidates.find(
+    (x) => (x.name ?? "").trim().toLowerCase() === name.trim().toLowerCase()
   );
-  if (!exact) {
+  const id = exact?.id ?? exact?._id;
+  if (!exact || !id) {
     console.error("BRIITELY_EMAIL_TEMPLATE_NOT_FOUND", {
       requestedName: name,
-      totalCount: list.totalCount ?? null,
-      returnedNames: (list.templates ?? []).map((x) => x.name),
+      returnedNames: candidates.map((x) => x.name ?? "(unnamed)"),
     });
     throw new Error(`Briitely email template "${name}" was not found.`);
   }
-  return {
-    id: exact.id,
-    name: exact.name,
-    subject: exact.template?.subject,
-  };
+
+  return { id, name: exact.name ?? name };
 }
 
 export async function getContactCustomFieldByKey(fieldKey: string) {
