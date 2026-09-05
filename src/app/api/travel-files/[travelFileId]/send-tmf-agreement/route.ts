@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     if (!f.destination) missing.push("Destination");
     if (!f.assigned_advisor?.full_name) missing.push("Assigned Advisor");
     if (f.tmf_amount == null) missing.push("Retainer Amount");
-    if (f.tmf_agreement_type === "ivt" && f.revisions_included == null) missing.push("Revisions Included");
+    if (f.revisions_included == null) missing.push("Revisions Included");
     if (missing.length) return NextResponse.json({ error: `Cannot prepare Retainer email: missing ${missing.join(", ")}.` }, { status: 400 });
 
     const now = new Date().toISOString();
