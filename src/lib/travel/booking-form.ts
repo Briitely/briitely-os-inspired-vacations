@@ -26,7 +26,7 @@ export async function getBookingFormSession(token: string) {
   const tokenHash = hashBookingFormToken(token);
   const { data: session, error } = await supabase
     .from("booking_form_sessions")
-    .select("id, travel_file_id, expires_at, completed_at, revoked_at")
+    .select("id, travel_file_id, expires_at, completed_at, revoked_at, include_retainer")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
