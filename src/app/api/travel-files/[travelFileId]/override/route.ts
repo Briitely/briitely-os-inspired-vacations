@@ -39,8 +39,8 @@ const VALID_ACTION_CODES = [
 const ACTION_TITLES: Record<string, string> = {
   book_initial_consultation: "Book Initial Consultation",
   complete_initial_consultation: "Complete Initial Consultation",
-  send_tmf_agreement: "Send TMF Agreement",
-  collect_tmf_payment: "Collect TMF Payment",
+  send_tmf_agreement: "Prepare Retainer Email",
+  collect_tmf_payment: "Collect Retainer Payment",
   create_proposal: "Create Proposal",
   send_proposal: "Send Proposal",
   negotiate_proposal: "Negotiate Proposal",
@@ -92,7 +92,6 @@ export async function POST(
 
   const supabase = await createClient();
 
-  // Fetch current file state
   const { data: rawFile, error: fileError } = await supabase
     .from("travel_files")
     .select("id, stage, current_action_id, current_action:travel_actions!current_action_id (id, action_code, status)")
@@ -114,7 +113,6 @@ export async function POST(
   const previousStage = file.stage;
   const previousActionCode = file.current_action?.action_code ?? null;
 
-  // 1. Supersede the current active action (mark as skipped, don't delete)
   if (file.current_action_id) {
     await supabase
       .from("travel_actions")
@@ -127,7 +125,6 @@ export async function POST(
       .eq("id", file.current_action_id);
   }
 
-  // 2. Create the new action instance
   const { data: newAction, error: actionError } = await supabase
     .from("travel_actions")
     .insert({
@@ -153,7 +150,6 @@ export async function POST(
     return NextResponse.json({ error: "Failed to create new action." }, { status: 500 });
   }
 
-  // 3. Update the Travel File: new stage + new current action
   const { error: fileUpdateError } = await supabase
     .from("travel_files")
     .update({
@@ -167,12 +163,10 @@ export async function POST(
     console.error("WORKFLOW_OVERRIDE", {
       travelFileId, userId: user.id, errorStage: "file_update", errorMessage: fileUpdateError.message,
     });
-    // Rollback: delete the new action
     await supabase.from("travel_actions").delete().eq("id", newAction.id);
     return NextResponse.json({ error: "Failed to update Travel File stage." }, { status: 500 });
   }
 
-  // 4. Activity log
   await supabase.from("travel_activity").insert({
     travel_file_id: travelFileId,
     event_type: "workflow_override",
