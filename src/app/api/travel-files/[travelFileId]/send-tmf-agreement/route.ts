@@ -44,7 +44,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   const f = file as any;
   const a = f.current_action;
   if (!a || a.action_code !== "send_tmf_agreement") return NextResponse.json({ error: "No pending Prepare Retainer Email action on this Travel File." }, { status: 400 });
-  if (a.status === "completed") return NextResponse.json({ success: true, result: "already_processed" });
 
   const admin = user.role === "admin" || user.role === "super_admin";
   const responsible = a.responsible_type === "internal" && a.responsible_user_id === user.id;
@@ -52,6 +51,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   if (!f.briitely_contact_id) return NextResponse.json({ error: "No Briitely contact is linked to this Travel File." }, { status: 400 });
 
   if (action === "prepare") {
+    if (a.status === "completed") return NextResponse.json({ error: "This Retainer email has already been marked sent." }, { status: 409 });
+
     const missing: string[] = [];
     if (!f.destination) missing.push("Destination");
     if (!f.assigned_advisor?.full_name) missing.push("Assigned Advisor");
@@ -95,14 +96,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   if (action !== "mark-sent") return NextResponse.json({ error: "Unknown Retainer action." }, { status: 400 });
 
   const now = new Date().toISOString();
+
+  if (a.status === "completed") {
+    const { data: existingNext } = await supabase.from("travel_actions").select("id,title,action_code").eq("travel_file_id", travelFileId).eq("action_code", "await_tmf_and_booking_form").eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!existingNext) return NextResponse.json({ error: "The Retainer action was completed, but the next action is missing. Please contact an administrator." }, { status: 500 });
+
+    const { error: repairError } = await supabase.from("travel_files").update({ stage: "tmf_sent", stage_changed_at: now, current_action_id: existingNext.id }).eq("id", travelFileId);
+    if (repairError) {
+      console.error("RETAINER_MARK_SENT_REPAIR_FAILED", repairError);
+      return NextResponse.json({ error: `The email is marked sent, but the Travel File could not be updated. (${repairError.message})` }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, result: "sent", stage: "tmf_sent", repaired: true, nextAction: existingNext });
+  }
+
+  const { data: newAction, error: createError } = await supabase.from("travel_actions").insert({ travel_file_id: travelFileId, action_code: "await_tmf_and_booking_form", title: "Await Retainer Agreement & Booking Form", action_role: "blocking", responsible_type: "client", status: "active", waiting_since: now, activated_at: now, metadata: { delivery: "manual_email_client" } }).select("id,title,action_code").single();
+  if (createError || !newAction) return NextResponse.json({ error: "The next action could not be created. Please contact an administrator." }, { status: 500 });
+
+  const { error: updateError } = await supabase.from("travel_files").update({ stage: "tmf_sent", stage_changed_at: now, current_action_id: newAction.id }).eq("id", travelFileId);
+  if (updateError) {
+    console.error("RETAINER_MARK_SENT_FILE_UPDATE_FAILED", updateError);
+    await supabase.from("travel_actions").delete().eq("id", newAction.id);
+    return NextResponse.json({ error: `The email was sent but the Travel File could not be updated. (${updateError.message})` }, { status: 500 });
+  }
+
   const { error: completeError } = await supabase.from("travel_actions").update({ status: "completed", completed_at: now, completed_by: user.id, completion_source: "portal" }).eq("id", a.id);
-  if (completeError) return NextResponse.json({ error: "The action could not be marked complete. Please contact an administrator." }, { status: 500 });
-
-  const { data: newAction, error: createError } = await supabase.from("travel_actions").insert({ travel_file_id: travelFileId, action_code: "await_tmf_and_booking_form", title: "Await Retainer Agreement & Booking Form", action_role: "blocking", responsible_type: "client", status: "active", waiting_since: now, activated_at: now, metadata: { delivery: "manual_email_client" } }).select("id").single();
-  if (createError || !newAction) return NextResponse.json({ error: "The action was marked complete but the next action could not be created. Please contact an administrator." }, { status: 500 });
-
-  const { error: updateError } = await supabase.from("travel_files").update({ stage: "tmf_sent", stage_changed_at: now, current_action_id: newAction.id, tmf_sent_at: now, tmf_document_id: null }).eq("id", travelFileId);
-  if (updateError) return NextResponse.json({ error: "The email was marked sent but the Travel File could not be updated. Please contact an administrator." }, { status: 500 });
+  if (completeError) return NextResponse.json({ error: "The Travel File advanced, but the Retainer action could not be marked complete. Please contact an administrator." }, { status: 500 });
 
   await supabase.from("travel_activity").insert({
     travel_file_id: travelFileId,
@@ -116,5 +135,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     metadata: { delivery: "manual_email_client", bookingForm: true, bookingFormLinkFieldKey: BOOKING_FORM_LINK_FIELD_KEY },
   });
 
-  return NextResponse.json({ success: true, result: "sent", stage: "tmf_sent", nextAction: { id: newAction.id, title: "Await Retainer Agreement & Booking Form", actionCode: "await_tmf_and_booking_form" } });
+  return NextResponse.json({ success: true, result: "sent", stage: "tmf_sent", nextAction: newAction });
 }
