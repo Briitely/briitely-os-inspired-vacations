@@ -39,8 +39,6 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
   let briitelySyncPending=false;
   let isNewContact=false;
 
-  // First create/find the Briitely contact, but DO NOT trigger inquiry automations yet.
-  // The Travel File must exist successfully before the NEW_INQUIRY_TAG is applied.
   try{
     const existing=await findContactByEmailOrPhone(input.email,input.phone);
     isNewContact=!existing;
@@ -51,6 +49,20 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     briitelySyncPending=true;
   }
   if(!briitelyContactId)return{success:false,travelFileId:null,briitelyContactId:null,error:"Could not create or find the Briitely contact.",briitelySyncPending:true};
+
+  // Every client/contact used by the travel system should also exist in the shared traveller profile table.
+  // This is independent of whether a Travel File is successfully created on this attempt.
+  const{error:travellerProfileError}=await supabase.from("traveller_profiles").upsert({
+    briitely_contact_id:briitelyContactId,
+    first_name:input.firstName.trim(),
+    last_name:input.lastName.trim(),
+    email:input.email.trim()||null,
+    phone:input.phone.trim()||null,
+  },{onConflict:"briitely_contact_id"});
+  if(travellerProfileError){
+    console.error("INTAKE_TRAVELLER_PROFILE_SYNC_FAILED",travellerProfileError);
+    return{success:false,travelFileId:null,briitelyContactId,error:`Could not create traveller profile: ${travellerProfileError.message}`,briitelySyncPending};
+  }
 
   const now=new Date().toISOString();
   const inquirySource=input.intakeSource==="staff"?(input.intakeMethod||"staff"):"website";
@@ -81,7 +93,6 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     return{success:false,travelFileId:null,briitelyContactId,error:fileError?.message??"Could not create Travel File.",briitelySyncPending};
   }
 
-  // Only after the Travel File exists do we apply Briitely tags that can trigger automations.
   try{
     if(isNewContact)await addContactTag(briitelyContactId,NEW_INQUIRY_TAG);
     for(const tag of resolveIntakeTags(input))await addContactTag(briitelyContactId,tag);
