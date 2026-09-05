@@ -1,11 +1,33 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getLocationId } from "@/lib/briitely/client";
 import { setContactCustomFieldByKey } from "@/lib/briitely/email";
 import { BOOKING_FORM_TTL_DAYS, hashBookingFormToken, newBookingFormToken } from "@/lib/travel/booking-form";
 
 const BOOKING_FORM_LINK_FIELD_KEY = "booking_form_link";
+
+function firstName(name: string | null | undefined) {
+  return (name ?? "").trim().split(/\s+/)[0] || "there";
+}
+
+function buildMailto(to: string, clientName: string, bookingUrl: string) {
+  const subject = "Your Retainer Agreement & Booking Information - Inspired Vacations";
+  const body = [
+    `Hi ${firstName(clientName)},`,
+    "",
+    "Thank you for taking the time to speak with us about your trip.",
+    "",
+    "Please use the secure link below to review and accept your Retainer Agreement and complete or confirm your booking information:",
+    "",
+    bookingUrl,
+    "",
+    "Once that is complete, we can continue moving forward with planning your trip.",
+    "",
+    "Warmly,",
+    "Inspired Vacations",
+  ].join("\n");
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ travelFileId: string }> }) {
   const { user } = await getAuthenticatedUser();
@@ -21,12 +43,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
   const f = file as any;
   const a = f.current_action;
-  if (!a || a.action_code !== "send_tmf_agreement") return NextResponse.json({ error: "No pending Send Retainer Agreement action on this Travel File." }, { status: 400 });
+  if (!a || a.action_code !== "send_tmf_agreement") return NextResponse.json({ error: "No pending Prepare Retainer Email action on this Travel File." }, { status: 400 });
   if (a.status === "completed") return NextResponse.json({ success: true, result: "already_processed" });
 
   const admin = user.role === "admin" || user.role === "super_admin";
   const responsible = a.responsible_type === "internal" && a.responsible_user_id === user.id;
-  if (!admin && !responsible) return NextResponse.json({ error: "Only the responsible user or an admin can send the Retainer Agreement." }, { status: 403 });
+  if (!admin && !responsible) return NextResponse.json({ error: "Only the responsible user or an admin can prepare the Retainer email." }, { status: 403 });
   if (!f.briitely_contact_id) return NextResponse.json({ error: "No Briitely contact is linked to this Travel File." }, { status: 400 });
 
   if (action === "prepare") {
@@ -35,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     if (!f.assigned_advisor?.full_name) missing.push("Assigned Advisor");
     if (f.tmf_amount == null) missing.push("Retainer Amount");
     if (f.tmf_agreement_type === "ivt" && f.revisions_included == null) missing.push("Revisions Included");
-    if (missing.length) return NextResponse.json({ error: `Cannot prepare Retainer Agreement: missing ${missing.join(", ")}.` }, { status: 400 });
+    if (missing.length) return NextResponse.json({ error: `Cannot prepare Retainer email: missing ${missing.join(", ")}.` }, { status: 400 });
 
     const now = new Date().toISOString();
     await supabase.from("booking_form_sessions").update({ revoked_at: now }).eq("travel_file_id", travelFileId).eq("include_retainer", true).is("completed_at", null).is("revoked_at", null);
@@ -57,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     await supabase.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "retainer_email_prepared",
-      summary: "Retainer Agreement booking link prepared in Briitely.",
+      summary: "Retainer email prepared with secure booking link.",
       actor_type: "internal",
       actor_user_id: user.id,
       action_id: a.id,
@@ -66,9 +88,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       metadata: { bookingForm: true, bookingFormLinkFieldKey: BOOKING_FORM_LINK_FIELD_KEY, manualSend: true },
     });
 
-    const locationId = getLocationId();
-    const briitelyContactUrl = `https://app.gohighlevel.com/v2/location/${encodeURIComponent(locationId)}/contacts/detail/${encodeURIComponent(f.briitely_contact_id)}`;
-    return NextResponse.json({ success: true, result: "prepared", bookingUrl, expiresAt, briitelyContactUrl });
+    const mailtoUrl = buildMailto(f.email ?? "", f.client_name ?? "", bookingUrl);
+    return NextResponse.json({ success: true, result: "prepared", bookingUrl, expiresAt, mailtoUrl });
   }
 
   if (action !== "mark-sent") return NextResponse.json({ error: "Unknown Retainer action." }, { status: 400 });
@@ -77,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   const { error: completeError } = await supabase.from("travel_actions").update({ status: "completed", completed_at: now, completed_by: user.id, completion_source: "portal" }).eq("id", a.id);
   if (completeError) return NextResponse.json({ error: "The action could not be marked complete. Please contact an administrator." }, { status: 500 });
 
-  const { data: newAction, error: createError } = await supabase.from("travel_actions").insert({ travel_file_id: travelFileId, action_code: "await_tmf_and_booking_form", title: "Await Retainer Agreement & Booking Form", action_role: "blocking", responsible_type: "client", status: "active", waiting_since: now, activated_at: now, metadata: { delivery: "manual_briitely_email" } }).select("id").single();
+  const { data: newAction, error: createError } = await supabase.from("travel_actions").insert({ travel_file_id: travelFileId, action_code: "await_tmf_and_booking_form", title: "Await Retainer Agreement & Booking Form", action_role: "blocking", responsible_type: "client", status: "active", waiting_since: now, activated_at: now, metadata: { delivery: "manual_email_client" } }).select("id").single();
   if (createError || !newAction) return NextResponse.json({ error: "The action was marked complete but the next action could not be created. Please contact an administrator." }, { status: 500 });
 
   const { error: updateError } = await supabase.from("travel_files").update({ stage: "tmf_sent", stage_changed_at: now, current_action_id: newAction.id, tmf_sent_at: now, tmf_document_id: null }).eq("id", travelFileId);
@@ -86,13 +107,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   await supabase.from("travel_activity").insert({
     travel_file_id: travelFileId,
     event_type: "retainer_agreement_sent",
-    summary: "Retainer Agreement and Booking Form email marked sent from Briitely.",
+    summary: "Retainer Agreement and Booking Form email marked sent from the advisor's email client.",
     actor_type: "internal",
     actor_user_id: user.id,
     action_id: a.id,
     previous_stage: f.stage,
     new_stage: "tmf_sent",
-    metadata: { delivery: "manual_briitely_email", bookingForm: true, bookingFormLinkFieldKey: BOOKING_FORM_LINK_FIELD_KEY },
+    metadata: { delivery: "manual_email_client", bookingForm: true, bookingFormLinkFieldKey: BOOKING_FORM_LINK_FIELD_KEY },
   });
 
   return NextResponse.json({ success: true, result: "sent", stage: "tmf_sent", nextAction: { id: newAction.id, title: "Await Retainer Agreement & Booking Form", actionCode: "await_tmf_and_booking_form" } });
