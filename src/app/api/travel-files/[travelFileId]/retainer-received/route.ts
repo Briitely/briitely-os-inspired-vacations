@@ -11,7 +11,7 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
   const supabase=await createClient();
   const{data:file,error:fileError}=await supabase
     .from("travel_files")
-    .select("id,stage,current_action_id,assigned_advisor_id,current_action:travel_actions!current_action_id(id,action_code,status,responsible_user_id)")
+    .select("id,stage,current_action_id,assigned_advisor_id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status,responsible_user_id)")
     .eq("id",travelFileId)
     .maybeSingle();
   if(fileError||!file)return NextResponse.json({error:"Travel File not found."},{status:404});
@@ -22,20 +22,49 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
   }
 
   const now=new Date().toISOString();
-  const ownerId=file.assigned_advisor_id||action.responsible_user_id||user.id;
+  const today=now.slice(0,10);
+  const tracyId=file.assigned_advisor_id||null;
+
+  // Record the externally collected Retainer in the Travel File payment ledger.
+  const{data:existingPayment}=await supabase.from("travel_payments")
+    .select("id")
+    .eq("travel_file_id",travelFileId)
+    .eq("description","Retainer")
+    .eq("status","paid")
+    .limit(1)
+    .maybeSingle();
+  if(!existingPayment){
+    const{error:paymentError}=await supabase.from("travel_payments").insert({
+      travel_file_id:travelFileId,
+      payment_type:"other",
+      description:"Retainer",
+      amount:file.tmf_amount??null,
+      currency:"CAD",
+      due_date:today,
+      status:"paid",
+      details:"Collected externally through CBO.",
+      processed_by:user.id,
+      processed_at:now,
+    });
+    if(paymentError)return NextResponse.json({error:`Could not record the Retainer payment: ${paymentError.message}`},{status:500});
+  }
+
+  // Retainer receipt does not jump straight to proposal creation. Tracy first assigns
+  // the proposal owner and review due date.
   const{data:nextAction,error:nextError}=await supabase.from("travel_actions").insert({
     travel_file_id:travelFileId,
-    action_code:"create_proposal",
-    title:"Create Proposal",
+    action_code:"assign_proposal",
+    title:"Assign Proposal",
+    description:"Assign the proposal to an advisor and set the proposal review due date.",
     action_role:"blocking",
     responsible_type:"internal",
-    responsible_user_id:ownerId,
+    responsible_user_id:tracyId,
     status:"active",
     waiting_since:now,
     activated_at:now,
     metadata:{trigger:"retainer_received"},
   }).select("id").single();
-  if(nextError||!nextAction)return NextResponse.json({error:"Could not create the next workflow action."},{status:500});
+  if(nextError||!nextAction)return NextResponse.json({error:"Could not create the proposal assignment action."},{status:500});
 
   const{error:updateError}=await supabase.from("travel_files").update({
     stage:"planning_proposal",
@@ -58,13 +87,13 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
   await supabase.from("travel_activity").insert({
     travel_file_id:travelFileId,
     event_type:"retainer_received",
-    summary:"Retainer payment marked received.",
+    summary:"Retainer payment marked received in CBO and recorded in the payment ledger.",
     actor_type:"internal",
     actor_user_id:user.id,
     action_id:action.id,
     previous_stage:file.stage,
     new_stage:"planning_proposal",
-    metadata:{source:"manual_external"},
+    metadata:{source:"manual_external",payment_system:"CBO"},
   });
 
   return NextResponse.json({success:true,stage:"planning_proposal",nextActionId:nextAction.id});
