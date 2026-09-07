@@ -44,14 +44,9 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     isNewContact=!existing;
     const contact=await upsertContact({firstName:input.firstName,lastName:input.lastName,email:input.email,phone:input.phone,assignedTo:owner.briitelyUserId||undefined});
     briitelyContactId=contact.customer.id;
-  }catch(error){
-    console.error("INTAKE_BRIITELY_CONTACT_SYNC_FAILED",error);
-    briitelySyncPending=true;
-  }
+  }catch(error){console.error("INTAKE_BRIITELY_CONTACT_SYNC_FAILED",error);briitelySyncPending=true}
   if(!briitelyContactId)return{success:false,travelFileId:null,briitelyContactId:null,error:"Could not create or find the Briitely contact.",briitelySyncPending:true};
 
-  // Every client/contact used by the travel system should also exist in the shared traveller profile table.
-  // This is independent of whether a Travel File is successfully created on this attempt.
   const{error:travellerProfileError}=await supabase.from("traveller_profiles").upsert({
     briitely_contact_id:briitelyContactId,
     first_name:input.firstName.trim(),
@@ -59,19 +54,21 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     email:input.email.trim()||null,
     phone:input.phone.trim()||null,
   },{onConflict:"briitely_contact_id"});
-  if(travellerProfileError){
-    console.error("INTAKE_TRAVELLER_PROFILE_SYNC_FAILED",travellerProfileError);
-    return{success:false,travelFileId:null,briitelyContactId,error:`Could not create traveller profile: ${travellerProfileError.message}`,briitelySyncPending};
-  }
+  if(travellerProfileError)return{success:false,travelFileId:null,briitelyContactId,error:`Could not create traveller profile: ${travellerProfileError.message}`,briitelySyncPending};
 
   const now=new Date().toISOString();
-  const inquirySource=input.intakeSource==="staff"?(input.intakeMethod||"staff"):"website";
+  // "Source" is who/what brought the client to Inspired Vacations.
+  // "Intake method" is how this particular inquiry arrived (phone, email, website, etc.).
+  const source=input.referralSource?.trim()||(isNewContact?null:"Existing Client");
+  const intakeMethod=input.intakeMethod?.trim()||(input.intakeSource==="website"?"website":"staff");
+
   const{data:file,error:fileError}=await supabase.from("travel_files").insert({
     briitely_contact_id:briitelyContactId,
     client_name:clientName,
     stage:"new_inquiry",
     stage_changed_at:now,
-    inquiry_source:inquirySource,
+    inquiry_source:source,
+    intake_method:intakeMethod,
     destination:input.destination,
     trip_type:input.tripType,
     travel_timeframe:input.travelTimeframe,
@@ -89,29 +86,18 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     assigned_advisor_id:owner.portalProfileId||null,
   }).select("id").single();
 
-  if(fileError||!file){
-    return{success:false,travelFileId:null,briitelyContactId,error:fileError?.message??"Could not create Travel File.",briitelySyncPending};
-  }
+  if(fileError||!file)return{success:false,travelFileId:null,briitelyContactId,error:fileError?.message??"Could not create Travel File.",briitelySyncPending};
 
-  try{
-    if(isNewContact)await addContactTag(briitelyContactId,NEW_INQUIRY_TAG);
-    for(const tag of resolveIntakeTags(input))await addContactTag(briitelyContactId,tag);
-  }catch(error){
-    console.error("INTAKE_BRIITELY_TAG_SYNC_FAILED",error);
-    briitelySyncPending=true;
-  }
+  try{if(isNewContact)await addContactTag(briitelyContactId,NEW_INQUIRY_TAG);for(const tag of resolveIntakeTags(input))await addContactTag(briitelyContactId,tag)}catch(error){console.error("INTAKE_BRIITELY_TAG_SYNC_FAILED",error);briitelySyncPending=true}
 
-  if(input.travelInterests.length||input.travelSeasons.length){
-    await supabase.from("client_travel_profiles").upsert({briitely_contact_id:briitelyContactId,travel_interests:input.travelInterests,travel_seasons:input.travelSeasons},{onConflict:"briitely_contact_id"});
-  }
+  if(input.travelInterests.length||input.travelSeasons.length)await supabase.from("client_travel_profiles").upsert({briitely_contact_id:briitelyContactId,travel_interests:input.travelInterests,travel_seasons:input.travelSeasons},{onConflict:"briitely_contact_id"});
   if(input.staffNotes&&input.staffUserId)await supabase.from("travel_notes").insert({travel_file_id:file.id,note_type:"staff",note_text:input.staffNotes,created_by:input.staffUserId});
 
   const{data:action,error:actionError}=await supabase.from("travel_actions").insert({travel_file_id:file.id,action_code:"book_consultation",title:"Book Consultation",action_role:"blocking",responsible_type:"internal",responsible_user_id:owner.portalProfileId||input.staffUserId,status:"active",waiting_since:now,activated_at:now}).select("id").single();
   if(!actionError&&action)await supabase.from("travel_files").update({current_action_id:action.id}).eq("id",file.id);
 
-  await supabase.from("travel_activity").insert({travel_file_id:file.id,event_type:"inquiry_created",summary:`New inquiry created for ${clientName}.`,actor_type:input.intakeSource==="staff"?"internal":"client",actor_user_id:input.staffUserId,previous_stage:null,new_stage:"new_inquiry",metadata:{intake_source:input.intakeSource,intake_method:input.intakeMethod}});
+  await supabase.from("travel_activity").insert({travel_file_id:file.id,event_type:"inquiry_created",summary:`New inquiry created for ${clientName}.`,actor_type:input.intakeSource==="staff"?"internal":"client",actor_user_id:input.staffUserId,previous_stage:null,new_stage:"new_inquiry",metadata:{intake_source:input.intakeSource,intake_method:intakeMethod,source}});
 
   try{await briitelyRequest({method:"PUT",path:`/contacts/${encodeURIComponent(briitelyContactId)}`,body:{customFields:[]}})}catch(error){console.warn("INTAKE_BRIITELY_POST_SYNC_FAILED",error);briitelySyncPending=true}
-
   return{success:true,travelFileId:file.id,briitelyContactId,error:null,briitelySyncPending};
 }
