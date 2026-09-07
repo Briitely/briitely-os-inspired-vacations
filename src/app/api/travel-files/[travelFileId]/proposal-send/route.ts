@@ -23,7 +23,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  const{travelFileId}=await params;const body=(await request.json().catch(()=>({}))) as Body;const db=await createClient();
  const{data:file,error:fileError}=await db.from("travel_files").select("id,stage,current_action_id,assigned_advisor_id,travefy_proposal_url,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
  if(fileError||!file)return NextResponse.json({error:"Travel File not found."},{status:404});const current=Array.isArray(file.current_action)?file.current_action[0]:file.current_action;
- if(!current||current.action_code!=="create_proposal"||current.status!=="active")return NextResponse.json({error:"Create Proposal is not the active action for this Travel File."},{status:409});
+ if(!current||!["create_proposal","send_proposal"].includes(current.action_code)||current.status!=="active")return NextResponse.json({error:"Create/Send Proposal is not the active action for this Travel File."},{status:409});
  if(body.action==="prepare"){
   if(!body.sentViaTravefy)return NextResponse.json({error:"Confirm that you have sent the proposal via Travefy."},{status:400});
   const url=(body.travefyProposalUrl??"").trim();if(!url)return NextResponse.json({error:"Travefy Proposal URL is required."},{status:400});if(!validUrl(url))return NextResponse.json({error:"Enter a valid Travefy Proposal URL."},{status:400});
