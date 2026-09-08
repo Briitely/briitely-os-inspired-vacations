@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface BookingSummary {
   primarySupplier: string | null;
@@ -31,8 +31,30 @@ function Item({ label, value }: { label: string; value: string }) {
 
 export function ActiveBookingSummary({ travelFileId }: { travelFileId: string }) {
   const summary = useBookingSummary(travelFileId);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const grid = root?.closest(".grid") as HTMLElement | null;
+    if (!grid) return;
+
+    const hidden: HTMLElement[] = [];
+    for (const child of Array.from(grid.children)) {
+      const element = child as HTMLElement;
+      const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+      if (text.startsWith("revisions used")) {
+        element.style.display = "none";
+        hidden.push(element);
+      }
+    }
+
+    return () => {
+      for (const element of hidden) element.style.display = "";
+    };
+  }, [summary]);
+
   if (!summary) return null;
-  return <Item label="Primary Supplier" value={summary.primarySupplier ?? "—"} />;
+  return <div ref={rootRef} className="contents"><Item label="Primary Supplier" value={summary.primarySupplier ?? "—"} /></div>;
 }
 
 export function InquiryPlanningSummary({ travelFileId }: { travelFileId: string }) {
