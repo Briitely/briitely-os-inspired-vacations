@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
+import { createClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/logging/activity";
 import { logIntegration } from "@/lib/logging/integration";
 import { searchContacts } from "@/lib/briitely/contacts";
@@ -31,6 +32,27 @@ export async function GET(request: Request) {
 
   try {
     const result = await searchContacts(query);
+    const supabase = await createClient();
+    const ids = result.customers.map((customer) => customer.id);
+    const dnbIds = new Set<string>();
+
+    if (ids.length) {
+      const { data: profiles } = await supabase
+        .from("traveller_profiles")
+        .select("briitely_contact_id,is_dnb")
+        .in("briitely_contact_id", ids);
+      for (const profile of profiles ?? []) {
+        if (profile.is_dnb) dnbIds.add(profile.briitely_contact_id);
+      }
+    }
+
+    const enrichedResult = {
+      ...result,
+      customers: result.customers.map((customer) => ({
+        ...customer,
+        isDnb: dnbIds.has(customer.id),
+      })),
+    };
 
     await Promise.allSettled([
       logActivity(user.id, {
@@ -56,7 +78,7 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    return NextResponse.json(result);
+    return NextResponse.json(enrichedResult);
   } catch (error) {
     const safeMessage = toSafeUserMessage(error);
     const briitelyError = error instanceof BriitelyApiError ? error : null;
