@@ -21,8 +21,10 @@ import type { BriitelyCustomer } from "@/lib/briitely/types";
 import { classifyQuery, splitNameParts } from "@/lib/briitely/query";
 import { formatPhoneNumber } from "@/lib/format/phone";
 
+type SearchCustomer = BriitelyCustomer & { isDnb?: boolean };
+
 interface SearchResponse {
-  customers?: BriitelyCustomer[];
+  customers?: SearchCustomer[];
   total?: number;
   queryType?: string;
   searchCount?: number;
@@ -60,14 +62,14 @@ const EMPTY_FORM: CreateFormData = {
   postalCode: "",
 };
 
-
-function CustomerCard({ customer, onSelect }: { customer: BriitelyCustomer; onSelect: (customer: BriitelyCustomer) => void }) {
+function CustomerCard({ customer, onSelect }: { customer: SearchCustomer; onSelect: (customer: SearchCustomer) => void }) {
   return (
     <Card className="transition-shadow hover:shadow-md">
       <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{customer.companyName || customer.name || "Unnamed customer"}</h2>
+            {customer.isDnb && <Badge variant="destructive">DNB</Badge>}
             {customer.companyName && customer.name && <Badge variant="secondary">{customer.name}</Badge>}
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
@@ -110,7 +112,7 @@ interface CustomerFinderProps {
 export function CustomerFinder({ onCustomerSelected, initialCustomerId }: CustomerFinderProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [customers, setCustomers] = useState<BriitelyCustomer[]>([]);
+  const [customers, setCustomers] = useState<SearchCustomer[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(Boolean(initialCustomerId));
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
   const [createForm, setCreateForm] = useState<CreateFormData>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [duplicateMatch, setDuplicateMatch] = useState<BriitelyCustomer | null>(null);
+  const [duplicateMatch, setDuplicateMatch] = useState<SearchCustomer | null>(null);
 
   const handleNavigateToCustomer = useCallback((customerId: string) => {
     router.push(`/customers/${encodeURIComponent(customerId)}`);
@@ -175,7 +177,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
     }
   }
 
-  async function handleSelectCustomer(customer: BriitelyCustomer) {
+  async function handleSelectCustomer(customer: SearchCustomer) {
     if (onCustomerSelected) {
       onCustomerSelected(customer);
       return;
@@ -213,7 +215,9 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       }
 
       if (data.duplicate && data.customer) {
-        setDuplicateMatch(data.customer);
+        const dnbResponse = await fetch(`/api/customers/${encodeURIComponent(data.customer.id)}/traveller-profile`).catch(() => null);
+        const dnbData = dnbResponse?.ok ? await dnbResponse.json().catch(() => ({})) : {};
+        setDuplicateMatch({ ...data.customer, isDnb: Boolean(dnbData?.profile?.is_dnb) });
         setView("duplicate");
         return;
       }
