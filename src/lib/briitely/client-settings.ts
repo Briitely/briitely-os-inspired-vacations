@@ -16,15 +16,24 @@ function unwrapValue(raw: unknown): SettingValue {
 }
 
 export async function getClientSettings(): Promise<Record<string, SettingValue>> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const sessionClient = await createClient();
+  const sessionResult = await sessionClient
     .from("client_settings")
     .select("setting_key, setting_value");
 
-  if (error || !data) {
-    return {};
+  let data = sessionResult.data;
+
+  if (sessionResult.error || !data || data.length === 0) {
+    const serviceClient = createServiceClient();
+    if (serviceClient) {
+      const serviceResult = await serviceClient
+        .from("client_settings")
+        .select("setting_key, setting_value");
+      if (!serviceResult.error && serviceResult.data) data = serviceResult.data;
+    }
   }
 
+  if (!data) return {};
   const result: Record<string, SettingValue> = {};
   for (const row of data as Pick<ClientSetting, "setting_key" | "setting_value">[]) {
     result[row.setting_key] = unwrapValue(row.setting_value);
@@ -33,8 +42,22 @@ export async function getClientSettings(): Promise<Record<string, SettingValue>>
 }
 
 export async function getClientSetting(key: string): Promise<SettingValue | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const sessionClient = await createClient();
+  const sessionResult = await sessionClient
+    .from("client_settings")
+    .select("setting_value")
+    .eq("setting_key", key)
+    .maybeSingle();
+
+  if (!sessionResult.error && sessionResult.data) {
+    return unwrapValue(sessionResult.data.setting_value);
+  }
+
+  // Public pages such as /login do not have an authenticated session yet.
+  // Read settings server-side so the login can use the client's saved branding.
+  const serviceClient = createServiceClient();
+  if (!serviceClient) return null;
+  const { data, error } = await serviceClient
     .from("client_settings")
     .select("setting_value")
     .eq("setting_key", key)
@@ -49,19 +72,19 @@ export async function upsertClientSetting(
   value: SettingValue,
   description?: string
 ): Promise<boolean> {
-  const serviceClient = createServiceClient();
-  if (!serviceClient) {
-    const supabase = await createClient();
-    const { error } = await supabase
-      .from("client_settings")
-      .upsert({ setting_key: key, setting_value: value, description }, { onConflict: "setting_key" });
-    return !error;
-  }
-
-  const { error } = await serviceClient
+  const supabase = await createClient();
+  const { error } = await supabase
     .from("client_settings")
     .upsert({ setting_key: key, setting_value: value, description }, { onConflict: "setting_key" });
-  return !error;
+
+  if (!error) return true;
+
+  const serviceClient = createServiceClient();
+  if (!serviceClient) return false;
+  const serviceResult = await serviceClient
+    .from("client_settings")
+    .upsert({ setting_key: key, setting_value: value, description }, { onConflict: "setting_key" });
+  return !serviceResult.error;
 }
 
 export interface BusinessSettings {
@@ -70,27 +93,11 @@ export interface BusinessSettings {
   phone: string;
   website: string;
   email: string;
-  address: {
-    street: string;
-    city: string;
-    province: string;
-    postalCode: string;
-    country: string;
-  };
+  address: { street: string; city: string; province: string; postalCode: string; country: string };
 }
 
-export interface RegionalSettings {
-  timezone: string;
-  currency: string;
-  locale: string;
-}
-
-export interface InvoiceSettings {
-  paymentInstructions: string;
-  latePaymentTerms: string;
-  defaultSenderUserId: string;
-  defaultSenderEmail: string;
-}
+export interface RegionalSettings { timezone: string; currency: string; locale: string }
+export interface InvoiceSettings { paymentInstructions: string; latePaymentTerms: string; defaultSenderUserId: string; defaultSenderEmail: string }
 
 export function getDefaultBusinessSettings(): BusinessSettings {
   return {
@@ -99,22 +106,12 @@ export function getDefaultBusinessSettings(): BusinessSettings {
     phone: "",
     website: "",
     email: "",
-    address: {
-      street: "",
-      city: "",
-      province: "",
-      postalCode: "",
-      country: "Canada",
-    },
+    address: { street: "", city: "", province: "", postalCode: "", country: "Canada" },
   };
 }
 
 export function getDefaultRegionalSettings(): RegionalSettings {
-  return {
-    timezone: "America/Toronto",
-    currency: clientConfig.revenue.currency,
-    locale: clientConfig.revenue.locale,
-  };
+  return { timezone: "America/Toronto", currency: clientConfig.revenue.currency, locale: clientConfig.revenue.locale };
 }
 
 export function getDefaultInvoiceSettings(): InvoiceSettings {
@@ -126,9 +123,7 @@ export function getDefaultInvoiceSettings(): InvoiceSettings {
   };
 }
 
-export function getDefaultGoLiveDate(): string {
-  return clientConfig.invoiceGoLiveDate;
-}
+export function getDefaultGoLiveDate(): string { return clientConfig.invoiceGoLiveDate; }
 
 export async function getBusinessSettings(): Promise<BusinessSettings> {
   const defaults = getDefaultBusinessSettings();
@@ -180,25 +175,14 @@ export async function getGoLiveDate(): Promise<string> {
   return getDefaultGoLiveDate();
 }
 
-export interface BrandingSettings {
-  logoUrl: string;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-}
+export interface BrandingSettings { logoUrl: string; primaryColor: string; secondaryColor: string; accentColor: string }
 
 export function getDefaultBrandingSettings(): BrandingSettings {
-  return {
-    logoUrl: "",
-    primaryColor: "#334155",
-    secondaryColor: "#64748b",
-    accentColor: "#0ea5e9",
-  };
+  return { logoUrl: "", primaryColor: "#334155", secondaryColor: "#64748b", accentColor: "#0ea5e9" };
 }
 
 function isHexColor(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value);
+  return typeof value === "string" && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value);
 }
 
 export async function getBrandingSettings(): Promise<BrandingSettings> {
@@ -215,19 +199,15 @@ export async function getBrandingSettings(): Promise<BrandingSettings> {
 
 export function hexToHsl(hex: string): string {
   const cleaned = hex.replace("#", "");
-  const full = cleaned.length === 3
-    ? cleaned.split("").map((c) => c + c).join("")
-    : cleaned;
+  const full = cleaned.length === 3 ? cleaned.split("").map((c) => c + c).join("") : cleaned;
   const r = parseInt(full.slice(0, 2), 16) / 255;
   const g = parseInt(full.slice(2, 4), 16) / 255;
   const b = parseInt(full.slice(4, 6), 16) / 255;
-
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
   let h = 0;
   let s = 0;
-
   if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -238,6 +218,5 @@ export function hexToHsl(hex: string): string {
     }
     h /= 6;
   }
-
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
