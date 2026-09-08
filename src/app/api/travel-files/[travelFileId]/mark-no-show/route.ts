@@ -21,7 +21,7 @@ export async function POST(
   const db = await createClient();
   const { data: file, error } = await db
     .from("travel_files")
-    .select("id,briitely_contact_id,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)")
+    .select("id,stage,briitely_contact_id,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)")
     .eq("id", travelFileId)
     .maybeSingle();
 
@@ -43,15 +43,58 @@ export async function POST(
   }
 
   const now = new Date().toISOString();
+  const { data: waitingAction, error: actionError } = await db
+    .from("travel_actions")
+    .insert({
+      travel_file_id: travelFileId,
+      action_code: "book_initial_consultation",
+      title: "Book Initial Consultation",
+      description: "Client was a no-show. Waiting for the client to rebook their initial consultation.",
+      action_role: "blocking",
+      responsible_type: "client",
+      responsible_user_id: null,
+      status: "active",
+      waiting_since: now,
+      activated_at: now,
+      metadata: { trigger: "consultation_no_show", no_show_tag: NO_SHOW_TAG },
+    })
+    .select("id,title")
+    .single();
+
+  if (actionError || !waitingAction) {
+    return NextResponse.json({ error: "The no-show tag was added, but the waiting-for-client action could not be created." }, { status: 500 });
+  }
+
+  const { error: pauseError } = await db
+    .from("travel_actions")
+    .update({ status: "pending" })
+    .eq("id", current.id);
+  if (pauseError) {
+    await db.from("travel_actions").delete().eq("id", waitingAction.id);
+    return NextResponse.json({ error: "The no-show tag was added, but the consultation action could not be paused." }, { status: 500 });
+  }
+
+  const { error: fileError } = await db
+    .from("travel_files")
+    .update({ current_action_id: waitingAction.id, stage: "new_inquiry", stage_changed_at: now })
+    .eq("id", travelFileId);
+  if (fileError) {
+    await db.from("travel_actions").update({ status: "active" }).eq("id", current.id);
+    await db.from("travel_actions").delete().eq("id", waitingAction.id);
+    return NextResponse.json({ error: "The no-show tag was added, but the Travel File could not be returned to waiting for the client." }, { status: 500 });
+  }
+
   await db.from("travel_activity").insert({
     travel_file_id: travelFileId,
     event_type: "consultation_no_show",
-    summary: "Client marked as a no-show for the initial consultation; no-show automation triggered.",
+    summary: "Client marked as a no-show. Waiting for the client to rebook the initial consultation.",
     actor_type: "internal",
     actor_user_id: user.id,
-    action_id: current.id,
-    metadata: { tag: NO_SHOW_TAG },
+    action_id: waitingAction.id,
+    previous_stage: file.stage,
+    new_stage: "new_inquiry",
+    metadata: { tag: NO_SHOW_TAG, paused_action_id: current.id },
   });
 
-  return NextResponse.json({ success: true, tag: NO_SHOW_TAG, markedAt: now });
+  return NextResponse.json({ success: true, tag: NO_SHOW_TAG, markedAt: now, nextAction: waitingAction });
 }
