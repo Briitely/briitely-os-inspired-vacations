@@ -15,7 +15,7 @@ export async function GET(
   const db = await createClient();
   const { data, error } = await db
     .from("travel_files")
-    .select("primary_supplier,supplier_final_payment_date,client_final_payment_date")
+    .select("primary_supplier,supplier_final_payment_date,client_final_payment_date,travel_timeframe,budget_range,revisions_used,revisions_included")
     .eq("id", travelFileId)
     .maybeSingle();
 
@@ -27,5 +27,9 @@ export async function GET(
     primarySupplier: data.primary_supplier ?? null,
     supplierFinalPaymentDate: data.supplier_final_payment_date ?? null,
     clientFinalPaymentDate: data.client_final_payment_date ?? null,
+    travelTimeframe: data.travel_timeframe ?? null,
+    budgetRange: data.budget_range ?? null,
+    revisionsUsed: data.revisions_used ?? 0,
+    revisionsIncluded: data.revisions_included ?? null,
   });
 }
