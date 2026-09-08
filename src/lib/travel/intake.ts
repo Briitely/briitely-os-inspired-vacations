@@ -20,12 +20,13 @@ export interface IntakeInput {
   referralSource: string; referralDetail: string | null; eventDetail: string | null;
   specialConsiderations: string | null; consent: boolean;
   intakeSource: "website" | "staff"; intakeMethod: string; staffNotes: string | null; staffUserId: string | null;
+  isFit?: "yes" | "no" | ""; markDnb?: boolean; lostReason?: string | null;
 }
 export interface IntakeResult {success:boolean;travelFileId:string|null;briitelyContactId:string|null;error:string|null;briitelySyncPending:boolean}
 interface DefaultInquiryOwner {portalProfileId:string;briitelyUserId:string}
 async function getDefaultInquiryOwner():Promise<DefaultInquiryOwner>{const portalProfileId=process.env.DEFAULT_INQUIRY_OWNER_PROFILE_ID??"";let briitelyUserId="";if(portalProfileId){const supabase=await createClient();const{data:profile}=await supabase.from("profiles").select("ghl_user_id").eq("id",portalProfileId).maybeSingle();if(profile?.ghl_user_id)briitelyUserId=profile.ghl_user_id;else console.warn("INTAKE_CONFIG",{warning:"DEFAULT_INQUIRY_OWNER_PROFILE_ID is set but the profile has no ghl_user_id — Briitely contact assignment will be skipped",profileId:portalProfileId})}return{portalProfileId,briitelyUserId}}
 export interface ValidationResult {valid:boolean;errors:string[]}
-export function validateIntake(input:IntakeInput):ValidationResult{const errors:string[]=[];if(!input.firstName.trim())errors.push("First name is required.");if(!input.lastName.trim())errors.push("Last name is required.");if(!input.email.trim())errors.push("Email is required.");if(!input.phone.trim())errors.push("Phone is required.");if(!input.destination.trim())errors.push("Destination is required.");if(!input.tripType.trim())errors.push("Trip type is required.");if(!input.travelTimeframe.trim())errors.push("Travel timeframe is required.");if(!input.budgetRange.trim())errors.push("Budget range is required.");if(input.intakeSource==="website"&&!input.referralSource.trim())errors.push("How did you hear about us is required.");if(!input.consent)errors.push("Consent is required.");const adults=input.numberOfAdults;if(typeof adults!=="number"||!Number.isFinite(adults)||adults<1)errors.push("At least one adult is required.");if(input.numberOfChildren!==null&&input.numberOfChildren<0)errors.push("Number of children cannot be negative.");if(input.numberOfChildren!==null&&input.numberOfChildren>0&&(!input.childrenAges||!input.childrenAges.trim()))errors.push("Ages of children is required when number of children is greater than zero.");return{valid:errors.length===0,errors}}
+export function validateIntake(input:IntakeInput):ValidationResult{const errors:string[]=[];if(!input.firstName.trim())errors.push("First name is required.");if(!input.lastName.trim())errors.push("Last name is required.");if(!input.email.trim())errors.push("Email is required.");if(!input.phone.trim())errors.push("Phone is required.");if(input.intakeSource==="website"){if(!input.destination.trim())errors.push("Destination is required.");if(!input.tripType.trim())errors.push("Trip type is required.");if(!input.travelTimeframe.trim())errors.push("Travel timeframe is required.");if(!input.budgetRange.trim())errors.push("Budget range is required.");if(!input.referralSource.trim())errors.push("How did you hear about us is required.");const adults=input.numberOfAdults;if(typeof adults!=="number"||!Number.isFinite(adults)||adults<1)errors.push("At least one adult is required.");if(input.numberOfChildren!==null&&input.numberOfChildren<0)errors.push("Number of children cannot be negative.");if(input.numberOfChildren!==null&&input.numberOfChildren>0&&(!input.childrenAges||!input.childrenAges.trim()))errors.push("Ages of children is required when number of children is greater than zero.")}else{if(!input.isFit)errors.push("Please select whether this client is a fit.");if(input.isFit==="no"&&!input.lostReason?.trim())errors.push("Lost reason is required when the client is not a fit.");if(input.numberOfAdults<0)errors.push("Number of adults cannot be negative.");if(input.numberOfChildren!==null&&input.numberOfChildren<0)errors.push("Number of children cannot be negative.")}if(!input.consent)errors.push("Consent is required.");return{valid:errors.length===0,errors}}
 export function calculateTravellerCount(adults:number,children:number|null):number{return adults+(children??0)}
 export function resolveIntakeTags(input:IntakeInput):string[]{const interestTags=resolveTagsFromSelections(travelInterestOptions,input.travelInterests);const seasonTags=resolveTagsFromSelections(travelSeasonOptions,input.travelSeasons);const sourceTags=input.referralSource?resolveTagsFromSelections(referralSourceOptions,[input.referralSource]):[];return[...interestTags,...seasonTags,...sourceTags]}
 
@@ -53,27 +54,30 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
     last_name:input.lastName.trim(),
     email:input.email.trim()||null,
     phone:input.phone.trim()||null,
+    ...(input.intakeSource==="staff"?{is_dnb:Boolean(input.markDnb)}:{}),
   },{onConflict:"briitely_contact_id"});
   if(travellerProfileError)return{success:false,travelFileId:null,briitelyContactId,error:`Could not create traveller profile: ${travellerProfileError.message}`,briitelySyncPending};
 
   const now=new Date().toISOString();
-  // "Source" is who/what brought the client to Inspired Vacations.
-  // "Intake method" is how this particular inquiry arrived (phone, email, website, etc.).
   const source=input.referralSource?.trim()||(isNewContact?null:"Existing Client");
   const intakeMethod=input.intakeMethod?.trim()||(input.intakeSource==="website"?"website":"staff");
+  const immediatelyLost=input.intakeSource==="staff"&&input.isFit==="no";
 
   const{data:file,error:fileError}=await supabase.from("travel_files").insert({
     briitely_contact_id:briitelyContactId,
     client_name:clientName,
-    stage:"new_inquiry",
+    stage:immediatelyLost?"lost_not_qualified":"new_inquiry",
     stage_changed_at:now,
+    file_status:immediatelyLost?"closed":"open",
+    closed_at:immediatelyLost?now:null,
+    lost_reason:immediatelyLost?(input.lostReason?.trim()||null):null,
     inquiry_source:source,
     intake_method:intakeMethod,
-    destination:input.destination,
-    trip_type:input.tripType,
-    travel_timeframe:input.travelTimeframe,
-    budget_range:input.budgetRange,
-    number_of_adults:input.numberOfAdults,
+    destination:input.destination||null,
+    trip_type:input.tripType||null,
+    travel_timeframe:input.travelTimeframe||null,
+    budget_range:input.budgetRange||null,
+    number_of_adults:input.numberOfAdults||0,
     number_of_children:numberOfChildren,
     children_ages:input.childrenAges,
     number_of_travellers:numberOfTravellers,
@@ -93,10 +97,9 @@ export async function processIntake(input:IntakeInput):Promise<IntakeResult>{
   if(input.travelInterests.length||input.travelSeasons.length)await supabase.from("client_travel_profiles").upsert({briitely_contact_id:briitelyContactId,travel_interests:input.travelInterests,travel_seasons:input.travelSeasons},{onConflict:"briitely_contact_id"});
   if(input.staffNotes&&input.staffUserId)await supabase.from("travel_notes").insert({travel_file_id:file.id,note_type:"staff",note_text:input.staffNotes,created_by:input.staffUserId});
 
-  const{data:action,error:actionError}=await supabase.from("travel_actions").insert({travel_file_id:file.id,action_code:"book_consultation",title:"Book Consultation",action_role:"blocking",responsible_type:"internal",responsible_user_id:owner.portalProfileId||input.staffUserId,status:"active",waiting_since:now,activated_at:now}).select("id").single();
-  if(!actionError&&action)await supabase.from("travel_files").update({current_action_id:action.id}).eq("id",file.id);
+  if(!immediatelyLost){const{data:action,error:actionError}=await supabase.from("travel_actions").insert({travel_file_id:file.id,action_code:"book_consultation",title:"Book Consultation",action_role:"blocking",responsible_type:"internal",responsible_user_id:owner.portalProfileId||input.staffUserId,status:"active",waiting_since:now,activated_at:now}).select("id").single();if(!actionError&&action)await supabase.from("travel_files").update({current_action_id:action.id}).eq("id",file.id)}
 
-  await supabase.from("travel_activity").insert({travel_file_id:file.id,event_type:"inquiry_created",summary:`New inquiry created for ${clientName}.`,actor_type:input.intakeSource==="staff"?"internal":"client",actor_user_id:input.staffUserId,previous_stage:null,new_stage:"new_inquiry",metadata:{intake_source:input.intakeSource,intake_method:intakeMethod,source}});
+  await supabase.from("travel_activity").insert({travel_file_id:file.id,event_type:"inquiry_created",summary:immediatelyLost?`Inquiry created for ${clientName} and marked Lost / Not Qualified.`:`New inquiry created for ${clientName}.`,actor_type:input.intakeSource==="staff"?"internal":"client",actor_user_id:input.staffUserId,previous_stage:null,new_stage:immediatelyLost?"lost_not_qualified":"new_inquiry",metadata:{intake_source:input.intakeSource,intake_method:intakeMethod,source,is_fit:input.isFit||null,mark_dnb:Boolean(input.markDnb),lost_reason:input.lostReason||null}});
 
   try{await briitelyRequest({method:"PUT",path:`/contacts/${encodeURIComponent(briitelyContactId)}`,body:{customFields:[]}})}catch(error){console.warn("INTAKE_BRIITELY_POST_SYNC_FAILED",error);briitelySyncPending=true}
   return{success:true,travelFileId:file.id,briitelyContactId,error:null,briitelySyncPending};
