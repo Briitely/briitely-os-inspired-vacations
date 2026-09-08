@@ -5,16 +5,18 @@ import { BrandingStyles } from "@/components/core/branding-styles";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Branding is stored in Supabase and can be changed from Admin at runtime.
+// Force the layout to re-read those settings instead of serving a cached
+// build-time version of the CSS variables.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Briitely OS — Business Dashboard",
   description: "Internal business dashboard",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
