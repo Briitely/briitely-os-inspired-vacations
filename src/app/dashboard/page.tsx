@@ -90,9 +90,9 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <WorkflowCard
             icon={<MapPinned className="h-7 w-7" />}
-            title="Client Journey"
-            description="View and manage open Travel Files and their next actions."
-            href="#client-journey"
+            title="New Inquiry"
+            description="Enter a new travel inquiry from a phone call, email, referral, or walk-in."
+            href="/intake/new"
             enabled
           />
           <WorkflowCard
@@ -100,13 +100,6 @@ export default async function DashboardPage() {
             title="Find or Create Customer"
             description="Look up an existing customer or add a new one to your records."
             href="/customers"
-            enabled
-          />
-          <WorkflowCard
-            icon={<MapPinned className="h-7 w-7" />}
-            title="New Inquiry"
-            description="Enter a new travel inquiry from a phone call, email, referral, or walk-in."
-            href="/intake/new"
             enabled
           />
           {(isAdmin) && (
