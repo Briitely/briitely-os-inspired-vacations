@@ -6,12 +6,14 @@ import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrappe
 import { SharedFooter } from "@/components/app/shared-footer";
 import { StaffIntakeForm } from "@/components/app/staff-intake-form";
 
-export default async function IntakeNewPage() {
+export default async function IntakeNewPage({ searchParams }: { searchParams: Promise<{ customerId?: string }> }) {
   const { user, error } = await getAuthenticatedUser();
 
   if (error || !user) {
     redirect("/login");
   }
+
+  const { customerId } = await searchParams;
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,9 +24,9 @@ export default async function IntakeNewPage() {
       />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href={customerId ? `/customers/${encodeURIComponent(customerId)}` : "/dashboard"} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
+            <span>{customerId ? "Back to Client File" : "Back to Dashboard"}</span>
           </Link>
         </div>
         <div className="space-y-2">
@@ -33,7 +35,7 @@ export default async function IntakeNewPage() {
             Enter a new travel inquiry from a phone call, email, referral, or walk-in.
           </p>
         </div>
-        <StaffIntakeForm />
+        <StaffIntakeForm initialCustomerId={customerId} />
       </main>
       <SharedFooter label="New Inquiry" />
     </div>

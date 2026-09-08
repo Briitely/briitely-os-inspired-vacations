@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getContact } from "@/lib/briitely/contacts";
 
-const PROFILE_FIELDS = "id, briitely_contact_id, first_name, middle_name, last_name, preferred_name, date_of_birth, email, phone, passport_number, passport_country, passport_issue_date, passport_expiry_date, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email";
+const PROFILE_FIELDS = "id, briitely_contact_id, first_name, middle_name, last_name, preferred_name, date_of_birth, email, phone, passport_number, passport_country, passport_issue_date, passport_expiry_date, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, is_dnb";
 
 async function requireUser() {
   const { user, error } = await getAuthenticatedUser();
@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       last_name: contact.lastName || "",
       email: contact.email || null,
       phone: contact.phone || null,
+      is_dnb: false,
     }).select(PROFILE_FIELDS).single();
     if (insertError || !data) throw new Error(insertError?.message ?? "Could not create traveller profile.");
     return NextResponse.json({ profile: data });
@@ -47,6 +48,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   try {
     const contact = await getContact(id);
+    const { data: existing } = await supabase.from("traveller_profiles").select("is_dnb").eq("briitely_contact_id", id).maybeSingle();
     const { data, error } = await supabase.from("traveller_profiles").upsert({
       briitely_contact_id: id,
       first_name: text("firstName") || contact.firstName || "Unknown",
@@ -64,6 +66,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       emergency_contact_relationship: text("emergencyContactRelationship"),
       emergency_contact_phone: text("emergencyContactPhone"),
       emergency_contact_email: text("emergencyContactEmail"),
+      is_dnb: existing?.is_dnb ?? false,
     }, { onConflict: "briitely_contact_id" }).select(PROFILE_FIELDS).single();
 
     if (error || !data) throw new Error(error?.message ?? "Could not save traveller details.");
