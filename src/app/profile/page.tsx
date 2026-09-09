@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { redirect } from "next/navigation";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileSettingsForm } from "@/components/app/profile-settings-form";
+import { Button } from "@/components/core/ui/button";
 
 export default async function ProfilePage() {
   const auth = await requireAuthenticatedUser();
@@ -15,6 +18,9 @@ export default async function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
+      <Button asChild variant="ghost" className="-ml-3 w-fit">
+        <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4"/>Return to Dashboard</Link>
+      </Button>
       <div>
         <h1 className="text-2xl font-bold">My Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage your account and the email account used when preparing client communications.</p>
