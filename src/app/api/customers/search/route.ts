@@ -10,88 +10,30 @@ const MIN_QUERY_LENGTH = 2;
 
 export async function GET(request: Request) {
   const { user, error: authError } = await getAuthenticatedUser();
-
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: "You must be signed in to search customers." },
-      { status: 401 }
-    );
-  }
-
+  if (authError || !user) return NextResponse.json({ error: "You must be signed in to search customers." }, { status: 401 });
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim() ?? "";
-
-  if (query.length < MIN_QUERY_LENGTH) {
-    return NextResponse.json({
-      customers: [],
-      total: 0,
-      queryType: "text",
-      searchCount: 0,
-    });
-  }
+  if (query.length < MIN_QUERY_LENGTH) return NextResponse.json({ customers: [], total: 0, queryType: "text", searchCount: 0 });
 
   try {
     const result = await searchContacts(query);
     const supabase = await createClient();
     const ids = result.customers.map((customer) => customer.id);
-    const dnbIds = new Set<string>();
-
+    const dnbById = new Map<string, string | null>();
     if (ids.length) {
-      const { data: profiles } = await supabase
-        .from("traveller_profiles")
-        .select("briitely_contact_id,is_dnb")
-        .in("briitely_contact_id", ids);
-      for (const profile of profiles ?? []) {
-        if (profile.is_dnb) dnbIds.add(profile.briitely_contact_id);
-      }
+      const { data: profiles } = await supabase.from("traveller_profiles").select("briitely_contact_id,is_dnb,dnb_reason").in("briitely_contact_id", ids);
+      for (const profile of profiles ?? []) if (profile.is_dnb) dnbById.set(profile.briitely_contact_id, profile.dnb_reason ?? null);
     }
-
-    const enrichedResult = {
-      ...result,
-      customers: result.customers.map((customer) => ({
-        ...customer,
-        isDnb: dnbIds.has(customer.id),
-      })),
-    };
-
+    const enrichedResult = { ...result, customers: result.customers.map((customer) => ({ ...customer, isDnb: dnbById.has(customer.id), dnbReason: dnbById.get(customer.id) ?? null })) };
     await Promise.allSettled([
-      logActivity(user.id, {
-        action: "customer.searched",
-        entityType: "customer",
-        metadata: {
-          queryLength: query.length,
-          queryType: result.queryType,
-          numberOfApiSearches: result.searchCount,
-          resultCount: result.customers.length,
-        },
-      }),
-      logIntegration({
-        provider: "briitely",
-        operation: "contacts.search",
-        status: "success",
-        metadata: {
-          queryType: result.queryType,
-          numberOfApiSearches: result.searchCount,
-          resultCount: result.customers.length,
-        },
-        completedAt: new Date().toISOString(),
-      }),
+      logActivity(user.id, { action: "customer.searched", entityType: "customer", metadata: { queryLength: query.length, queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length } }),
+      logIntegration({ provider: "briitely", operation: "contacts.search", status: "success", metadata: { queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length }, completedAt: new Date().toISOString() }),
     ]);
-
     return NextResponse.json(enrichedResult);
   } catch (error) {
     const safeMessage = toSafeUserMessage(error);
     const briitelyError = error instanceof BriitelyApiError ? error : null;
-
-    await logIntegration({
-      provider: "briitely",
-      operation: "contacts.search",
-      status: "failed",
-      errorCode: briitelyError?.code ?? "BRIITELY_UNKNOWN_ERROR",
-      errorMessage: briitelyError?.responseBody ?? safeMessage,
-      completedAt: new Date().toISOString(),
-    }).catch(() => {});
-
+    await logIntegration({ provider: "briitely", operation: "contacts.search", status: "failed", errorCode: briitelyError?.code ?? "BRIITELY_UNKNOWN_ERROR", errorMessage: briitelyError?.responseBody ?? safeMessage, completedAt: new Date().toISOString() }).catch(() => {});
     return NextResponse.json({ error: safeMessage }, { status: 502 });
   }
 }
