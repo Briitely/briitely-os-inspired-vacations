@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/logging/activity";
 import { logIntegration } from "@/lib/logging/integration";
-import { searchContacts } from "@/lib/briitely/contacts";
+import { getContact, searchContacts } from "@/lib/briitely/contacts";
 import { toSafeUserMessage, BriitelyApiError } from "@/lib/briitely/errors";
 
 const MIN_QUERY_LENGTH = 2;
@@ -26,7 +26,17 @@ export async function GET(request: Request) {
       for (const profile of profiles ?? []) reasonById.set(profile.briitely_contact_id, profile.dnb_reason ?? null);
     }
 
-    const enrichedCustomers = result.customers.map((customer) => ({
+    // HighLevel's contact search response does not consistently include tags.
+    // Re-fetch each matched contact so Briitely remains authoritative for DNB status.
+    const fullContacts = await Promise.all(result.customers.map(async (customer) => {
+      try {
+        return await getContact(customer.id);
+      } catch {
+        return customer;
+      }
+    }));
+
+    const enrichedCustomers = fullContacts.map((customer) => ({
       ...customer,
       isDnb: hasDnbTag(customer.tags),
       dnbReason: reasonById.get(customer.id) ?? null,
