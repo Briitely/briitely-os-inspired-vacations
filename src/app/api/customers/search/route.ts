@@ -7,6 +7,7 @@ import { searchContacts } from "@/lib/briitely/contacts";
 import { toSafeUserMessage, BriitelyApiError } from "@/lib/briitely/errors";
 
 const MIN_QUERY_LENGTH = 2;
+const hasDnbTag = (tags?: string[]) => (tags ?? []).some((tag) => tag.trim().toLowerCase() === "dnb");
 
 export async function GET(request: Request) {
   const { user, error: authError } = await getAuthenticatedUser();
@@ -19,12 +20,35 @@ export async function GET(request: Request) {
     const result = await searchContacts(query);
     const supabase = await createClient();
     const ids = result.customers.map((customer) => customer.id);
-    const dnbById = new Map<string, string | null>();
+    const reasonById = new Map<string, string | null>();
     if (ids.length) {
-      const { data: profiles } = await supabase.from("traveller_profiles").select("briitely_contact_id,is_dnb,dnb_reason").in("briitely_contact_id", ids);
-      for (const profile of profiles ?? []) if (profile.is_dnb) dnbById.set(profile.briitely_contact_id, profile.dnb_reason ?? null);
+      const { data: profiles } = await supabase.from("traveller_profiles").select("briitely_contact_id,dnb_reason").in("briitely_contact_id", ids);
+      for (const profile of profiles ?? []) reasonById.set(profile.briitely_contact_id, profile.dnb_reason ?? null);
     }
-    const enrichedResult = { ...result, customers: result.customers.map((customer) => ({ ...customer, isDnb: dnbById.has(customer.id), dnbReason: dnbById.get(customer.id) ?? null })) };
+
+    const enrichedCustomers = result.customers.map((customer) => ({
+      ...customer,
+      isDnb: hasDnbTag(customer.tags),
+      dnbReason: reasonById.get(customer.id) ?? null,
+    }));
+
+    const dnbCustomers = enrichedCustomers.filter((customer) => customer.isDnb);
+    if (dnbCustomers.length) {
+      await Promise.allSettled(dnbCustomers.map(async (customer) => {
+        const existingReason = reasonById.get(customer.id) ?? null;
+        await supabase.from("traveller_profiles").upsert({
+          briitely_contact_id: customer.id,
+          first_name: customer.firstName || "Unknown",
+          last_name: customer.lastName || "",
+          email: customer.email || null,
+          phone: customer.phone || null,
+          is_dnb: true,
+          dnb_reason: existingReason,
+        }, { onConflict: "briitely_contact_id" });
+      }));
+    }
+
+    const enrichedResult = { ...result, customers: enrichedCustomers };
     await Promise.allSettled([
       logActivity(user.id, { action: "customer.searched", entityType: "customer", metadata: { queryLength: query.length, queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length } }),
       logIntegration({ provider: "briitely", operation: "contacts.search", status: "success", metadata: { queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length }, completedAt: new Date().toISOString() }),
