@@ -1,0 +1,85 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Loader2, Plus, X } from "lucide-react";
+import { Button } from "@/components/core/ui/button";
+import { Input } from "@/components/core/ui/input";
+import { Label } from "@/components/core/ui/label";
+
+const relationships = [
+  ["spouse_partner", "Spouse / Partner"],
+  ["child", "Child (under 18)"],
+  ["adult_child", "Adult Child (18+)"],
+  ["parent", "Parent"],
+  ["other_family", "Other Family"],
+  ["travel_companion", "Travel Companion"],
+] as const;
+
+export function ClientAddBookingTraveller({ token }: { token: string }) {
+  const [available, setAvailable] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ firstName: "", middleName: "", lastName: "", preferredName: "", dateOfBirth: "", relationshipToFormContact: "child" });
+
+  useEffect(() => {
+    fetch(`/api/booking/${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then(async response => response.ok ? await response.json() : null)
+      .then(data => setAvailable(Boolean(data && !data.completed && (!data.includeRetainer || data.retainer?.accepted))))
+      .catch(() => setAvailable(false));
+  }, [token]);
+
+  async function addTraveller() {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.dateOfBirth) {
+      setError("Legal first name, last name, and date of birth are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/booking/${encodeURIComponent(token)}/travellers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Could not add traveller.");
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add traveller.");
+      setSaving(false);
+    }
+  }
+
+  if (!available) return null;
+  if (!open) return (
+    <div className="mt-4 rounded-xl border border-dashed bg-[#fffefa] p-5 text-center">
+      <p className="text-sm font-medium">Is someone missing from your trip?</p>
+      <p className="mt-1 text-xs text-muted-foreground">You can add another traveller before submitting your booking information.</p>
+      <Button type="button" variant="outline" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add Traveller</Button>
+    </div>
+  );
+
+  return (
+    <div className="mt-4 rounded-xl border bg-[#fffefa] p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div><h2 className="font-semibold">Add another traveller</h2><p className="mt-1 text-xs text-muted-foreground">Add anyone who should be included on this booking form.</p></div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}><X className="h-4 w-4" /></Button>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Legal first name *"><Input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></Field>
+        <Field label="Middle name"><Input value={form.middleName} onChange={e => setForm({ ...form, middleName: e.target.value })} /></Field>
+        <Field label="Legal last name *"><Input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></Field>
+        <Field label="Preferred name"><Input value={form.preferredName} onChange={e => setForm({ ...form, preferredName: e.target.value })} /></Field>
+        <Field label="Date of birth *"><Input type="date" value={form.dateOfBirth} onChange={e => setForm({ ...form, dateOfBirth: e.target.value })} /></Field>
+        <Field label="Relationship to primary traveller"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.relationshipToFormContact} onChange={e => setForm({ ...form, relationshipToFormContact: e.target.value })}>{relationships.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
+      </div>
+      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+      <div className="mt-4 flex justify-end gap-2"><Button type="button" variant="outline" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button><Button type="button" disabled={saving} onClick={addTraveller}>{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? "Adding..." : "Add Traveller"}</Button></div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="space-y-1"><Label className="text-[11px]">{label}</Label>{children}</div>;
+}
