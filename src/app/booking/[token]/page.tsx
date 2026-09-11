@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CustomerBookingForm } from "@/components/app/customer-booking-form";
+import { ClientAddBookingTraveller } from "@/components/app/client-add-booking-traveller";
 
 export const metadata: Metadata = { title: "Retainer & Booking Information — Inspired Vacations" };
 
@@ -14,6 +15,7 @@ export default async function BookingPage({ params }: { params: Promise<{ token:
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">First, review and accept your Retainer Agreement. Then confirm the booking information for everyone in your immediate family travelling on this trip. Anything we already have on file will be pre-filled for you to review.</p>
         </div>
         <CustomerBookingForm token={token} />
+        <ClientAddBookingTraveller token={token} />
         <footer className="py-7 text-center text-xs text-muted-foreground">Inspired Vacations · Your information is used only to plan and book your travel.</footer>
       </main>
     </div>
