@@ -4,6 +4,9 @@ import { getBookingFormSession } from "@/lib/travel/booking-form";
 
 const PERMANENT_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child", "parent", "other_family"]);
 const VALID_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child", "parent", "other_family", "travel_companion"]);
+const DUPLICATE_REVIEW_CODE = "check_client_added_traveller_duplicates";
+const DUPLICATE_REVIEW_TITLE = "Check for duplicate traveller files";
+const DUPLICATE_REVIEW_NOTES = "Client added a traveller from the booking form. Search for an existing client or traveller profile and connect the records if a match exists.";
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -11,6 +14,88 @@ function text(value: unknown) {
 
 function profileOf(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
+}
+
+async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string) {
+  try {
+    const { data: file } = await db
+      .from("travel_files")
+      .select("assigned_advisor_id,current_action_id")
+      .eq("id", travelFileId)
+      .maybeSingle();
+
+    if (!file?.current_action_id) return;
+
+    const { data: action } = await db
+      .from("travel_actions")
+      .select("id,action_code,status")
+      .eq("id", file.current_action_id)
+      .maybeSingle();
+
+    if (action?.action_code !== "await_tmf_and_booking_form" || action?.status !== "active") return;
+
+    const { data: existingRequirement } = await db
+      .from("travel_action_requirements")
+      .select("id,status")
+      .eq("travel_action_id", action.id)
+      .eq("requirement_code", DUPLICATE_REVIEW_CODE)
+      .maybeSingle();
+
+    if (!existingRequirement) {
+      const { error: requirementError } = await db.from("travel_action_requirements").insert({
+        travel_action_id: action.id,
+        requirement_code: DUPLICATE_REVIEW_CODE,
+        label: DUPLICATE_REVIEW_TITLE,
+        requirement_label: DUPLICATE_REVIEW_TITLE,
+        status: "pending",
+      });
+      if (requirementError) console.error("CLIENT_ADDED_TRAVELLER_CHECKLIST_TASK_FAILED", requirementError);
+    } else if (existingRequirement.status === "complete") {
+      // A new client-added traveller means the duplicate check needs to be performed again.
+      const { error: reopenError } = await db.from("travel_action_requirements").update({
+        status: "pending",
+        completed_at: null,
+        completed_by: null,
+      }).eq("id", existingRequirement.id);
+      if (reopenError) console.error("CLIENT_ADDED_TRAVELLER_CHECKLIST_REOPEN_FAILED", reopenError);
+    }
+
+    const { data: existingTask } = await db
+      .from("travel_file_tasks")
+      .select("id,status,assigned_to")
+      .eq("travel_file_id", travelFileId)
+      .eq("title", DUPLICATE_REVIEW_TITLE)
+      .neq("status", "complete")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingTask) {
+      if (existingTask.assigned_to !== (file.assigned_advisor_id ?? null)) {
+        const { error: assignmentError } = await db.from("travel_file_tasks").update({
+          assigned_to: file.assigned_advisor_id ?? null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", existingTask.id);
+        if (assignmentError) console.error("CLIENT_ADDED_TRAVELLER_TASK_ASSIGNMENT_FAILED", assignmentError);
+      }
+      return;
+    }
+
+    const { error: taskError } = await db.from("travel_file_tasks").insert({
+      travel_file_id: travelFileId,
+      title: DUPLICATE_REVIEW_TITLE,
+      notes: DUPLICATE_REVIEW_NOTES,
+      assigned_to: file.assigned_advisor_id ?? null,
+      due_date: null,
+      status: "todo",
+      task_context: "travel_file",
+      created_by: null,
+    });
+    if (taskError) console.error("CLIENT_ADDED_TRAVELLER_MASTER_TASK_FAILED", taskError);
+  } catch (error) {
+    // Never block the client's booking form because an internal follow-up task could not be created.
+    console.error("CLIENT_ADDED_TRAVELLER_TASK_SETUP_FAILED", error);
+  }
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -92,6 +177,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         relationship_type: relationship,
       }, { onConflict: "primary_contact_id,related_traveller_id" });
     }
+
+    await ensureDuplicateTravellerReviewTask(db, session.travel_file_id);
 
     return NextResponse.json({
       traveller: {
