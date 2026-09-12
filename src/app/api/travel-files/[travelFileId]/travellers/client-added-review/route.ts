@@ -13,6 +13,12 @@ function profileOf(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
 }
 
+function displayTraveller(member: any) {
+  const profile = profileOf(member);
+  const name = [profile?.preferred_name || profile?.first_name, profile?.last_name].filter(Boolean).join(" ");
+  return name ? { id: member.id, name } : null;
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ travelFileId: string }> }) {
   if (!(await requireUser())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { travelFileId } = await params;
@@ -21,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
   try {
     const { data: openTask, error: taskError } = await s
       .from("travel_file_tasks")
-      .select("id")
+      .select("id,created_at")
       .eq("travel_file_id", travelFileId)
       .eq("title", DUPLICATE_REVIEW_TITLE)
       .neq("status", "complete")
@@ -32,9 +38,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
     if (taskError) throw new Error(taskError.message);
     if (!openTask) return NextResponse.json({ travellers: [] });
 
-    // New records use an explicit activity event written at the moment the client
-    // adds the traveller. This is independent of Travel File stage and survives
-    // connecting the temporary traveller profile to an existing client/profile.
+    const { data: members, error: memberError } = await s
+      .from("travel_file_travellers")
+      .select("id,created_at,traveller_role,booking_form_recipient_party_member_id,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)")
+      .eq("travel_file_id", travelFileId);
+    if (memberError) throw new Error(memberError.message);
+
+    // Preferred source: an explicit activity record written at the exact moment
+    // the client adds a traveller. This works before the booking form is submitted,
+    // at any Travel File stage, and survives connecting the temporary profile to an
+    // existing traveller/client profile because the party-member id does not change.
     const { data: activities, error: activityError } = await s
       .from("travel_activity")
       .select("metadata")
@@ -42,35 +55,40 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
       .eq("event_type", "client_added_traveller")
       .order("created_at", { ascending: true });
 
-    if (activityError) throw new Error(activityError.message);
+    if (activityError) console.error("CLIENT_ADDED_TRAVELLER_ACTIVITY_LOOKUP_FAILED", activityError);
 
-    const memberIds = Array.from(new Set(
+    const activityMemberIds = new Set(
       (activities ?? [])
         .map((row: any) => row.metadata?.party_member_id)
         .filter((id: unknown): id is string => typeof id === "string" && Boolean(id))
-    ));
+    );
 
-    if (memberIds.length) {
-      const { data: members, error: memberError } = await s
-        .from("travel_file_travellers")
-        .select("id,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)")
-        .eq("travel_file_id", travelFileId)
-        .in("id", memberIds);
-      if (memberError) throw new Error(memberError.message);
-
-      const travellers = (members ?? []).map((member: any) => {
-        const profile = profileOf(member);
-        return {
-          id: member.id,
-          name: [profile?.preferred_name || profile?.first_name, profile?.last_name].filter(Boolean).join(" "),
-        };
-      }).filter((traveller: { id: string; name: string }) => traveller.name);
-
-      return NextResponse.json({ travellers });
+    if (activityMemberIds.size) {
+      const travellers = (members ?? [])
+        .filter((member: any) => activityMemberIds.has(member.id))
+        .map(displayTraveller)
+        .filter(Boolean);
+      if (travellers.length) return NextResponse.json({ travellers });
     }
 
-    // Backward-compatible fallback for client-added travellers created before
-    // explicit activity provenance was introduced on this branch.
+    // Recovery path for records created before the provenance activity was added,
+    // or if that optional activity insert failed. The duplicate-review task is
+    // created immediately after the client-added traveller, so the newest non-primary
+    // party member created just before the task is the traveller that needs review.
+    const taskCreated = new Date(openTask.created_at).getTime();
+    const recoveryWindowMs = 15 * 60 * 1000;
+    const recoveryCandidates = (members ?? [])
+      .filter((member: any) => member.traveller_role !== "primary")
+      .map((member: any) => ({ member, created: new Date(member.created_at).getTime() }))
+      .filter(({ created }: any) => Number.isFinite(created) && created <= taskCreated && taskCreated - created <= recoveryWindowMs)
+      .sort((a: any, b: any) => b.created - a.created);
+
+    if (recoveryCandidates.length) {
+      const traveller = displayTraveller(recoveryCandidates[0].member);
+      if (traveller) return NextResponse.json({ travellers: [traveller] });
+    }
+
+    // Final backward-compatible fallback for older completed booking-form records.
     const { data: submissions, error: submissionError } = await s
       .from("booking_form_submissions")
       .select("booking_form_session_id,submitted_at")
@@ -82,12 +100,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
     const sessionIds = Array.from(new Set(submissions.map((row: any) => row.booking_form_session_id).filter(Boolean)));
     if (!sessionIds.length) return NextResponse.json({ travellers: [] });
 
-    const [{ data: sessions, error: sessionError }, { data: members, error: memberError }] = await Promise.all([
-      s.from("booking_form_sessions").select("id,created_at,recipient_party_member_id").in("id", sessionIds),
-      s.from("travel_file_travellers").select("id,created_at,traveller_role,booking_form_recipient_party_member_id,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)").eq("travel_file_id", travelFileId),
-    ]);
+    const { data: sessions, error: sessionError } = await s
+      .from("booking_form_sessions")
+      .select("id,created_at,recipient_party_member_id")
+      .in("id", sessionIds);
     if (sessionError) throw new Error(sessionError.message);
-    if (memberError) throw new Error(memberError.message);
 
     const submissionBySession = new Map<string, string>();
     for (const submission of submissions) {
@@ -112,9 +129,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
           ? member.id === session.recipient_party_member_id || member.booking_form_recipient_party_member_id === session.recipient_party_member_id
           : !member.booking_form_recipient_party_member_id;
         if (!sameFormGroup) continue;
-        const profile = profileOf(member);
-        const name = [profile?.preferred_name || profile?.first_name, profile?.last_name].filter(Boolean).join(" ");
-        if (name) highlighted.set(member.id, { id: member.id, name });
+        const traveller = displayTraveller(member);
+        if (traveller) highlighted.set(member.id, traveller);
       }
     }
 
