@@ -132,5 +132,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ travelF
   ]);
   if (!tripRefs && !relationRefs && !source.briitely_contact_id) await s.from("traveller_profiles").delete().eq("id", source.id);
 
+  // Connecting this one traveller resolves only this traveller's duplicate review.
+  // The shared task remains open while any other client-added traveller is unreviewed.
+  try {
+    const reviewResponse = await fetch(new URL(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers/client-added-review`, req.url), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: req.headers.get("cookie") ?? "" },
+      body: JSON.stringify({ partyMemberId: member.id, resolution: "connected_existing" }),
+    });
+    if (!reviewResponse.ok) console.error("CLIENT_ADDED_TRAVELLER_REVIEW_MARK_FAILED", await reviewResponse.text());
+  } catch (error) {
+    console.error("CLIENT_ADDED_TRAVELLER_REVIEW_MARK_FAILED", error);
+  }
+
   return NextResponse.json({ connected: true, profileId: target.id, clientFileId: target.briitely_contact_id ?? null });
 }
