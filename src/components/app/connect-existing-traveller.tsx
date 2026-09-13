@@ -49,6 +49,7 @@ export function ConnectExistingTraveller({ travelFileId, partyMemberId, currentP
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not connect this traveller.");
       await onConnected();
+      window.dispatchEvent(new CustomEvent("client-added-traveller-review-changed", { detail: { travelFileId, partyMemberId } }));
     } catch (err) { setError(err instanceof Error ? err.message : "Could not connect this traveller."); setConnecting(false); }
   }
 
