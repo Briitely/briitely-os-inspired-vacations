@@ -24,6 +24,7 @@ export function ConnectExistingTraveller({ travelFileId, partyMemberId, currentP
   const [selected, setSelected] = useState<ExistingPerson | null>(null);
   const [searching, setSearching] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [keepingGuest, setKeepingGuest] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function search() {
@@ -38,6 +39,17 @@ export function ConnectExistingTraveller({ travelFileId, partyMemberId, currentP
     finally { setSearching(false); }
   }
 
+  async function markReviewed(resolution: "connected_existing" | "no_duplicate") {
+    const response = await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers/client-added-review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ partyMemberId, resolution }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "Could not update duplicate review.");
+    window.dispatchEvent(new CustomEvent("client-added-traveller-review-changed", { detail: { travelFileId, partyMemberId } }));
+  }
+
   async function connect() {
     if (!selected) return setError("Choose the existing person you want to connect.");
     if (selected.alreadyOnTrip) return setError("That person is already on this Travel File.");
@@ -48,11 +60,23 @@ export function ConnectExistingTraveller({ travelFileId, partyMemberId, currentP
       const response = await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers/connect-existing`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ partyMemberId, targetProfileId: selected.id }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not connect this traveller.");
+      await markReviewed("connected_existing");
       await onConnected();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not connect this traveller."); setConnecting(false); }
   }
 
-  if (!open) return <div className="border-t pt-3"><Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}><Search className="h-4 w-4" />Connect to Existing Person</Button><p className="mt-1 text-xs text-muted-foreground">Use this when a traveller added by the client already has a client or traveller record.</p></div>;
+  async function keepAsGuest() {
+    if (!window.confirm(`Keep ${currentName} as a guest traveller with no client file? This confirms that you checked for an existing record and did not find a duplicate.`)) return;
+    setKeepingGuest(true); setError(null);
+    try {
+      await markReviewed("no_duplicate");
+      await onConnected();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not complete duplicate review."); setKeepingGuest(false); }
+  }
 
-  return <div className="space-y-3 border-t pt-3"><div><p className="text-sm font-medium">Connect to Existing Person</p><p className="text-xs text-muted-foreground">Search client files and traveller records, then choose the correct existing person.</p></div><form className="flex gap-2" onSubmit={e => { e.preventDefault(); void search(); }}><Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or email" autoFocus /><Button type="submit" variant="secondary" disabled={searching}>{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Search</Button></form><div className="max-h-48 space-y-2 overflow-y-auto">{results.map(person => { const name = [person.preferredName || person.firstName, person.lastName].filter(Boolean).join(" "); return <button type="button" key={person.id} disabled={person.alreadyOnTrip} onClick={() => setSelected(person)} className={`w-full rounded-md border p-3 text-left ${selected?.id === person.id ? "border-primary bg-primary/5" : "border-border"} ${person.alreadyOnTrip ? "cursor-not-allowed opacity-50" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{name}</span><span className="text-xs text-muted-foreground">{person.hasClientFile ? "Client file" : "Traveller record"}</span></div><p className="mt-1 text-xs text-muted-foreground">{person.dateOfBirth ? `DOB ${person.dateOfBirth}` : "DOB not provided"}{person.email ? ` • ${person.email}` : ""}{person.alreadyOnTrip ? " • Already on this trip" : ""}</p></button>; })}</div>{error && <p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => { setOpen(false); setResults([]); setSelected(null); setError(null); }}>Cancel</Button><Button type="button" onClick={connect} disabled={!selected || connecting || selected?.alreadyOnTrip}>{connecting && <Loader2 className="h-4 w-4 animate-spin" />}{connecting ? "Connecting..." : "Connect Records"}</Button></div></div>;
+  const guestOption = <label className="flex items-start gap-2 border-t pt-3 text-sm"><input className="mt-1" type="checkbox" checked={false} disabled={keepingGuest} onChange={() => void keepAsGuest()} /><span><span className="block">No duplicate found — keep as guest traveller</span><span className="block text-xs text-muted-foreground">Use this after checking for an existing record when this traveller does not need their own client file.</span></span></label>;
+
+  if (!open) return <div className="space-y-3 border-t pt-3"><div><Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}><Search className="h-4 w-4" />Connect to Existing Person</Button><p className="mt-1 text-xs text-muted-foreground">Use this when a traveller added by the client already has a client or traveller record.</p></div>{guestOption}{error && <p className="text-sm text-destructive">{error}</p>}</div>;
+
+  return <div className="space-y-3 border-t pt-3"><div><p className="text-sm font-medium">Connect to Existing Person</p><p className="text-xs text-muted-foreground">Search client files and traveller records, then choose the correct existing person.</p></div><form className="flex gap-2" onSubmit={e => { e.preventDefault(); void search(); }}><Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or email" autoFocus /><Button type="submit" variant="secondary" disabled={searching}>{searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Search</Button></form><div className="max-h-48 space-y-2 overflow-y-auto">{results.map(person => { const name = [person.preferredName || person.firstName, person.lastName].filter(Boolean).join(" "); return <button type="button" key={person.id} disabled={person.alreadyOnTrip} onClick={() => setSelected(person)} className={`w-full rounded-md border p-3 text-left ${selected?.id === person.id ? "border-primary bg-primary/5" : "border-border"} ${person.alreadyOnTrip ? "cursor-not-allowed opacity-50" : ""}`}><div className="flex items-center justify-between gap-2"><span className="font-medium">{name}</span><span className="text-xs text-muted-foreground">{person.hasClientFile ? "Client file" : "Traveller record"}</span></div><p className="mt-1 text-xs text-muted-foreground">{person.dateOfBirth ? `DOB ${person.dateOfBirth}` : "DOB not provided"}{person.email ? ` • ${person.email}` : ""}{person.alreadyOnTrip ? " • Already on this trip" : ""}</p></button>; })}</div>{error && <p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => { setOpen(false); setResults([]); setSelected(null); setError(null); }}>Cancel</Button><Button type="button" onClick={connect} disabled={!selected || connecting || selected?.alreadyOnTrip}>{connecting && <Loader2 className="h-4 w-4 animate-spin" />}{connecting ? "Connecting..." : "Connect Records"}</Button></div>{guestOption}</div>;
 }

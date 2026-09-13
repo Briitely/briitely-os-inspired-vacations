@@ -16,6 +16,17 @@ function profileOf(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
 }
 
+function addBusinessDays(start: Date, days: number) {
+  const date = new Date(start);
+  let added = 0;
+  while (added < days) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string) {
   try {
     const { data: file, error: fileError } = await db
@@ -29,10 +40,9 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       return;
     }
 
-    // Always create the master review task, regardless of the Travel File's current stage/action.
     const { data: existingTask, error: taskLookupError } = await db
       .from("travel_file_tasks")
-      .select("id,status,assigned_to")
+      .select("id,status,assigned_to,due_date")
       .eq("travel_file_id", travelFileId)
       .eq("title", DUPLICATE_REVIEW_TITLE)
       .neq("status", "complete")
@@ -42,13 +52,15 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
 
     if (taskLookupError) console.error("CLIENT_ADDED_TRAVELLER_TASK_LOOKUP_FAILED", taskLookupError);
 
+    const dueDate = addBusinessDays(new Date(), 2);
     if (existingTask) {
-      if (existingTask.assigned_to !== (file.assigned_advisor_id ?? null)) {
-        const { error: assignmentError } = await db.from("travel_file_tasks").update({
-          assigned_to: file.assigned_advisor_id ?? null,
-          updated_at: new Date().toISOString(),
-        }).eq("id", existingTask.id);
-        if (assignmentError) console.error("CLIENT_ADDED_TRAVELLER_TASK_ASSIGNMENT_FAILED", assignmentError);
+      const updates: Record<string, unknown> = {};
+      if (existingTask.assigned_to !== (file.assigned_advisor_id ?? null)) updates.assigned_to = file.assigned_advisor_id ?? null;
+      if (!existingTask.due_date) updates.due_date = dueDate;
+      if (Object.keys(updates).length) {
+        updates.updated_at = new Date().toISOString();
+        const { error: updateError } = await db.from("travel_file_tasks").update(updates).eq("id", existingTask.id);
+        if (updateError) console.error("CLIENT_ADDED_TRAVELLER_TASK_UPDATE_FAILED", updateError);
       }
     } else {
       const { error: taskError } = await db.from("travel_file_tasks").insert({
@@ -56,7 +68,7 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
         title: DUPLICATE_REVIEW_TITLE,
         notes: DUPLICATE_REVIEW_NOTES,
         assigned_to: file.assigned_advisor_id ?? null,
-        due_date: null,
+        due_date: dueDate,
         status: "todo",
         task_context: "travel_file",
         created_by: null,
@@ -64,8 +76,6 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       if (taskError) console.error("CLIENT_ADDED_TRAVELLER_MASTER_TASK_FAILED", taskError);
     }
 
-    // When the file happens to be in the original retainer/booking-form action,
-    // keep the existing action checklist item too. Other stages rely on the master task only.
     if (!file.current_action_id) return;
 
     const { data: action } = await db
@@ -101,7 +111,6 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       if (reopenError) console.error("CLIENT_ADDED_TRAVELLER_CHECKLIST_REOPEN_FAILED", reopenError);
     }
   } catch (error) {
-    // Never block the client's booking form because an internal follow-up task could not be created.
     console.error("CLIENT_ADDED_TRAVELLER_TASK_SETUP_FAILED", error);
   }
 }
@@ -186,8 +195,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       }, { onConflict: "primary_contact_id,related_traveller_id" });
     }
 
-    // Persist provenance independently of workflow stage so the staff Travel Party
-    // can reliably identify exactly which traveller was added by the client.
     const { error: activityError } = await db.from("travel_activity").insert({
       travel_file_id: session.travel_file_id,
       event_type: "client_added_traveller",
@@ -203,12 +210,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     await ensureDuplicateTravellerReviewTask(db, session.travel_file_id);
 
-    return NextResponse.json({
-      traveller: {
-        ...member,
-        traveller_profiles: profile,
-      },
-    }, { status: 201 });
+    return NextResponse.json({ traveller: { ...member, traveller_profiles: profile } }, { status: 201 });
   } catch (error) {
     console.error("PUBLIC_BOOKING_ADD_TRAVELLER_FAILED", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not add traveller." }, { status: 500 });
