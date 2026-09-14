@@ -1,0 +1,18 @@
+"use client";
+
+import {useEffect,useState} from "react";
+import {Loader2,X} from "lucide-react";
+import {Button} from "@/components/core/ui/button";
+
+type Props={travelFileId:string;isOpen:boolean;onClose:()=>void;onConfirmed:()=>void};
+type DepositSummary={paymentId:string;amount:number;status:string;dueDate:string|null;processedAt:string|null};
+
+function money(value:number){return new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(value)}
+
+export function DepositConfirmationModal({travelFileId,isOpen,onClose,onConfirmed}:Props){
+ const[summary,setSummary]=useState<DepositSummary|null>(null);const[loading,setLoading]=useState(false);const[confirming,setConfirming]=useState(false);const[acknowledged,setAcknowledged]=useState(false);const[error,setError]=useState<string|null>(null);
+ useEffect(()=>{if(!isOpen)return;setSummary(null);setAcknowledged(false);setError(null);setLoading(true);fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/deposit-summary`).then(async r=>{const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error??"Could not load the deposit details.");setSummary(data)}).catch(e=>setError(e instanceof Error?e.message:"Could not load the deposit details.")).finally(()=>setLoading(false))},[isOpen,travelFileId]);
+ if(!isOpen)return null;
+ async function confirm(){if(!acknowledged||!summary)return;setConfirming(true);setError(null);try{const response=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/deposit-received`,{method:"POST"});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error??"Could not mark the deposit as received.");onConfirmed();onClose()}catch(e){setError(e instanceof Error?e.message:"Could not mark the deposit as received.")}finally{setConfirming(false)}}
+ return <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 p-4 pt-24"><div className="w-full max-w-lg rounded-xl bg-background p-6 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">Payment Confirmation</p><h2 className="mt-1 text-xl font-semibold">Process Deposit</h2></div><Button variant="ghost" size="sm" onClick={onClose} disabled={confirming}><X className="h-4 w-4"/></Button></div>{loading?<div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/>Loading deposit details…</div>:summary?<div className="mt-5 space-y-5"><div className="rounded-lg border bg-muted/30 p-4"><div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Deposit Amount</div><div className="mt-1 text-3xl font-semibold tracking-tight">{money(summary.amount)}</div><p className="mt-2 text-sm text-muted-foreground">Process this deposit using the client&apos;s payment information on file.</p></div><label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"><input type="checkbox" className="mt-1 h-4 w-4" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)} disabled={confirming}/><span className="text-sm leading-relaxed">I confirm the <strong>{money(summary.amount)}</strong> deposit has been processed and received.</span></label></div>:null}{error&&<p className="mt-4 text-sm text-destructive">{error}</p>}<div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={onClose} disabled={confirming}>Cancel</Button><Button onClick={confirm} disabled={loading||confirming||!summary||!acknowledged}>{confirming&&<Loader2 className="h-4 w-4 animate-spin"/>}Confirm Deposit</Button></div></div></div>
+}
