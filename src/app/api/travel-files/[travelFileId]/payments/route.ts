@@ -3,7 +3,8 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYMENT_TYPES = new Set(["deposit", "installment", "final", "other"]);
-const PAYMENT_STATUSES = new Set(["upcoming", "ready_for_review", "client_notified", "processing", "paid", "failed", "cancelled"]);
+const VISIBLE_PAYMENT_STATUSES = new Set(["upcoming", "paid"]);
+const PROCESSING_METHODS = new Set(["manual", "supplier_auto"]);
 
 type PaymentBody = {
   paymentId?: string;
@@ -17,6 +18,7 @@ type PaymentBody = {
   status?: string;
   processedDate?: string | null;
   cardLastFour?: string;
+  processingMethod?: string;
 };
 
 async function context() {
@@ -31,20 +33,28 @@ function clean(value: unknown) {
 }
 
 function parseDetails(value: unknown) {
-  if (typeof value !== "string" || !value.trim()) return { supplier: null, cardLastFour: null };
+  if (typeof value !== "string" || !value.trim()) return { supplier: null, cardLastFour: null, processingMethod: "manual" };
   try {
-    const parsed = JSON.parse(value) as { supplier?: unknown; cardLastFour?: unknown };
+    const parsed = JSON.parse(value) as { supplier?: unknown; cardLastFour?: unknown; processingMethod?: unknown };
+    const method = clean(parsed.processingMethod);
     return {
       supplier: clean(parsed.supplier),
       cardLastFour: clean(parsed.cardLastFour),
+      processingMethod: method && PROCESSING_METHODS.has(method) ? method : "manual",
     };
   } catch {
-    return { supplier: null, cardLastFour: null };
+    return { supplier: null, cardLastFour: null, processingMethod: "manual" };
   }
 }
 
-function serializeDetails(supplier: string | null, cardLastFour: string | null) {
-  return JSON.stringify({ supplier, cardLastFour });
+function serializeDetails(supplier: string | null, cardLastFour: string | null, processingMethod: string) {
+  return JSON.stringify({ supplier, cardLastFour, processingMethod });
+}
+
+function sevenDaysBefore(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - 7);
+  return date.toISOString().slice(0, 10);
 }
 
 function normalizePayment(row: any) {
@@ -53,6 +63,7 @@ function normalizePayment(row: any) {
     ...row,
     supplier: details.supplier,
     card_last_four: details.cardLastFour,
+    processing_method: details.processingMethod,
     confirmation_number: row.external_reference ?? null,
   };
 }
@@ -63,12 +74,14 @@ function validate(body: PaymentBody) {
   const dueDate = clean(body.dueDate);
   const status = clean(body.status) ?? "upcoming";
   const cardLastFour = clean(body.cardLastFour);
+  const processingMethod = clean(body.processingMethod) ?? "manual";
   const amount = body.amount === null || body.amount === "" || body.amount === undefined ? null : Number(body.amount);
 
-  if (!description) return { error: "Payment / reservation name is required." } as const;
+  if (!description) return { error: "Reservation / payment description is required." } as const;
   if (!dueDate) return { error: "Due date is required." } as const;
   if (!PAYMENT_TYPES.has(paymentType)) return { error: "Choose a valid payment type." } as const;
-  if (!PAYMENT_STATUSES.has(status)) return { error: "Choose a valid payment status." } as const;
+  if (!VISIBLE_PAYMENT_STATUSES.has(status)) return { error: "Choose a valid payment status." } as const;
+  if (!PROCESSING_METHODS.has(processingMethod)) return { error: "Choose a valid processing method." } as const;
   if (amount !== null && (!Number.isFinite(amount) || amount < 0)) return { error: "Enter a valid payment amount." } as const;
   if (cardLastFour && !/^\d{4}$/.test(cardLastFour)) return { error: "Card last four must be exactly 4 digits." } as const;
 
@@ -83,7 +96,9 @@ function validate(body: PaymentBody) {
       due_date: dueDate,
       status,
       cardLastFour,
+      processingMethod,
       processedDate: clean(body.processedDate),
+      clientNotificationDate: sevenDaysBefore(dueDate),
     },
   } as const;
 }
@@ -94,7 +109,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tra
   const { travelFileId } = await params;
   const { data, error } = await ctx.db
     .from("travel_payments")
-    .select("id,payment_type,description,amount,currency,due_date,status,processed_at,created_at,details,external_reference")
+    .select("id,payment_type,description,amount,currency,due_date,client_notification_date,status,processed_at,created_at,details,external_reference")
     .eq("travel_file_id", travelFileId)
     .order("due_date", { ascending: true });
   if (error) return NextResponse.json({ error: "Could not load payments." }, { status: 500 });
@@ -120,12 +135,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     amount: v.amount,
     currency: v.currency,
     due_date: v.due_date,
+    client_notification_date: v.clientNotificationDate,
     status: v.status,
-    details: serializeDetails(v.supplier, v.cardLastFour),
+    details: serializeDetails(v.supplier, v.cardLastFour, v.processingMethod),
     external_reference: v.confirmationNumber,
     processed_at: processedAt,
     processed_by: v.status === "paid" ? ctx.user.id : null,
-  }).select("id,payment_type,description,amount,currency,due_date,status,processed_at,created_at,details,external_reference").single();
+  }).select("id,payment_type,description,amount,currency,due_date,client_notification_date,status,processed_at,created_at,details,external_reference").single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Could not add payment." }, { status: 500 });
   return NextResponse.json({ payment: normalizePayment(data) }, { status: 201 });
 }
@@ -152,13 +168,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ tr
     amount: v.amount,
     currency: v.currency,
     due_date: v.due_date,
+    client_notification_date: v.clientNotificationDate,
     status: v.status,
-    details: serializeDetails(v.supplier, v.cardLastFour),
+    details: serializeDetails(v.supplier, v.cardLastFour, v.processingMethod),
     external_reference: v.confirmationNumber,
     processed_at: processedAt,
     processed_by: v.status === "paid" ? ctx.user.id : null,
     updated_at: now,
-  }).eq("id", body.paymentId).eq("travel_file_id", travelFileId).select("id,payment_type,description,amount,currency,due_date,status,processed_at,created_at,details,external_reference").single();
+  }).eq("id", body.paymentId).eq("travel_file_id", travelFileId).select("id,payment_type,description,amount,currency,due_date,client_notification_date,status,processed_at,created_at,details,external_reference").single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Could not update payment." }, { status: 500 });
   return NextResponse.json({ payment: normalizePayment(data) });
 }
