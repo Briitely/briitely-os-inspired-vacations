@@ -43,7 +43,7 @@ function formatMoney(amount: number | null, currency: string | null) {
   }).format(amount);
 }
 
-export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDate: string) {
+export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDate: string, assignedToOverride?: string | null) {
   const [{ data: rows, error: rowsError }, { data: file }, { data: dana }] = await Promise.all([
     db
       .from("travel_payments")
@@ -115,7 +115,7 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
     .map(([currency, amount]) => formatMoney(amount, currency))
     .join(" + ");
   const notes = [`Payment batch for ${formatDate(dueDate)}${totalText ? ` — ${totalText}` : ""}`, "", ...lines].join("\n");
-  const assignedTo = dana?.id ?? file?.assigned_advisor_id ?? null;
+  const assignedTo = assignedToOverride ?? dana?.id ?? file?.assigned_advisor_id ?? null;
   const now = new Date().toISOString();
 
   if (existing) {
