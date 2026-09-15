@@ -61,9 +61,21 @@ export async function POST(
     );
   }
 
+  const destination = file.destination || "your upcoming trip";
+  const firstName = contact.firstName || file.client_name || "there";
+  const subject = `Dynamic Briitely Email Test — ${destination}`;
+  const htmlBody = [
+    `<p>Hi ${firstName},</p>`,
+    `<p>This email subject and body were created in the Inspired Vacations dashboard and passed into Briitely through the webhook.</p>`,
+    `<p><strong>Trip:</strong> ${destination}</p>`,
+    file.departure_date ? `<p><strong>Departure:</strong> ${file.departure_date}</p>` : "",
+    `<p>If you can read this formatting, Briitely successfully sent dynamic HTML from the webhook payload.</p>`,
+    `<p>Cheers,<br>Inspired Vacations</p>`,
+  ].filter(Boolean).join("");
+
   const payload = {
     event: "trip_email_test",
-    email_type: "test",
+    email_type: "test_dynamic_content",
     contact_id: contact.id,
     first_name: contact.firstName,
     last_name: contact.lastName,
@@ -75,6 +87,8 @@ export async function POST(
     departure_date: file.departure_date,
     return_date: file.return_date,
     assigned_advisor_id: file.assigned_advisor_id,
+    email_subject: subject,
+    email_html: htmlBody,
   };
 
   try {
@@ -100,10 +114,10 @@ export async function POST(
     await db.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "trip_email_webhook_test",
-      summary: `Test Briitely email webhook sent for ${contact.email}.`,
+      summary: `Dynamic Briitely email webhook test sent for ${contact.email}.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: "test", destination: file.destination },
+      metadata: { email_type: "test_dynamic_content", destination: file.destination },
     });
 
     return NextResponse.json({ success: true, payload });
