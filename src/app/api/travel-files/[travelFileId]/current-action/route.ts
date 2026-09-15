@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getContact } from "@/lib/briitely/contacts";
 
 export async function GET(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
  const {user}=await getAuthenticatedUser();if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
  const {travelFileId}=await params;const supabase=await createClient();
- const {data:file}=await supabase.from("travel_files").select("current_action_id").eq("id",travelFileId).maybeSingle();
+ const {data:file}=await supabase.from("travel_files").select("current_action_id,briitely_contact_id,client_name,destination,tmf_amount,revisions_included,assigned_advisor:profiles!assigned_advisor_id(full_name)").eq("id",travelFileId).maybeSingle();
  if(!file?.current_action_id)return NextResponse.json({action:null});
  const {data:action,error}=await supabase.from("travel_actions").select("id,due_at,notes").eq("id",file.current_action_id).maybeSingle();
- if(error)return NextResponse.json({error:"Could not load current action."},{status:500});return NextResponse.json({action});
+ if(error)return NextResponse.json({error:"Could not load current action."},{status:500});
+ let email="",phone="";
+ if(file.briitely_contact_id){try{const contact=await getContact(file.briitely_contact_id);email=contact.email;phone=contact.phone}catch{}}
+ const advisor=Array.isArray(file.assigned_advisor)?file.assigned_advisor[0]:file.assigned_advisor;
+ return NextResponse.json({action,resendForms:{clientName:file.client_name,email,phone,destination:file.destination,assignedAdvisorName:advisor?.full_name??null,tmfAmount:file.tmf_amount,revisionsIncluded:file.revisions_included}});
 }
 
 export async function PATCH(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
