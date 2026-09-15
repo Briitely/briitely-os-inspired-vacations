@@ -14,7 +14,10 @@ export async function GET(_req:Request,{params}:{params:Promise<{travelFileId:st
   if(partyError||sessionError)return NextResponse.json({error:(partyError||sessionError)?.message??"Could not load booking form status."},{status:500});
   const recipientIds=Array.from(new Set((party??[]).map(x=>x.booking_form_recipient_party_member_id).filter(Boolean))) as string[];
   const primaryPrepared=(sessions??[]).some(s=>s.include_retainer===true&&s.recipient_party_member_id==null);
-  const primaryBookingPrepared=(sessions??[]).some(s=>s.include_retainer===false&&s.recipient_party_member_id==null);
+  // The primary traveller's original Retainer + Booking email uses a session with
+  // include_retainer=true. That session still contains the primary booking form,
+  // so it must count as already prepared when the user opens Resend Booking Forms.
+  const primaryBookingPrepared=(sessions??[]).some(s=>s.recipient_party_member_id==null);
   const preparedRecipientIds=recipientIds.filter(id=>(sessions??[]).some(s=>s.include_retainer===false&&s.recipient_party_member_id===id));
   return NextResponse.json({primaryPrepared,primaryBookingPrepared,recipientIds,preparedRecipientIds});
 }
