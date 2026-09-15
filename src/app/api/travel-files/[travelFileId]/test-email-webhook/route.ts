@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getContact } from "@/lib/briitely/contacts";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ travelFileId: string }> },
 ) {
   const { user } = await getAuthenticatedUser();
@@ -23,6 +23,7 @@ export async function POST(
     );
   }
 
+  const body = await request.json().catch(() => ({})) as { subject?: string; htmlBody?: string };
   const { travelFileId } = await params;
   const db = await createClient();
   const { data: file, error } = await db
@@ -63,8 +64,8 @@ export async function POST(
 
   const destination = file.destination || "your upcoming trip";
   const firstName = contact.firstName || file.client_name || "there";
-  const subject = `Dynamic Briitely Email Test — ${destination}`;
-  const htmlBody = [
+  const defaultSubject = `Dynamic Briitely Email Test — ${destination}`;
+  const defaultHtml = [
     `<p>Hi ${firstName},</p>`,
     `<p>This email subject and body were created in the Inspired Vacations dashboard and passed into Briitely through the webhook.</p>`,
     `<p><strong>Trip:</strong> ${destination}</p>`,
@@ -72,6 +73,12 @@ export async function POST(
     `<p>If you can read this formatting, Briitely successfully sent dynamic HTML from the webhook payload.</p>`,
     `<p>Cheers,<br>Inspired Vacations</p>`,
   ].filter(Boolean).join("");
+
+  const subject = body.subject?.trim() || defaultSubject;
+  const htmlBody = body.htmlBody?.trim() || defaultHtml;
+  if (!subject || !htmlBody) {
+    return NextResponse.json({ error: "Subject and email body are required." }, { status: 400 });
+  }
 
   const payload = {
     event: "trip_email_test",
@@ -114,10 +121,10 @@ export async function POST(
     await db.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "trip_email_webhook_test",
-      summary: `Dynamic Briitely email webhook test sent for ${contact.email}.`,
+      summary: `Editable Briitely email webhook test sent for ${contact.email}.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: "test_dynamic_content", destination: file.destination },
+      metadata: { email_type: "test_dynamic_content", destination: file.destination, subject },
     });
 
     return NextResponse.json({ success: true, payload });
