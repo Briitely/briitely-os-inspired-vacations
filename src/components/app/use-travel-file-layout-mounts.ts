@@ -47,6 +47,28 @@ export function useTravelFileLayoutMounts(
     const main = document.querySelector("main");
     const panels = [...document.querySelectorAll("main > div")] as HTMLElement[];
 
+    const trip = panels.find(
+      (element) =>
+        element.textContent?.includes("Trip details") && element.textContent?.includes("Trip information"),
+    );
+    if (trip) {
+      hideInfo(trip, ["Travel timeframe", "Budget"]);
+      const grid = trip.querySelector(
+        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
+      ) as HTMLElement | null;
+      if (grid) {
+        const byLabel = (label: string) => fieldBlock(trip, label);
+        const order = [
+          byLabel("Destination"),
+          byLabel("Departure"),
+          byLabel("Return"),
+          byLabel("Trip Type"),
+          byLabel("Travellers"),
+        ].filter((element): element is HTMLElement => Boolean(element));
+        for (const element of order) grid.appendChild(element);
+      }
+    }
+
     const inquiry = panels.find(
       (element) =>
         element.textContent?.includes("Inquiry details") && element.textContent?.includes("Source & intake"),
