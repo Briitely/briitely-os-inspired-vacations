@@ -1,9 +1,8 @@
 "use client";
 import{useEffect,useState}from"react";
 import Link from"next/link";
-import{Check,Clipboard,Eye,Link2,Loader2,RefreshCw}from"lucide-react";
+import{Check,Clipboard,Eye,Link2,Loader2}from"lucide-react";
 import{Button}from"@/components/core/ui/button";
-import{ResendBookingFormsModal}from"@/components/app/resend-booking-forms-modal";
 
 async function readResponse(r:Response){const t=await r.text();if(!t)return{} as any;try{return JSON.parse(t)}catch{return{error:r.ok?"The server returned an invalid response.":`Booking form request failed (${r.status}).`}}}
 
@@ -12,15 +11,10 @@ export function BookingFormLinkButton({travelFileId}:{travelFileId:string}){
   const[copied,setCopied]=useState(false);
   const[error,setError]=useState<string|null>(null);
   const[completed,setCompleted]=useState<{submitted_at:string;change_count:number}|null>(null);
-  const[canResend,setCanResend]=useState(false);
-  const[showResend,setShowResend]=useState(false);
 
-  useEffect(()=>{(async()=>{try{const[p,s]=await Promise.all([
-    fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers`).then(readResponse),
-    fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/booking-form-status`).then(readResponse)
-  ]);setCompleted(p.completedBookingForm??null);setCanResend(Boolean(s.primaryPrepared||s.primaryBookingPrepared||(s.preparedRecipientIds??[]).length))}catch{}})()},[travelFileId]);
+  useEffect(()=>{(async()=>{try{const p=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers`).then(readResponse);setCompleted(p.completedBookingForm??null)}catch{}})()},[travelFileId]);
 
   async function createAndCopy(){setLoading(true);setError(null);setCopied(false);try{const r=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/booking-form-link`,{method:"POST"}),d=await readResponse(r);if(!r.ok)throw new Error(d.error??"Could not create booking form link.");if(!d.url)throw new Error("Booking form link was not returned by the server.");await navigator.clipboard.writeText(d.url);setCopied(true);window.setTimeout(()=>setCopied(false),3000)}catch(e){setError(e instanceof Error?e.message:"Could not create booking form link.")}finally{setLoading(false)}}
 
-  return <div className="flex w-full flex-col gap-1"><div className="flex w-full flex-col gap-2">{completed&&<Button variant="outline" size="sm" asChild className="w-full justify-start"><Link href={`/travel-files/${encodeURIComponent(travelFileId)}/booking-form`}><Eye className="h-4 w-4"/><span className="flex-1 text-left">View Forms</span>{completed.change_count>0&&<span className="rounded-full bg-primary/10 px-1.5 text-[10px] text-primary">Review</span>}</Link></Button>}{canResend&&<Button variant="outline" size="sm" className="w-full justify-start" onClick={()=>setShowResend(true)}><RefreshCw className="h-4 w-4"/><span className="flex-1 text-left">Resend Booking Forms</span></Button>}<Button variant="outline" size="sm" className="w-full justify-start" onClick={createAndCopy} disabled={loading}>{loading?<Loader2 className="h-4 w-4 animate-spin"/>:copied?<Check className="h-4 w-4"/>:<Link2 className="h-4 w-4"/>}<span className="flex-1 text-left">{copied?"Link Copied":"Booking Form Link"}</span>{!loading&&!copied&&<Clipboard className="h-3.5 w-3.5"/>}</Button></div>{error&&<span className="text-xs text-destructive">{error}</span>}{showResend&&<ResendBookingFormsModal travelFileId={travelFileId} onClose={()=>setShowResend(false)}/>}</div>
+  return <div className="flex w-full flex-col gap-1"><div className="flex w-full flex-col gap-2">{completed&&<Button variant="outline" size="sm" asChild className="w-full justify-start"><Link href={`/travel-files/${encodeURIComponent(travelFileId)}/booking-form`}><Eye className="h-4 w-4"/><span className="flex-1 text-left">View Forms</span>{completed.change_count>0&&<span className="rounded-full bg-primary/10 px-1.5 text-[10px] text-primary">Review</span>}</Link></Button>}<Button variant="outline" size="sm" className="w-full justify-start" onClick={createAndCopy} disabled={loading}>{loading?<Loader2 className="h-4 w-4 animate-spin"/>:copied?<Check className="h-4 w-4"/>:<Link2 className="h-4 w-4"/>}<span className="flex-1 text-left">{copied?"Link Copied":"Booking Form Link"}</span>{!loading&&!copied&&<Clipboard className="h-3.5 w-3.5"/>}</Button></div>{error&&<span className="text-xs text-destructive">{error}</span>}</div>
 }
