@@ -52,11 +52,7 @@ export function TravelFileActions(props: TravelFileActionsProps) {
     inquirySummaryMount,
     retainerSummaryMount,
     paymentMount,
-  } = useTravelFileLayoutMounts(
-    props.travelFileId,
-    props.currentActionCode,
-    props.currentActionStatus,
-  );
+  } = useTravelFileLayoutMounts(props.travelFileId);
 
   return (
     <>
