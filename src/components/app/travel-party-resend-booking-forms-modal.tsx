@@ -330,14 +330,9 @@ export function TravelPartyResendBookingFormsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <Card className="flex max-h-[90vh] w-full max-w-2xl flex-col">
-        <CardHeader className="flex-row items-center justify-between border-b py-4">
-          <CardTitle>Resend Booking Forms</CardTitle>
-          <button
-            type="button"
-            className="rounded-sm p-1 text-muted-foreground hover:text-foreground"
-            onClick={onClose}
-            aria-label="Close"
-          >
+        <CardHeader className="flex-row justify-between border-b">
+          <CardTitle>Resend Forms</CardTitle>
+          <button type="button" onClick={onClose} aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </CardHeader>
@@ -409,8 +404,8 @@ export function TravelPartyResendBookingFormsModal({
           )}
         </CardContent>
 
-        <div className="flex justify-end border-t p-4">
-          <Button size="sm" variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-2 border-t p-4">
+          <Button variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>
@@ -419,14 +414,9 @@ export function TravelPartyResendBookingFormsModal({
       {draft && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
           <Card className="flex max-h-[92vh] w-full max-w-2xl flex-col">
-            <CardHeader className="flex-row items-center justify-between border-b py-4">
+            <CardHeader className="flex-row justify-between border-b">
               <CardTitle>Edit Email</CardTitle>
-              <button
-                type="button"
-                className="rounded-sm p-1 text-muted-foreground hover:text-foreground"
-                onClick={() => setDraft(null)}
-                aria-label="Close email editor"
-              >
+              <button type="button" onClick={() => setDraft(null)} aria-label="Close email editor">
                 <X className="h-5 w-5" />
               </button>
             </CardHeader>
