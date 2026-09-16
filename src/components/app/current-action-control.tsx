@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   Eye,
   Handshake,
-  Loader2,
   RefreshCw,
   SearchCheck,
   Send,
@@ -23,6 +22,7 @@ import { CheckProposalStatusModal } from "@/components/app/check-proposal-status
 import { ReviewOpportunityStatusModal } from "@/components/app/review-opportunity-status-modal";
 import { NegotiationModal } from "@/components/app/negotiation-modal";
 import { DepositConfirmationModal } from "@/components/app/deposit-confirmation-modal";
+import { RetainerConfirmationModal } from "@/components/app/retainer-confirmation-modal";
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
 import { InvoicingItineraryButton } from "@/components/app/invoicing-itinerary-button";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
@@ -74,11 +74,10 @@ export function CurrentActionControl(props: Props) {
   const [checkProposalOpen, setCheckProposalOpen] = useState(false);
   const [reviewOpportunityOpen, setReviewOpportunityOpen] = useState(false);
   const [negotiationOpen, setNegotiationOpen] = useState(false);
+  const [retainerOpen, setRetainerOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [resendFormsOpen, setResendFormsOpen] = useState(false);
   const [resendDetails, setResendDetails] = useState<ResendDetails | null>(null);
-  const [markingRetainer, setMarkingRetainer] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const isActive = props.canEdit && props.currentActionStatus === "active";
   const showConsult = isActive && props.currentActionCode === "complete_initial_consultation";
@@ -115,25 +114,6 @@ export function CurrentActionControl(props: Props) {
     };
   }, [props.travelFileId, showResendForms]);
 
-  async function markRetainerReceived() {
-    if (!window.confirm("Confirm that the Retainer payment has been collected in CBO?")) return;
-    setMarkingRetainer(true);
-    setActionError(null);
-    try {
-      const response = await fetch(
-        `/api/travel-files/${encodeURIComponent(props.travelFileId)}/retainer-received`,
-        { method: "POST" },
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? "Could not mark the Retainer as received.");
-      router.refresh();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Could not mark the Retainer as received.");
-    } finally {
-      setMarkingRetainer(false);
-    }
-  }
-
   const control = showConsult ? (
     <Button size="sm" className="w-full sm:w-auto" onClick={() => setConsultOpen(true)}>
       <ClipboardCheck className="h-4 w-4" />
@@ -145,8 +125,8 @@ export function CurrentActionControl(props: Props) {
       Complete Booking
     </Button>
   ) : showRetainerReceived ? (
-    <Button size="sm" onClick={markRetainerReceived} disabled={markingRetainer}>
-      {markingRetainer ? <Loader2 className="h-4 w-4 animate-spin" /> : <WalletCards className="h-4 w-4" />}
+    <Button size="sm" onClick={() => setRetainerOpen(true)}>
+      <WalletCards className="h-4 w-4" />
       Retainer Received
     </Button>
   ) : showDepositReceived ? (
@@ -193,8 +173,15 @@ export function CurrentActionControl(props: Props) {
   return (
     <>
       {control}
-      {actionError && <p className="mt-1 text-xs text-destructive">{actionError}</p>}
 
+      {showRetainerReceived && (
+        <RetainerConfirmationModal
+          travelFileId={props.travelFileId}
+          isOpen={retainerOpen}
+          onClose={() => setRetainerOpen(false)}
+          onConfirmed={() => router.refresh()}
+        />
+      )}
       {showResendForms && resendDetails && resendFormsOpen && (
         <SendTmfModal
           travelFileId={props.travelFileId}
