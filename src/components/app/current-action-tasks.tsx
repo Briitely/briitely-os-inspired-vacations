@@ -19,7 +19,7 @@ export function CurrentActionTasks({
   currentActionCode,
 }: {
   travelFileId: string;
-  currentActionCode: string | null;
+  currentActionCode?: string | null;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -114,40 +114,16 @@ export function CurrentActionTasks({
               ))}
             </div>
           )}
-
           {tasks.length > 0 && (
             <div className="space-y-2">
               {tasks.map((task) => (
-                <label
-                  key={task.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2"
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={task.status === "complete"}
-                    disabled={saving}
-                    onChange={() => void toggle(task)}
-                  />
+                <label key={task.id} className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2">
+                  <input type="checkbox" className="mt-1" checked={task.status === "complete"} disabled={saving} onChange={() => void toggle(task)} />
                   <span className="min-w-0">
-                    <span
-                      className={
-                        task.status === "complete"
-                          ? "text-sm line-through text-muted-foreground"
-                          : "text-sm"
-                      }
-                    >
-                      {task.requirement_label}
-                    </span>
+                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>
                     {task.status === "complete" && (
                       <span className="block text-xs text-muted-foreground">
-                        Completed
-                        {task.completed_by_profile?.full_name
-                          ? ` by ${task.completed_by_profile.full_name}`
-                          : ""}
-                        {task.completed_at
-                          ? ` · ${new Date(task.completed_at).toLocaleString()}`
-                          : ""}
+                        Completed{task.completed_by_profile?.full_name ? ` by ${task.completed_by_profile.full_name}` : ""}{task.completed_at ? ` · ${new Date(task.completed_at).toLocaleString()}` : ""}
                       </span>
                     )}
                   </span>
