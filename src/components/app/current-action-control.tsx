@@ -24,6 +24,7 @@ import { ReviewOpportunityStatusModal } from "@/components/app/review-opportunit
 import { NegotiationModal } from "@/components/app/negotiation-modal";
 import { DepositConfirmationModal } from "@/components/app/deposit-confirmation-modal";
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
+import { InvoicingItineraryButton } from "@/components/app/invoicing-itinerary-button";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
 
 type ResendDetails = {
@@ -93,6 +94,7 @@ export function CurrentActionControl(props: Props) {
   const showInactiveProposalReview = isActive && props.currentActionCode === "review_inactive_proposal";
   const showNegotiating = isActive && props.currentActionCode === "negotiate_proposal";
   const showResendForms = isActive && props.currentActionCode === "await_tmf_and_booking_form";
+  const showInvoicingItinerary = isActive && props.currentActionCode === "invoicing_itinerary";
 
   useEffect(() => {
     if (!showResendForms) {
@@ -179,6 +181,8 @@ export function CurrentActionControl(props: Props) {
       <Handshake className="h-4 w-4" />
       Manage Negotiation
     </Button>
+  ) : showInvoicingItinerary ? (
+    <InvoicingItineraryButton travelFileId={props.travelFileId} />
   ) : showResendForms && resendDetails ? (
     <Button size="sm" onClick={() => setResendFormsOpen(true)}>
       <RefreshCw className="h-4 w-4" />
