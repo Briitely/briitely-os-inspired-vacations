@@ -5,9 +5,7 @@ import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { DeleteTravelFileDialog } from "@/components/app/delete-travel-file-dialog";
-import { ResendProposalEmailButton } from "@/components/app/resend-proposal-email-button";
 import { PaymentsTable } from "@/components/app/payments-table";
-import { ActiveBookingSummary } from "@/components/app/active-booking-summary";
 import { useTravelFileLayoutMounts } from "@/components/app/use-travel-file-layout-mounts";
 
 interface TravelFileActionsProps {
@@ -42,11 +40,7 @@ interface TravelFileActionsProps {
 
 export function TravelFileActions(props: TravelFileActionsProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const {
-    planningMount,
-    bookingSummaryMount,
-    paymentMount,
-  } = useTravelFileLayoutMounts(props.travelFileId);
+  const { paymentMount } = useTravelFileLayoutMounts(props.travelFileId);
 
   return (
     <>
@@ -56,10 +50,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
           Delete Travel File
         </Button>
       )}
-      {planningMount &&
-        createPortal(<ResendProposalEmailButton travelFileId={props.travelFileId} />, planningMount)}
-      {bookingSummaryMount &&
-        createPortal(<ActiveBookingSummary travelFileId={props.travelFileId} />, bookingSummaryMount)}
       {paymentMount && createPortal(<PaymentsTable travelFileId={props.travelFileId} />, paymentMount)}
       {props.canDelete && (
         <DeleteTravelFileDialog
