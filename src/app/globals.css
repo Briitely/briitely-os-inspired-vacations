@@ -39,7 +39,7 @@
  main.max-w-6xl>div:has(.lucide-users-round)>div:first-child .lucide-users-round{display:none}
  main.max-w-6xl>div:has(.lucide-users-round)>div:first-child h3{font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif;font-size:1.25rem;line-height:1.2;font-weight:400}
  main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child{margin-top:.75rem;width:100%;flex-direction:column;align-items:stretch}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child button{width:100%;justify-content:flex-start}
+ main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child button:not(.fixed *){width:100%;justify-content:flex-start}
  main.max-w-6xl>div:has(.lucide-users-round)>div:nth-child(2){padding:0}
 }
 
