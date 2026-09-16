@@ -29,8 +29,6 @@ function hideInfo(panel: HTMLElement, labels: string[]) {
 
 export function useTravelFileLayoutMounts(
   travelFileId: string,
-  currentActionCode: string | null,
-  currentActionStatus: string | null,
 ): TravelFileLayoutMounts {
   const [planningMount, setPlanningMount] = useState<HTMLElement | null>(null);
   const [bookingSummaryMount, setBookingSummaryMount] = useState<HTMLElement | null>(null);
@@ -180,7 +178,7 @@ export function useTravelFileLayoutMounts(
       payment?.remove();
       if (oldPaymentContent) oldPaymentContent.style.display = "";
     };
-  }, [travelFileId, currentActionCode, currentActionStatus]);
+  }, [travelFileId]);
 
   return {
     planningMount,
