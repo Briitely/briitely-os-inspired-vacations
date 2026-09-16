@@ -9,7 +9,6 @@ import { ResendProposalEmailButton } from "@/components/app/resend-proposal-emai
 import { PaymentsTable } from "@/components/app/payments-table";
 import {
   ActiveBookingSummary,
-  InquiryPlanningSummary,
   RetainerRevisionSummary,
 } from "@/components/app/active-booking-summary";
 import { useTravelFileLayoutMounts } from "@/components/app/use-travel-file-layout-mounts";
@@ -49,7 +48,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   const {
     planningMount,
     bookingSummaryMount,
-    inquirySummaryMount,
     retainerSummaryMount,
     paymentMount,
   } = useTravelFileLayoutMounts(props.travelFileId);
@@ -66,8 +64,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
         createPortal(<ResendProposalEmailButton travelFileId={props.travelFileId} />, planningMount)}
       {bookingSummaryMount &&
         createPortal(<ActiveBookingSummary travelFileId={props.travelFileId} />, bookingSummaryMount)}
-      {inquirySummaryMount &&
-        createPortal(<InquiryPlanningSummary travelFileId={props.travelFileId} />, inquirySummaryMount)}
       {retainerSummaryMount &&
         createPortal(<RetainerRevisionSummary travelFileId={props.travelFileId} />, retainerSummaryMount)}
       {paymentMount && createPortal(<PaymentsTable travelFileId={props.travelFileId} />, paymentMount)}
