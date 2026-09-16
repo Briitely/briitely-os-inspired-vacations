@@ -33,14 +33,14 @@
 }
 
 @media (min-width:768px){
- main.max-w-6xl>div:has(.lucide-users-round){display:grid;grid-template-columns:220px minmax(0,1fr);gap:1.25rem;padding:1.25rem;background:#fffefa;border-radius:.75rem}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child{padding:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child::before{content:"TRAVELLERS";margin-bottom:.25rem;font-size:10px;font-weight:600;letter-spacing:.12em;color:var(--brand-primary)}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child .lucide-users-round{display:none}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child h3{font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif;font-size:1.25rem;line-height:1.2;font-weight:400}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child{margin-top:.75rem;width:100%;flex-direction:column;align-items:stretch}
- main.max-w-6xl>div:has(.lucide-users-round)>div:first-child>div:last-child button:not(.fixed *){width:100%;justify-content:flex-start}
- main.max-w-6xl>div:has(.lucide-users-round)>div:nth-child(2){padding:0}
+ .travel-party-card{display:grid;grid-template-columns:220px minmax(0,1fr);gap:1.25rem;padding:1.25rem;background:#fffefa;border-radius:.75rem}
+ .travel-party-card__header{padding:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
+ .travel-party-card__intro::before{content:"TRAVELLERS";display:block;margin-bottom:.25rem;font-size:10px;font-weight:600;letter-spacing:.12em;color:var(--brand-primary)}
+ .travel-party-card__title{font-family:ui-serif,Georgia,Cambria,"Times New Roman",Times,serif;font-size:1.25rem;line-height:1.2;font-weight:400}
+ .travel-party-card__title .lucide-users-round{display:none}
+ .travel-party-card__actions{margin-top:.75rem;width:100%;flex-direction:column;align-items:stretch}
+ .travel-party-card__actions>button,.travel-party-card__actions>a{width:100%;justify-content:flex-start}
+ .travel-party-card__content{padding:0}
 }
 
 @media print {
