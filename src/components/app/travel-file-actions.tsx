@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { DeleteTravelFileDialog } from "@/components/app/delete-travel-file-dialog";
-import { PaymentsTable } from "@/components/app/payments-table";
-import { useTravelFileLayoutMounts } from "@/components/app/use-travel-file-layout-mounts";
 
 interface TravelFileActionsProps {
   travelFileId: string;
@@ -40,7 +37,6 @@ interface TravelFileActionsProps {
 
 export function TravelFileActions(props: TravelFileActionsProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const { paymentMount } = useTravelFileLayoutMounts(props.travelFileId);
 
   return (
     <>
@@ -50,7 +46,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
           Delete Travel File
         </Button>
       )}
-      {paymentMount && createPortal(<PaymentsTable travelFileId={props.travelFileId} />, paymentMount)}
       {props.canDelete && (
         <DeleteTravelFileDialog
           travelFileId={props.travelFileId}
