@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 export type TravelFileLayoutMounts = {
   planningMount: HTMLElement | null;
   bookingSummaryMount: HTMLElement | null;
-  inquirySummaryMount: HTMLElement | null;
   retainerSummaryMount: HTMLElement | null;
   paymentMount: HTMLElement | null;
 };
@@ -32,36 +31,18 @@ export function useTravelFileLayoutMounts(
 ): TravelFileLayoutMounts {
   const [planningMount, setPlanningMount] = useState<HTMLElement | null>(null);
   const [bookingSummaryMount, setBookingSummaryMount] = useState<HTMLElement | null>(null);
-  const [inquirySummaryMount, setInquirySummaryMount] = useState<HTMLElement | null>(null);
   const [retainerSummaryMount, setRetainerSummaryMount] = useState<HTMLElement | null>(null);
   const [paymentMount, setPaymentMount] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     let planning: HTMLElement | null = null;
     let bookingSummary: HTMLElement | null = null;
-    let inquirySummary: HTMLElement | null = null;
     let retainerSummary: HTMLElement | null = null;
     let payment: HTMLElement | null = null;
     let oldPaymentContent: HTMLElement | null = null;
 
     const main = document.querySelector("main");
     const panels = [...document.querySelectorAll("main > div")] as HTMLElement[];
-
-    const inquiry = panels.find(
-      (element) =>
-        element.textContent?.includes("Inquiry details") && element.textContent?.includes("Source & intake"),
-    );
-    if (inquiry) {
-      const grid = inquiry.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (grid) {
-        inquirySummary = document.createElement("div");
-        inquirySummary.className = "contents";
-        grid.appendChild(inquirySummary);
-        setInquirySummaryMount(inquirySummary);
-      }
-    }
 
     const retainer = panels.find(
       (element) =>
@@ -151,7 +132,6 @@ export function useTravelFileLayoutMounts(
     return () => {
       planning?.remove();
       bookingSummary?.remove();
-      inquirySummary?.remove();
       retainerSummary?.remove();
       payment?.remove();
       if (oldPaymentContent) oldPaymentContent.style.display = "";
@@ -161,7 +141,6 @@ export function useTravelFileLayoutMounts(
   return {
     planningMount,
     bookingSummaryMount,
-    inquirySummaryMount,
     retainerSummaryMount,
     paymentMount,
   };
