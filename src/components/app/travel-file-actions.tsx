@@ -7,10 +7,7 @@ import { Button } from "@/components/core/ui/button";
 import { DeleteTravelFileDialog } from "@/components/app/delete-travel-file-dialog";
 import { ResendProposalEmailButton } from "@/components/app/resend-proposal-email-button";
 import { PaymentsTable } from "@/components/app/payments-table";
-import {
-  ActiveBookingSummary,
-  RetainerRevisionSummary,
-} from "@/components/app/active-booking-summary";
+import { ActiveBookingSummary } from "@/components/app/active-booking-summary";
 import { useTravelFileLayoutMounts } from "@/components/app/use-travel-file-layout-mounts";
 
 interface TravelFileActionsProps {
@@ -48,7 +45,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   const {
     planningMount,
     bookingSummaryMount,
-    retainerSummaryMount,
     paymentMount,
   } = useTravelFileLayoutMounts(props.travelFileId);
 
@@ -64,8 +60,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
         createPortal(<ResendProposalEmailButton travelFileId={props.travelFileId} />, planningMount)}
       {bookingSummaryMount &&
         createPortal(<ActiveBookingSummary travelFileId={props.travelFileId} />, bookingSummaryMount)}
-      {retainerSummaryMount &&
-        createPortal(<RetainerRevisionSummary travelFileId={props.travelFileId} />, retainerSummaryMount)}
       {paymentMount && createPortal(<PaymentsTable travelFileId={props.travelFileId} />, paymentMount)}
       {props.canDelete && (
         <DeleteTravelFileDialog
