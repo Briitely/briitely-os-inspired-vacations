@@ -3,70 +3,20 @@
 import { useEffect, useState } from "react";
 
 export type TravelFileLayoutMounts = {
-  planningMount: HTMLElement | null;
-  bookingSummaryMount: HTMLElement | null;
   paymentMount: HTMLElement | null;
 };
-
-function fieldBlock(panel: HTMLElement, label: string) {
-  const target = label.trim().toLowerCase();
-  const leaf = [...panel.querySelectorAll("div,span,p")].find(
-    (element) =>
-      element.children.length === 0 &&
-      element.textContent?.trim().toLowerCase() === target,
-  ) as HTMLElement | undefined;
-  return leaf?.parentElement as HTMLElement | null;
-}
-
-function hideInfo(panel: HTMLElement, labels: string[]) {
-  for (const label of labels) {
-    const block = fieldBlock(panel, label);
-    if (block) block.style.display = "none";
-  }
-}
 
 export function useTravelFileLayoutMounts(
   travelFileId: string,
 ): TravelFileLayoutMounts {
-  const [planningMount, setPlanningMount] = useState<HTMLElement | null>(null);
-  const [bookingSummaryMount, setBookingSummaryMount] = useState<HTMLElement | null>(null);
   const [paymentMount, setPaymentMount] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    let planning: HTMLElement | null = null;
-    let bookingSummary: HTMLElement | null = null;
     let payment: HTMLElement | null = null;
     let oldPaymentContent: HTMLElement | null = null;
 
     const main = document.querySelector("main");
     const panels = [...document.querySelectorAll("main > div")] as HTMLElement[];
-
-    const booking = panels.find(
-      (element) =>
-        element.textContent?.includes("Booking & planning") &&
-        element.textContent?.includes("Booking information"),
-    );
-    if (booking) {
-      hideInfo(booking, ["Proposal due", "Retainer", "Revisions used", "Revisions included"]);
-      const aside = booking.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:first-child",
-      ) as HTMLElement | null;
-      if (aside) {
-        planning = document.createElement("div");
-        planning.className = "mt-2";
-        aside.appendChild(planning);
-        setPlanningMount(planning);
-      }
-      const infoGrid = booking.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (infoGrid) {
-        bookingSummary = document.createElement("div");
-        bookingSummary.className = "contents";
-        infoGrid.appendChild(bookingSummary);
-        setBookingSummaryMount(bookingSummary);
-      }
-    }
 
     const paymentsPanel = panels.find(
       (element) =>
@@ -109,16 +59,10 @@ export function useTravelFileLayoutMounts(
     }
 
     return () => {
-      planning?.remove();
-      bookingSummary?.remove();
       payment?.remove();
       if (oldPaymentContent) oldPaymentContent.style.display = "";
     };
   }, [travelFileId]);
 
-  return {
-    planningMount,
-    bookingSummaryMount,
-    paymentMount,
-  };
+  return { paymentMount };
 }
