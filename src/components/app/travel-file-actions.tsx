@@ -36,6 +36,7 @@ import {
 import { DepositConfirmationModal } from "@/components/app/deposit-confirmation-modal";
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
+import { useTravelFileLayoutMounts } from "@/components/app/use-travel-file-layout-mounts";
 
 interface TravelFileActionsProps {
   travelFileId: string;
@@ -90,13 +91,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   const [depositOpen, setDepositOpen] = useState(false);
   const [resendFormsOpen, setResendFormsOpen] = useState(false);
   const [resendDetails, setResendDetails] = useState<ResendDetails | null>(null);
-  const [actionMount, setActionMount] = useState<HTMLElement | null>(null);
-  const [tasksMount, setTasksMount] = useState<HTMLElement | null>(null);
-  const [planningMount, setPlanningMount] = useState<HTMLElement | null>(null);
-  const [bookingSummaryMount, setBookingSummaryMount] = useState<HTMLElement | null>(null);
-  const [inquirySummaryMount, setInquirySummaryMount] = useState<HTMLElement | null>(null);
-  const [retainerSummaryMount, setRetainerSummaryMount] = useState<HTMLElement | null>(null);
-  const [paymentMount, setPaymentMount] = useState<HTMLElement | null>(null);
   const [markingRetainer, setMarkingRetainer] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -114,6 +108,20 @@ export function TravelFileActions(props: TravelFileActionsProps) {
   const showInactiveProposalReview = isActive && props.currentActionCode === "review_inactive_proposal";
   const showNegotiating = isActive && props.currentActionCode === "negotiate_proposal";
   const showResendForms = isActive && props.currentActionCode === "await_tmf_and_booking_form";
+
+  const {
+    actionMount,
+    tasksMount,
+    planningMount,
+    bookingSummaryMount,
+    inquirySummaryMount,
+    retainerSummaryMount,
+    paymentMount,
+  } = useTravelFileLayoutMounts(
+    props.travelFileId,
+    props.currentActionCode,
+    props.currentActionStatus,
+  );
 
   useEffect(() => {
     if (!showResendForms) {
@@ -133,201 +141,6 @@ export function TravelFileActions(props: TravelFileActionsProps) {
       active = false;
     };
   }, [props.travelFileId, showResendForms]);
-
-  useEffect(() => {
-    let action: HTMLElement | null = null;
-    let tasks: HTMLElement | null = null;
-    let planning: HTMLElement | null = null;
-    let bookingSummary: HTMLElement | null = null;
-    let inquirySummary: HTMLElement | null = null;
-    let retainerSummary: HTMLElement | null = null;
-    let payment: HTMLElement | null = null;
-    let oldPaymentContent: HTMLElement | null = null;
-
-    const main = document.querySelector("main");
-    const panels = [...document.querySelectorAll("main > div")] as HTMLElement[];
-    const workflow = panels.find(
-      (element) =>
-        element.textContent?.includes("Current action") &&
-        element.textContent?.includes("Due / Waiting"),
-    );
-
-    if (workflow) {
-      const details = workflow.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2)",
-      ) as HTMLElement | null;
-      if (details) {
-        const infoRow = [...details.querySelectorAll("div")].find(
-          (element) =>
-            element.textContent?.includes("Responsible") &&
-            element.textContent?.includes("Due / Waiting") &&
-            element.className.includes("mt-4"),
-        ) as HTMLElement | undefined;
-        if (infoRow) {
-          infoRow.className = "mt-4 grid gap-4 sm:grid-cols-3 sm:items-end";
-          const infoGrid = infoRow.firstElementChild as HTMLElement | null;
-          if (infoGrid) infoGrid.className = "grid gap-4 sm:col-span-2 sm:grid-cols-2";
-          action = document.createElement("div");
-          action.className = "min-h-9";
-          infoRow.appendChild(action);
-          setActionMount(action);
-        }
-        tasks = document.createElement("div");
-        details.appendChild(tasks);
-        setTasksMount(tasks);
-      }
-    }
-
-    const fieldBlock = (panel: HTMLElement, label: string) => {
-      const target = label.trim().toLowerCase();
-      const leaf = [...panel.querySelectorAll("div,span,p")].find(
-        (element) =>
-          element.children.length === 0 &&
-          element.textContent?.trim().toLowerCase() === target,
-      ) as HTMLElement | undefined;
-      return leaf?.parentElement as HTMLElement | null;
-    };
-    const hideInfo = (panel: HTMLElement, labels: string[]) => {
-      for (const label of labels) {
-        const block = fieldBlock(panel, label);
-        if (block) block.style.display = "none";
-      }
-    };
-
-    const trip = panels.find(
-      (element) =>
-        element.textContent?.includes("Trip details") && element.textContent?.includes("Trip information"),
-    );
-    if (trip) {
-      hideInfo(trip, ["Travel timeframe", "Budget"]);
-      const grid = trip.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (grid) {
-        const byLabel = (label: string) => fieldBlock(trip, label);
-        const order = [
-          byLabel("Destination"),
-          byLabel("Departure"),
-          byLabel("Return"),
-          byLabel("Trip Type"),
-          byLabel("Travellers"),
-        ].filter((element): element is HTMLElement => Boolean(element));
-        for (const element of order) grid.appendChild(element);
-      }
-    }
-
-    const inquiry = panels.find(
-      (element) =>
-        element.textContent?.includes("Inquiry details") && element.textContent?.includes("Source & intake"),
-    );
-    if (inquiry) {
-      const grid = inquiry.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (grid) {
-        inquirySummary = document.createElement("div");
-        inquirySummary.className = "contents";
-        grid.appendChild(inquirySummary);
-        setInquirySummaryMount(inquirySummary);
-      }
-    }
-
-    const retainer = panels.find(
-      (element) =>
-        element.textContent?.includes("Retainer details") &&
-        element.textContent?.includes("Revisions included"),
-    );
-    if (retainer) {
-      const grid = retainer.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (grid) {
-        hideInfo(retainer, ["Revisions included", "Revisions used"]);
-        retainerSummary = document.createElement("div");
-        retainerSummary.className = "contents";
-        grid.appendChild(retainerSummary);
-        setRetainerSummaryMount(retainerSummary);
-      }
-    }
-
-    const booking = panels.find(
-      (element) =>
-        element.textContent?.includes("Booking & planning") &&
-        element.textContent?.includes("Booking information"),
-    );
-    if (booking) {
-      hideInfo(booking, ["Proposal due", "Retainer", "Revisions used", "Revisions included"]);
-      const aside = booking.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:first-child",
-      ) as HTMLElement | null;
-      if (aside) {
-        planning = document.createElement("div");
-        planning.className = "mt-2";
-        aside.appendChild(planning);
-        setPlanningMount(planning);
-      }
-      const infoGrid = booking.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2) .grid",
-      ) as HTMLElement | null;
-      if (infoGrid) {
-        bookingSummary = document.createElement("div");
-        bookingSummary.className = "contents";
-        infoGrid.appendChild(bookingSummary);
-        setBookingSummaryMount(bookingSummary);
-      }
-    }
-
-    const paymentsPanel = panels.find(
-      (element) =>
-        element.textContent?.includes("Payments") &&
-        element.textContent?.includes("Payment schedule and current status"),
-    );
-    if (paymentsPanel) {
-      const content = paymentsPanel.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2)",
-      ) as HTMLElement | null;
-      if (content) {
-        oldPaymentContent = content.firstElementChild as HTMLElement | null;
-        if (oldPaymentContent) oldPaymentContent.style.display = "none";
-        payment = document.createElement("div");
-        content.appendChild(payment);
-        setPaymentMount(payment);
-      }
-    }
-
-    if (main) {
-      const direct = [...main.children] as HTMLElement[];
-      const find = (...needles: string[]) =>
-        direct.find((element) => needles.every((needle) => element.textContent?.includes(needle)));
-      const ordered = [
-        find("Current action", "Due / Waiting"),
-        find("Team", "Assignment", "Ownership"),
-        find("Travel Party", "Who is travelling on this trip"),
-        find("Trip details", "Trip information"),
-        find("Booking & planning", "Booking information"),
-        find("Pre-trip", "Insurance", "Insurance & pre-trip"),
-        find("Notes"),
-        find("Payments", "Payment schedule and current status"),
-        find("Consultation", "Retainer details"),
-        find("Inquiry", "Inquiry details"),
-        find("History", "Consultations"),
-        find("History", "Actions"),
-        find("History", "Activity"),
-      ].filter((element): element is HTMLElement => Boolean(element));
-      for (const element of ordered) main.appendChild(element);
-    }
-
-    return () => {
-      action?.remove();
-      tasks?.remove();
-      planning?.remove();
-      bookingSummary?.remove();
-      inquirySummary?.remove();
-      retainerSummary?.remove();
-      payment?.remove();
-      if (oldPaymentContent) oldPaymentContent.style.display = "";
-    };
-  }, [props.travelFileId, props.currentActionCode, props.currentActionStatus]);
 
   async function markRetainerReceived() {
     if (!window.confirm("Confirm that the Retainer payment has been collected in CBO?")) return;
