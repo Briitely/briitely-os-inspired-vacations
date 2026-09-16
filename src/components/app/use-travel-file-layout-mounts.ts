@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 export type TravelFileLayoutMounts = {
-  actionMount: HTMLElement | null;
-  tasksMount: HTMLElement | null;
   planningMount: HTMLElement | null;
   bookingSummaryMount: HTMLElement | null;
   inquirySummaryMount: HTMLElement | null;
@@ -34,8 +32,6 @@ export function useTravelFileLayoutMounts(
   currentActionCode: string | null,
   currentActionStatus: string | null,
 ): TravelFileLayoutMounts {
-  const [actionMount, setActionMount] = useState<HTMLElement | null>(null);
-  const [tasksMount, setTasksMount] = useState<HTMLElement | null>(null);
   const [planningMount, setPlanningMount] = useState<HTMLElement | null>(null);
   const [bookingSummaryMount, setBookingSummaryMount] = useState<HTMLElement | null>(null);
   const [inquirySummaryMount, setInquirySummaryMount] = useState<HTMLElement | null>(null);
@@ -43,8 +39,6 @@ export function useTravelFileLayoutMounts(
   const [paymentMount, setPaymentMount] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    let action: HTMLElement | null = null;
-    let tasks: HTMLElement | null = null;
     let planning: HTMLElement | null = null;
     let bookingSummary: HTMLElement | null = null;
     let inquirySummary: HTMLElement | null = null;
@@ -54,37 +48,6 @@ export function useTravelFileLayoutMounts(
 
     const main = document.querySelector("main");
     const panels = [...document.querySelectorAll("main > div")] as HTMLElement[];
-    const workflow = panels.find(
-      (element) =>
-        element.textContent?.includes("Current action") &&
-        element.textContent?.includes("Due / Waiting"),
-    );
-
-    if (workflow) {
-      const details = workflow.querySelector(
-        ".md\\:grid-cols-\\[220px_minmax\\(0\\,1fr\\)\\] > div:nth-child(2)",
-      ) as HTMLElement | null;
-      if (details) {
-        const infoRow = [...details.querySelectorAll("div")].find(
-          (element) =>
-            element.textContent?.includes("Responsible") &&
-            element.textContent?.includes("Due / Waiting") &&
-            element.className.includes("mt-4"),
-        ) as HTMLElement | undefined;
-        if (infoRow) {
-          infoRow.className = "mt-4 grid gap-4 sm:grid-cols-3 sm:items-end";
-          const infoGrid = infoRow.firstElementChild as HTMLElement | null;
-          if (infoGrid) infoGrid.className = "grid gap-4 sm:col-span-2 sm:grid-cols-2";
-          action = document.createElement("div");
-          action.className = "min-h-9";
-          infoRow.appendChild(action);
-          setActionMount(action);
-        }
-        tasks = document.createElement("div");
-        details.appendChild(tasks);
-        setTasksMount(tasks);
-      }
-    }
 
     const trip = panels.find(
       (element) =>
@@ -210,8 +173,6 @@ export function useTravelFileLayoutMounts(
     }
 
     return () => {
-      action?.remove();
-      tasks?.remove();
       planning?.remove();
       bookingSummary?.remove();
       inquirySummary?.remove();
@@ -222,8 +183,6 @@ export function useTravelFileLayoutMounts(
   }, [travelFileId, currentActionCode, currentActionStatus]);
 
   return {
-    actionMount,
-    tasksMount,
     planningMount,
     bookingSummaryMount,
     inquirySummaryMount,
