@@ -11,6 +11,7 @@ interface TravelFileActionsProps {
   destination: string | null;
   tripType: string | null;
   canDelete: boolean;
+  [legacyProp: string]: unknown;
 }
 
 export function TravelFileActions({
