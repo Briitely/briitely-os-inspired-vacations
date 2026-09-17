@@ -2,17 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Check, History, Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 
 type Profile = { id: string; full_name: string };
 type File = { id: string; client_name: string; destination: string | null; departure_date: string | null; stage: string };
-type Task = { id: string; title: string; notes: string | null; assigned_to: string | null; due_date: string | null; status: string; travel_file_id: string | null; assigned_profile: Profile | null; travel_file: File | null };
+type Task = { id: string; title: string; notes: string | null; assigned_to: string | null; due_date: string | null; status: string; completed_at: string | null; travel_file_id: string | null; assigned_profile: Profile | null; travel_file: File | null };
 type DueSort = "priority" | "oldest" | "newest";
+type View = "mine" | "team" | "completed";
 
 export function TaskDashboard() {
-  const [scope, setScope] = useState<"mine" | "team">("mine");
+  const [view, setView] = useState<View>("mine");
   const [advisorFilter, setAdvisorFilter] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -32,7 +33,9 @@ export function TaskDashboard() {
   async function load() {
     setLoading(true);
     setError(null);
-    const response = await fetch(`/api/tasks?scope=${scope}`, { cache: "no-store" });
+    const scope = view === "mine" ? "mine" : "team";
+    const status = view === "completed" ? "complete" : "open";
+    const response = await fetch(`/api/tasks?scope=${scope}&status=${status}`, { cache: "no-store" });
     const data = await response.json();
     if (response.ok) {
       setTasks(data.tasks ?? []);
@@ -48,7 +51,7 @@ export function TaskDashboard() {
 
   useEffect(() => {
     void load();
-  }, [scope]);
+  }, [view]);
 
   async function add() {
     if (!title.trim()) return;
@@ -109,7 +112,7 @@ export function TaskDashboard() {
   const overdue = (value: string | null) => Boolean(value && new Date(`${value}T23:59:59`).getTime() < Date.now());
   const label = (file: File) => `${file.client_name}${file.destination ? ` — ${file.destination}` : ""}`;
   const visibleTasks = advisorFilter ? tasks.filter((task) => task.assigned_to === advisorFilter) : tasks;
-  const sortedTasks = useMemo(() => [...visibleTasks].sort((a, b) => {
+  const sortedTasks = useMemo(() => view === "completed" ? visibleTasks : [...visibleTasks].sort((a, b) => {
     const aDue = a.due_date ? new Date(`${a.due_date}T00:00:00`).getTime() : null;
     const bDue = b.due_date ? new Date(`${b.due_date}T00:00:00`).getTime() : null;
     if (dueSort === "priority") {
@@ -121,24 +124,26 @@ export function TaskDashboard() {
     const av = aDue ?? (dueSort === "oldest" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
     const bv = bDue ?? (dueSort === "oldest" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
     return dueSort === "oldest" ? av - bv : bv - av;
-  }), [visibleTasks, dueSort]);
+  }), [visibleTasks, dueSort, view]);
 
   const cycleDueSort = () => setDueSort((value) => value === "priority" ? "oldest" : value === "oldest" ? "newest" : "priority");
   const dueIcon = dueSort === "oldest" ? <ArrowUp className="h-3.5 w-3.5" /> : dueSort === "newest" ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUpDown className="h-3.5 w-3.5" />;
   const dueTitle = dueSort === "priority" ? "Priority: earliest due dates first, then tasks without due dates" : dueSort === "oldest" ? "Oldest due date first" : "Newest due date first";
+  const emptyMessage = advisorFilter ? `This advisor has no ${view === "completed" ? "completed" : "open"} tasks.` : view === "mine" ? "You have no open tasks." : view === "completed" ? "There are no completed team tasks." : "There are no open team tasks.";
 
   return <div className="space-y-4">
     <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant={scope === "mine" && !advisorFilter ? "default" : "outline"} onClick={() => { setAdvisorFilter(""); setScope("mine"); }}>My Tasks</Button>
-        <Button variant={scope === "team" && !advisorFilter ? "default" : "outline"} onClick={() => { setAdvisorFilter(""); setScope("team"); }}>Team Tasks</Button>
+        <Button variant={view === "mine" && !advisorFilter ? "default" : "outline"} onClick={() => { setAdvisorFilter(""); setView("mine"); }}>My Tasks</Button>
+        <Button variant={view === "team" && !advisorFilter ? "default" : "outline"} onClick={() => { setAdvisorFilter(""); setView("team"); }}>Team Tasks</Button>
+        <Button variant={view === "completed" && !advisorFilter ? "default" : "outline"} onClick={() => { setAdvisorFilter(""); setView("completed"); }}><History className="h-4 w-4" />Completed Tasks</Button>
         <select
           className={`h-10 min-w-44 rounded-md border px-3 text-sm ${advisorFilter ? "border-primary bg-primary text-primary-foreground" : "bg-background"}`}
           value={advisorFilter}
           onChange={(event) => {
             setAdvisorFilter(event.target.value);
-            if (event.target.value) setScope("team");
+            if (event.target.value && view === "mine") setView("team");
           }}
           aria-label="Filter tasks by advisor"
         >
@@ -146,10 +151,10 @@ export function TaskDashboard() {
           {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}
         </select>
       </div>
-      <Button onClick={() => setAdding((value) => !value)}><Plus className="h-4 w-4" />Add Task</Button>
+      {view !== "completed" && <Button onClick={() => setAdding((value) => !value)}><Plus className="h-4 w-4" />Add Task</Button>}
     </div>
 
-    {adding && <div className="space-y-3 rounded-xl border bg-card p-5">
+    {adding && view !== "completed" && <div className="space-y-3 rounded-xl border bg-card p-5">
       <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Task</label><Input autoFocus placeholder="What needs to be done?" value={title} onChange={(event) => setTitle(event.target.value)} /></div>
       <div className="grid gap-3 md:grid-cols-3">
         <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assigned To</label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={assigned} onChange={(event) => setAssigned(event.target.value)}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}</select></div>
@@ -160,22 +165,23 @@ export function TaskDashboard() {
       <div className="flex gap-2"><Button disabled={saving || !title.trim()} onClick={() => void add()}>{saving && <Loader2 className="h-4 w-4 animate-spin" />}Save Task</Button><Button variant="outline" onClick={() => setAdding(false)}>Cancel</Button></div>
     </div>}
 
-    {loading ? <div className="flex items-center gap-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading tasks…</div> : error ? <p className="text-sm text-destructive">{error}</p> : visibleTasks.length === 0 ? <div className="rounded-xl border bg-card p-6 text-sm italic text-muted-foreground">{advisorFilter ? "This advisor has no open tasks." : scope === "mine" ? "You have no open tasks." : "There are no open team tasks."}</div> : <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="hidden grid-cols-[minmax(0,1fr)_180px_155px_230px_80px] gap-3 border-b bg-muted/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid"><span>Task</span><span>Assigned To</span><button type="button" title={dueTitle} onClick={cycleDueSort} className="inline-flex items-center gap-1 text-left hover:text-foreground">Due {dueIcon}</button><span>Related To</span><span>Actions</span></div>
+    {loading ? <div className="flex items-center gap-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading tasks…</div> : error ? <p className="text-sm text-destructive">{error}</p> : visibleTasks.length === 0 ? <div className="rounded-xl border bg-card p-6 text-sm italic text-muted-foreground">{emptyMessage}</div> : <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="hidden grid-cols-[minmax(0,1fr)_180px_155px_230px_100px] gap-3 border-b bg-muted/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid"><span>Task</span><span>Assigned To</span>{view === "completed" ? <span>Completed</span> : <button type="button" title={dueTitle} onClick={cycleDueSort} className="inline-flex items-center gap-1 text-left hover:text-foreground">Due {dueIcon}</button>}<span>Related To</span><span>Actions</span></div>
       {sortedTasks.map((task) => {
-        const isOverdue = overdue(task.due_date);
-        return <div key={task.id} className={`grid gap-3 border-b px-4 py-3 last:border-0 lg:grid-cols-[minmax(0,1fr)_180px_155px_230px_80px] lg:items-center ${isOverdue ? "bg-red-50/70" : ""}`}>
+        const isCompleted = view === "completed";
+        const isOverdue = !isCompleted && overdue(task.due_date);
+        return <div key={task.id} className={`grid gap-3 border-b px-4 py-3 last:border-0 lg:grid-cols-[minmax(0,1fr)_180px_155px_230px_100px] lg:items-center ${isOverdue ? "bg-red-50/70" : ""}`}>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              {task.travel_file_id ? <Link href={`/travel-files/${task.travel_file_id}`} className={`text-sm font-medium hover:underline ${isOverdue ? "text-red-700" : "text-primary"}`}>{task.title}</Link> : <p className={`text-sm font-medium ${isOverdue ? "text-red-700" : ""}`}>{task.title}</p>}
+              {task.travel_file_id ? <Link href={`/travel-files/${task.travel_file_id}`} className={`text-sm font-medium hover:underline ${isOverdue ? "text-red-700" : isCompleted ? "text-muted-foreground" : "text-primary"}`}>{task.title}</Link> : <p className={`text-sm font-medium ${isOverdue ? "text-red-700" : isCompleted ? "text-muted-foreground" : ""}`}>{task.title}</p>}
               {isOverdue && <span className="inline-flex rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">Overdue</span>}
             </div>
             {task.notes && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.notes}</p>}
           </div>
-          <select disabled={saving} className="h-9 rounded-md border bg-background px-2 text-sm" value={task.assigned_to ?? ""} onChange={(event) => void patch(task.id, { assignedTo: event.target.value || null })}><option value="">Unassigned</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}</select>
-          <div className={isOverdue ? "text-destructive" : ""}><Input disabled={saving} type="date" value={task.due_date ?? ""} onChange={(event) => void patch(task.id, { dueDate: event.target.value || null })} /></div>
-          <select disabled={saving} className="h-9 w-full rounded-md border bg-background px-2 text-xs" value={task.travel_file_id ?? ""} onChange={(event) => void patch(task.id, { travelFileId: event.target.value || null })}><option value="">General — no Travel File</option>{task.travel_file && !files.some((file) => file.id === task.travel_file_id) && <option value={task.travel_file.id}>{label(task.travel_file)}</option>}{files.map((file) => <option key={file.id} value={file.id}>{label(file)}</option>)}</select>
-          <div className="flex items-center gap-1"><Button size="icon" variant="ghost" title="Complete task" disabled={saving} onClick={() => void patch(task.id, { status: "complete" })}><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" title="Delete task" disabled={saving} onClick={() => void remove(task.id)}><Trash2 className="h-4 w-4" /></Button></div>
+          {isCompleted ? <span className="text-sm text-muted-foreground">{task.assigned_profile?.full_name ?? "Unassigned"}</span> : <select disabled={saving} className="h-9 rounded-md border bg-background px-2 text-sm" value={task.assigned_to ?? ""} onChange={(event) => void patch(task.id, { assignedTo: event.target.value || null })}><option value="">Unassigned</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}</select>}
+          {isCompleted ? <span className="text-sm text-muted-foreground">{task.completed_at ? new Date(task.completed_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span> : <div className={isOverdue ? "text-destructive" : ""}><Input disabled={saving} type="date" value={task.due_date ?? ""} onChange={(event) => void patch(task.id, { dueDate: event.target.value || null })} /></div>}
+          {isCompleted ? <span className="text-xs text-muted-foreground">{task.travel_file ? label(task.travel_file) : "General — no Travel File"}</span> : <select disabled={saving} className="h-9 w-full rounded-md border bg-background px-2 text-xs" value={task.travel_file_id ?? ""} onChange={(event) => void patch(task.id, { travelFileId: event.target.value || null })}><option value="">General — no Travel File</option>{task.travel_file && !files.some((file) => file.id === task.travel_file_id) && <option value={task.travel_file.id}>{label(task.travel_file)}</option>}{files.map((file) => <option key={file.id} value={file.id}>{label(file)}</option>)}</select>}
+          <div className="flex items-center gap-1">{isCompleted ? <Button size="sm" variant="outline" title="Reactivate task" disabled={saving} onClick={() => void patch(task.id, { status: "todo" })}><RotateCcw className="h-4 w-4" />Reactivate</Button> : <><Button size="icon" variant="ghost" title="Complete task" disabled={saving} onClick={() => void patch(task.id, { status: "complete" })}><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" title="Delete task" disabled={saving} onClick={() => void remove(task.id)}><Trash2 className="h-4 w-4" /></Button></>}</div>
         </div>;
       })}
     </div>}
