@@ -1,5 +1,6 @@
 import { TravelFileAside as Aside, TravelFileInfo as Info, TravelFilePanel as Panel, TravelFileSectionTitle as SectionTitle } from "@/components/app/travel-file-display";
-import { formatBoolean, formatDateOnly, formatReadableDateTime, formatStageLabel } from "@/lib/travel/format";
+import { formatBoolean, formatDateOnly, formatReadableDateTime } from "@/lib/travel/format";
+import { formatStageLabel } from "@/lib/travel/stage-labels";
 import type { TravelFile } from "@/lib/travel/types";
 
 type FileWithAdvisor = TravelFile & { assigned_advisor: { id: string; full_name: string } | null };
