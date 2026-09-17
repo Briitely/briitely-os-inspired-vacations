@@ -46,6 +46,10 @@ function isPaymentBatchTask(task: Task) {
   return task.title.startsWith("Payments due — ") && Boolean(task.due_date);
 }
 
+function isOverdueDate(value: string | null) {
+  return Boolean(value && new Date(`${value}T23:59:59`).getTime() < Date.now());
+}
+
 function money(value: number | null, currency: string | null) {
   if (value == null) return "—";
   return new Intl.NumberFormat("en-CA", {
@@ -241,9 +245,10 @@ export function TravelFileTasks({
                 : [];
               const pendingPayments = batchPayments.filter((payment) => payment.status !== "paid");
               const isExpanded = expanded[task.id] ?? false;
+              const overdue = isOverdueDate(task.due_date);
 
               return (
-                <div key={task.id} className="rounded-lg border">
+                <div key={task.id} className={`rounded-lg border ${overdue ? "border-red-200 bg-red-50/70" : ""}`}>
                   <div className="grid gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_160px_140px_auto] sm:items-center">
                     {paymentBatch ? (
                       <button
@@ -259,7 +264,10 @@ export function TravelFileTasks({
                     )}
 
                     <div>
-                      <p className="text-sm font-medium">{task.title}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className={`text-sm font-medium ${overdue ? "text-red-700" : ""}`}>{task.title}</p>
+                        {overdue && <span className="inline-flex rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">Overdue</span>}
+                      </div>
                       {paymentBatch ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           {pendingPayments.length} payment{pendingPayments.length === 1 ? "" : "s"} remaining
@@ -277,13 +285,15 @@ export function TravelFileTasks({
                       ))}
                     </select>
 
-                    <Input
-                      disabled={!canEdit || saving || paymentBatch}
-                      type="date"
-                      value={task.due_date ?? ""}
-                      onChange={(event) => patch(task.id, { dueDate: event.target.value || null })}
-                      title={paymentBatch ? "Payment batch due date comes from the payment records." : undefined}
-                    />
+                    <div className={overdue ? "text-destructive" : ""}>
+                      <Input
+                        disabled={!canEdit || saving || paymentBatch}
+                        type="date"
+                        value={task.due_date ?? ""}
+                        onChange={(event) => patch(task.id, { dueDate: event.target.value || null })}
+                        title={paymentBatch ? "Payment batch due date comes from the payment records." : undefined}
+                      />
+                    </div>
 
                     {canEdit && (
                       <Button size="icon" variant="ghost" onClick={() => remove(task.id)} disabled={saving}>

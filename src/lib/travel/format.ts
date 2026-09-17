@@ -30,18 +30,12 @@ export function formatDueOrWaiting(
   waitingSince: string | null
 ): string {
   if (dueAt) {
-    const due = new Date(dueAt);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-    const diffMs = dueDay.getTime() - today.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays <= 7) return `In ${diffDays} days`;
-    return due.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
+    return new Date(dueAt).toLocaleDateString("en-CA", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: clientConfig.businessTimezone,
+    });
   }
 
   if (waitingSince) {

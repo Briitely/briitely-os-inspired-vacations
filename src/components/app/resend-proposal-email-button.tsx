@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bold, Italic, Link as LinkIcon, Mail, Loader2, Send, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
-import { RevisionSummary } from "@/components/app/revision-summary";
 
 const first = (value: string) => value.trim().split(/\s+/)[0] || "there";
 const advisorFirst = (value: string) => value.trim().split(/\s+/)[0] || "Your Inspired Vacations Advisor";
@@ -18,7 +17,6 @@ export function ResendProposalEmailButton({ travelFileId }: { travelFileId: stri
   const [available, setAvailable] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [revisionMount, setRevisionMount] = useState<HTMLElement | null>(null);
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState("🌴 Your Custom Trip Proposal is Ready! ✈️");
   const [html, setHtml] = useState("");
@@ -35,40 +33,6 @@ export function ResendProposalEmailButton({ travelFileId }: { travelFileId: stri
       .catch(() => {});
     return () => {
       active = false;
-    };
-  }, [travelFileId]);
-
-  useEffect(() => {
-    let mount: HTMLElement | null = null;
-    let timer: number | undefined;
-    let attempts = 0;
-    const place = () => {
-      attempts++;
-      const panels = [...document.querySelectorAll("main > div")];
-      const booking = panels.find(
-        (el) =>
-          el.textContent?.toLowerCase().includes("booking & planning") &&
-          el.textContent?.toLowerCase().includes("booking information"),
-      ) as HTMLElement | undefined;
-      if (booking) {
-        const labels = [...booking.querySelectorAll("div")];
-        const bookingNumberLabel = labels.find(
-          (el) => el.textContent?.trim().toLowerCase() === "booking number",
-        ) as HTMLElement | undefined;
-        const infoBlock = bookingNumberLabel?.parentElement as HTMLElement | null;
-        if (infoBlock?.parentElement) {
-          mount = document.createElement("div");
-          infoBlock.parentElement.insertBefore(mount, infoBlock.nextSibling);
-          setRevisionMount(mount);
-          return;
-        }
-      }
-      if (attempts < 20) timer = window.setTimeout(place, 100);
-    };
-    place();
-    return () => {
-      if (timer) window.clearTimeout(timer);
-      mount?.remove();
     };
   }, [travelFileId]);
 
@@ -130,8 +94,6 @@ export function ResendProposalEmailButton({ travelFileId }: { travelFileId: stri
           {error && !editing && <p className="text-xs text-destructive">{error}</p>}
         </div>
       )}
-
-      {revisionMount && createPortal(<RevisionSummary travelFileId={travelFileId} />, revisionMount)}
 
       {editing &&
         createPortal(
