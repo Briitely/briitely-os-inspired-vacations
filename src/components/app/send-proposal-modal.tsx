@@ -13,6 +13,8 @@ type Recipient = { partyMemberId: string; contactId: string | null; name: string
 const first = (value: string) => value.trim().split(/\s+/)[0] || "there";
 const advisorFirst = (value: string) => value.trim().split(/\s+/)[0] || "Your Inspired Vacations Advisor";
 
+function applyTemplate(template:{subject:string;body_html:string}|null,name:string,url:string,advisor:string){if(!template)return null;const replace=(v:string)=>v.replaceAll("{{first_name}}",first(name)).replaceAll("{{advisor_first_name}}",advisorFirst(advisor)).replaceAll("{{travefy_proposal_url}}",url);return{subject:replace(template.subject),html:replace(template.body_html)}}
+
 function makeEmail(name: string, url: string, advisor: string) {
   return `<div>Hi ${first(name)},</div><div><br></div><div>Exciting news — your personalized travel proposal is ready! 🎉 We've crafted it just for you, packed with options and ideas to make your trip unforgettable.</div><div><br></div><div>You should also see it from Travefy in your inbox. If it doesn't appear, please check your spam or junk folder.</div><div><br></div><div>👉 <a href="${url}" style="text-decoration: underline;">View Your Custom Trip Proposal</a></div><div><br></div><div>Take your time to explore it, and if you have any questions, want to tweak something, or just want to chat about your options, we're here and happy to help. Just hit reply on this email and we'll get back to you! 🌺</div><div><br></div><div>We can't wait to hear what you think!</div><div><br></div><div>Cheers,</div><div><br></div><div>${advisorFirst(advisor)} &amp; the Inspired Vacations Team ✈️</div>`;
 }
@@ -37,6 +39,7 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [sendToTripCommunications, setSendToTripCommunications] = useState(false);
+  const [template,setTemplate]=useState<{subject:string;body_html:string}|null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,12 +50,14 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
     Promise.all([
       fetch(`/api/travel-files/${travelFileId}/proposal-send`).then((response) => response.json()),
       fetch(`/api/travel-files/${travelFileId}/trip-communication-recipients`).then((response) => response.json()),
-    ]).then(([proposal, communication]) => {
+      fetch(`/api/email-templates/proposal_initial`).then((response)=>response.json()),
+    ]).then(([proposal, communication, templateData]) => {
       setUrl(proposal.travefyProposalUrl ?? "");
       setEmail(proposal.email ?? "");
       setClientName(proposal.clientName ?? proposal.firstName ?? "Client");
       setAdvisor(proposal.assignedAdvisorName ?? "Your Inspired Vacations Advisor");
       setRecipients(communication.recipients ?? []);
+      setTemplate(templateData.template??null);
     }).catch(() => {});
   }, [isOpen, travelFileId]);
 
@@ -68,7 +73,8 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not prepare proposal email.");
-      setHtml(makeEmail(clientName, data.travefyProposalUrl, advisor));
+      const rendered=applyTemplate(template,clientName,data.travefyProposalUrl,advisor);
+      if(rendered){setSubject(rendered.subject);setHtml(rendered.html)}else setHtml(makeEmail(clientName, data.travefyProposalUrl, advisor));
       setPrepared(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not prepare proposal email.");
