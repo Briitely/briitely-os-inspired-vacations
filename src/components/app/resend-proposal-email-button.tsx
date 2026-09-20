@@ -8,6 +8,8 @@ import { Button } from "@/components/core/ui/button";
 const first = (value: string) => value.trim().split(/\s+/)[0] || "there";
 const advisorFirst = (value: string) => value.trim().split(/\s+/)[0] || "Your Inspired Vacations Advisor";
 
+function applyTemplate(template:{subject:string;body_html:string}|null,name:string,url:string,advisor:string){if(!template)return null;const replace=(v:string)=>v.replaceAll("{{first_name}}",first(name)).replaceAll("{{advisor_first_name}}",advisorFirst(advisor)).replaceAll("{{travefy_proposal_url}}",url);return{subject:replace(template.subject),html:replace(template.body_html)}}
+
 function emailHtml(name: string, url: string, advisor: string) {
   return `<div>Hi ${first(name)},</div><div><br></div><div>Just a quick follow-up — we're resending the link to your personalized travel proposal so it's easy to find.</div><div><br></div><div>👉 <a href="${url}" style="text-decoration: underline;">View Your Custom Trip Proposal</a></div><div><br></div><div>Take your time to explore it, and if you have any questions, want to tweak something, or just want to chat about your options, we're here and happy to help. Just hit reply on this email and we'll get back to you! 🌺</div><div><br></div><div>Cheers,</div><div><br></div><div>${advisorFirst(advisor)} &amp; the Inspired Vacations Team ✈️</div>`;
 }
@@ -20,15 +22,17 @@ export function ResendProposalEmailButton({ travelFileId }: { travelFileId: stri
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState("🌴 Your Custom Trip Proposal is Ready! ✈️");
   const [html, setHtml] = useState("");
+  const [template,setTemplate]=useState<{subject:string;body_html:string}|null>(null);
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/travel-files/${travelFileId}/proposal-send`)
-      .then((r) => r.json())
-      .then((d) => {
+    Promise.all([fetch(`/api/travel-files/${travelFileId}/proposal-send`),fetch(`/api/email-templates/proposal_resend`)] )
+      .then(async([r,t]) => [await r.json(),await t.json()])
+      .then(([d,t]) => {
         if (!active) return;
         setData(d);
         setAvailable(Boolean(d.travefyProposalUrl && d.email));
+        setTemplate(t.template??null);
       })
       .catch(() => {});
     return () => {
@@ -38,7 +42,8 @@ export function ResendProposalEmailButton({ travelFileId }: { travelFileId: stri
 
   function openEditor() {
     setError(null);
-    setHtml(
+    const rendered=applyTemplate(template,data.clientName ?? data.firstName ?? "Client",data.travefyProposalUrl,data.assignedAdvisorName ?? "Your Inspired Vacations Advisor");
+    if(rendered){setSubject(rendered.subject);setHtml(rendered.html)}else setHtml(
       emailHtml(
         data.clientName ?? data.firstName ?? "Client",
         data.travefyProposalUrl,
