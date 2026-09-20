@@ -94,6 +94,13 @@ function reminderBookingHtml(
   return `<div>Hi ${firstName(recipientName)},</div><div><br></div><div>We haven't received your completed booking form yet, so here's a fresh link to make it easy.</div><div><br></div><div>👉 <a href="${url}" style="text-decoration: underline;">Complete Booking Form</a></div><div><br></div><div>If you've already completed it, you can disregard this message. If you have any questions, just hit reply — we're always happy to help. 😊</div><div><br></div><div>Cheers,</div><div>${signoff(advisorName)} &amp; the Inspired Vacations Team 🌺</div>`;
 }
 
+function applyReminderTemplate(template:{subject:string;body_html:string}|null,recipientName:string,url:string,advisorName:string|null,destination:string|null,primaryName:string){
+  if(!template)return null;
+  const first=firstName(recipientName),advisor=signoff(advisorName),primaryFirst=firstName(primaryName);
+  const replace=(value:string)=>value.replaceAll("{{first_name}}",first).replaceAll("{{destination}}",destination?.trim()||"your upcoming trip").replaceAll("{{advisor_first_name}}",advisor).replaceAll("{{primary_first_name}}",primaryFirst).replaceAll("{{secure_form_url}}",url);
+  return{subject:replace(template.subject),html:replace(template.body_html)};
+}
+
 async function readJson(response: Response) {
   const text = await response.text();
   if (!text) return {};
@@ -120,7 +127,7 @@ export function TravelPartyResendBookingFormsModal({
   const [primaryPrepared, setPrimaryPrepared] = useState(false);
   const [preparedRecipientIds, setPreparedRecipientIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false);\n  const [reminderTemplate, setReminderTemplate] = useState<{subject:string;body_html:string}|null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -131,13 +138,13 @@ export function TravelPartyResendBookingFormsModal({
     Promise.all([
       fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers`).then(readJson),
       fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/booking-form-status`).then(readJson),
-      fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/current-action`).then(readJson),
+      fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/current-action`).then(readJson),\n      fetch(`/api/email-templates/booking-form-reminder`).then(readJson),
     ])
-      .then(([partyData, statusData, actionData]) => {
+      .then(([partyData, statusData, actionData, templateData]) => {
         setParty(partyData.party ?? []);
         setPrimaryPrepared(Boolean(statusData.primaryPrepared || statusData.primaryBookingPrepared));
         setPreparedRecipientIds(statusData.preparedRecipientIds ?? []);
-        setDetails(actionData?.resendForms ?? null);
+        setDetails(actionData?.resendForms ?? null);\n        setReminderTemplate(templateData?.template ?? null);
       })
       .catch(() => setError("Could not load the booking form details."));
   }, [isOpen, travelFileId]);
