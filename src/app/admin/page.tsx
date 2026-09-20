@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { Card, CardContent } from "@/components/core/ui/card";
-import { Users, Settings, BarChart3, Activity, ArrowLeft, Lock } from "lucide-react";
+import { Users, Settings, BarChart3, Activity, ArrowLeft, Lock, Mail } from "lucide-react";
 
 export default async function AdminHomePage() {
   const { user, error } = await getAuthenticatedUser();
@@ -50,6 +50,12 @@ export default async function AdminHomePage() {
       title: "Business Settings",
       description: "Update your business name, address, logo, and regional preferences.",
       href: "/admin/business",
+    },
+    {
+      icon: <Mail className="h-7 w-7" />,
+      title: "Email Templates",
+      description: "Edit the standard client emails used by pre-trip schedules.",
+      href: "/admin/email-templates",
     },
     {
       icon: <BarChart3 className="h-7 w-7" />,
