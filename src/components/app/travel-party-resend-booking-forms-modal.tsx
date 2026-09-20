@@ -200,24 +200,13 @@ export function TravelPartyResendBookingFormsModal({
       const data = await readJson(response);
       if (!response.ok) throw new Error(data.error ?? "Could not prepare the booking form.");
 
-      const alreadyPrepared = primaryPrepared;
+      const reminder = applyReminderTemplate(reminderTemplate, primaryName, data.url, details?.assignedAdvisorName ?? null, details?.destination ?? null, primaryName);
       setDraft({
         recipientName: primaryName,
         recipientEmail: primaryProfile.email ?? details?.email ?? "",
         recipientContactId: primaryProfile.briitely_contact_id ?? null,
-        subject: alreadyPrepared
-          ? "Reminder: Your Client Booking Form - Inspired Vacations"
-          : "Your Client Booking Form - Inspired Vacations",
-        html: alreadyPrepared
-          ? reminderBookingHtml(primaryName, data.url, details?.assignedAdvisorName ?? null)
-          : originalBookingHtml(
-              primaryName,
-              data.url,
-              details?.assignedAdvisorName ?? null,
-              details?.destination ?? null,
-              primaryName,
-              true,
-            ),
+        subject: reminder?.subject || "Reminder: Your Client Booking Form - Inspired Vacations",
+        html: reminder?.html || reminderBookingHtml(primaryName, data.url, details?.assignedAdvisorName ?? null),
         secureUrl: data.url,
         isPrimary: true,
       });
@@ -245,27 +234,15 @@ export function TravelPartyResendBookingFormsModal({
 
       const recipientProfile = profile(group.recipient);
       const recipientName = fullName(group.recipient);
-      const alreadyPrepared = preparedRecipientIds.includes(group.id);
-      const where = details?.destination?.trim() || "Upcoming";
+      const reminder = applyReminderTemplate(reminderTemplate, recipientName, data.url, details?.assignedAdvisorName ?? null, details?.destination ?? null, primaryName);
 
       setDraft({
         recipientName,
         recipientEmail: recipientProfile?.email ?? "",
         recipientContactId: recipientProfile?.briitely_contact_id ?? null,
         partyMemberId: group.id,
-        subject: alreadyPrepared
-          ? `Reminder: Your Booking Form for Your ${where} Trip`
-          : `Your Booking Form for Your ${where} Trip with ${firstName(primaryName)}`,
-        html: alreadyPrepared
-          ? reminderBookingHtml(recipientName, data.url, details?.assignedAdvisorName ?? null)
-          : originalBookingHtml(
-              recipientName,
-              data.url,
-              details?.assignedAdvisorName ?? null,
-              details?.destination ?? null,
-              primaryName,
-              false,
-            ),
+        subject: reminder?.subject || "Reminder: Your Client Booking Form - Inspired Vacations",
+        html: reminder?.html || reminderBookingHtml(recipientName, data.url, details?.assignedAdvisorName ?? null),
         secureUrl: data.url,
         isPrimary: false,
       });
