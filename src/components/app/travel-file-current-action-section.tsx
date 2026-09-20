@@ -66,7 +66,7 @@ export function CurrentActionSection({
               {currentAction.description && (
                 <p className="mt-1 text-sm text-muted-foreground">{currentAction.description.replaceAll("TMF", "Retainer")}</p>
               )}
-              <div className="mt-4 grid gap-4 sm:grid-cols-3 sm:items-end">
+              <div className="mt-4 grid gap-4 sm:grid-cols-3 sm:items-start">
                 <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
                   <Info label="Responsible" value={getResponsibleName(currentAction, profileMap)} />
                   <Info
