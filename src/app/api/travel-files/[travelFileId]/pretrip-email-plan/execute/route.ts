@@ -1,4 +1,4 @@
-import{NextResponse}from"next/server";import{createClient}from"@/lib/supabase/server";
+import{NextResponse}from"next/server";import{createClient}from"@/lib/supabase/server";import{createClient as createSupabaseClient}from"@supabase/supabase-js";
 function profile(member:any){return Array.isArray(member?.traveller_profiles)?member.traveller_profiles[0]:member?.traveller_profiles}
 function first(v:string){return v.trim().split(/\s+/)[0]||"there"}
 function date(v:string|null){if(!v)return"";const d=new Date(v+"T12:00:00Z");return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-CA",{month:"long",day:"numeric",year:"numeric",timeZone:"UTC"})}
@@ -6,7 +6,7 @@ function render(value:string,vars:Record<string,string>){return Object.entries(v
 export async function POST(request:Request,{params}:{params:Promise<{travelFileId:string}>}){
  const secret=process.env.PRETRIP_EMAIL_EXECUTION_SECRET?.trim(),provided=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"").trim();if(!secret||provided!==secret)return NextResponse.json({error:"Unauthorized."},{status:401});
  const{travelFileId}=await params,body=await request.json().catch(()=>null)as{email_code?:string;test?:boolean}|null,code=body?.email_code?.trim(),test=Boolean(body?.test);if(!code)return NextResponse.json({error:"email_code is required."},{status:400});
- const db=await createClient();const[{data:file},{data:plan},{data:template},{data:party}]=await Promise.all([
+ const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();const db=serviceKey?createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}}):await createClient();const[{data:file},{data:plan},{data:template},{data:party}]=await Promise.all([
  db.from("travel_files").select("id,client_name,destination,trip_type,departure_date,return_date,assigned_advisor_id,travefy_trip_id").eq("id",travelFileId).maybeSingle(),
  db.from("travel_pretrip_emails").select("email_code,email_name,enabled,scheduled_date,sent_at").eq("travel_file_id",travelFileId).eq("email_code",code).maybeSingle(),
  db.from("travel_email_templates").select("email_code,email_name,subject,body_html").eq("email_code",code).maybeSingle(),
