@@ -10,7 +10,7 @@ const timing:Record<string,string>={trip_plans_sent:"When TripPlans itinerary is
 const variables=[["First Name","{{first_name}}"],["Destination","{{destination}}"],["Departure Date","{{departure_date}}"],["Return Date","{{return_date}}"]] as const;
 
 function renderPreview(html:string){
-  return html.replaceAll("{{first_name}}","Lana").replaceAll("{{destination}}","Malaga, Spain").replaceAll("{{departure_date}}","April 18, 2027").replaceAll("{{return_date}}","May 7, 2027").replaceAll("{{travefy_trip_plan_url}}","#").replace(/<a href="#">View Itinerary<\/a>/g,'<a href="#" style="display:inline-block;background:#42b5ef;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:5px;">View Itinerary</a>');
+  return html.replaceAll("{{first_name}}","Lana").replaceAll("{{destination}}","Malaga, Spain").replaceAll("{{departure_date}}","April 18, 2027").replaceAll("{{return_date}}","May 7, 2027").replaceAll("{{travefy_trip_plan_url}}","#").replace(/<a href="#">View Itinerary<\/a>/g,'<a href="#" style="display:inline-block;background:#e2735a;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:5px;">View Itinerary</a>');
 }
 
 export function EmailTemplateEditor(){
@@ -24,7 +24,7 @@ export function EmailTemplateEditor(){
  function command(name:string,value?:string){editor.current?.focus();document.execCommand(name,false,value);sync()} function toggleBullets(){editor.current?.focus();const selection=window.getSelection();if(selection&&selection.rangeCount&&selection.isCollapsed){document.execCommand("insertText",false,"• ");}else{document.execCommand("insertUnorderedList",false);}sync()}
  function insert(text:string){editor.current?.focus();document.execCommand("insertText",false,text);sync()}
  function addLink(){const url=window.prompt("Paste the link URL");if(url)command("createLink",url)}
- function insertItinerary(){editor.current?.focus();document.execCommand("insertHTML",false,'<p><a href="{{travefy_trip_plan_url}}" style="display:inline-block;background:#42b5ef;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:5px;">View Itinerary</a></p>');sync()}
+ function insertItinerary(){editor.current?.focus();document.execCommand("insertHTML",false,'<p><a href="{{travefy_trip_plan_url}}" style="display:inline-block;background:#e2735a;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:5px;">View Itinerary</a></p>');sync()}
  async function save(){if(!current)return;sync();const latest={...current,body_html:editor.current?.innerHTML??current.body_html};setSaving(true);setMessage("");const r=await fetch("/api/admin/email-templates",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(latest)});const d=await r.json().catch(()=>({}));setMessage(r.ok?"Saved.":d.error??"Could not save template.");setSaving(false)}
  if(loading)return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/>Loading templates...</div>;
  return <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
