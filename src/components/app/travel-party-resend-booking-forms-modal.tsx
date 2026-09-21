@@ -94,6 +94,13 @@ function reminderBookingHtml(
   return `<div>Hi ${firstName(recipientName)},</div><div><br></div><div>We haven't received your completed booking form yet, so here's a fresh link to make it easy.</div><div><br></div><div>👉 <a href="${url}" style="text-decoration: underline;">Complete Booking Form</a></div><div><br></div><div>If you've already completed it, you can disregard this message. If you have any questions, just hit reply — we're always happy to help. 😊</div><div><br></div><div>Cheers,</div><div>${signoff(advisorName)} &amp; the Inspired Vacations Team 🌺</div>`;
 }
 
+function applyReminderTemplate(template:{subject:string;body_html:string}|null,recipientName:string,url:string,advisorName:string|null,destination:string|null,primaryName:string){
+  if(!template)return null;
+  const first=firstName(recipientName),advisor=signoff(advisorName),primaryFirst=firstName(primaryName);
+  const replace=(value:string)=>value.replaceAll("{{first_name}}",first).replaceAll("{{destination}}",destination?.trim()||"your upcoming trip").replaceAll("{{advisor_first_name}}",advisor).replaceAll("{{primary_first_name}}",primaryFirst).replaceAll("{{secure_form_url}}",url);
+  return{subject:replace(template.subject),html:replace(template.body_html)};
+}
+
 async function readJson(response: Response) {
   const text = await response.text();
   if (!text) return {};
@@ -121,6 +128,7 @@ export function TravelPartyResendBookingFormsModal({
   const [preparedRecipientIds, setPreparedRecipientIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reminderTemplate, setReminderTemplate] = useState<{subject:string;body_html:string}|null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -132,12 +140,14 @@ export function TravelPartyResendBookingFormsModal({
       fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers`).then(readJson),
       fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/booking-form-status`).then(readJson),
       fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/current-action`).then(readJson),
+      fetch(`/api/email-templates/booking-form-reminder`).then(readJson),
     ])
-      .then(([partyData, statusData, actionData]) => {
+      .then(([partyData, statusData, actionData, templateData]) => {
         setParty(partyData.party ?? []);
         setPrimaryPrepared(Boolean(statusData.primaryPrepared || statusData.primaryBookingPrepared));
         setPreparedRecipientIds(statusData.preparedRecipientIds ?? []);
         setDetails(actionData?.resendForms ?? null);
+        setReminderTemplate(templateData?.template ?? null);
       })
       .catch(() => setError("Could not load the booking form details."));
   }, [isOpen, travelFileId]);
@@ -190,24 +200,13 @@ export function TravelPartyResendBookingFormsModal({
       const data = await readJson(response);
       if (!response.ok) throw new Error(data.error ?? "Could not prepare the booking form.");
 
-      const alreadyPrepared = primaryPrepared;
+      const reminder = applyReminderTemplate(reminderTemplate, primaryName, data.url, details?.assignedAdvisorName ?? null, details?.destination ?? null, primaryName);
       setDraft({
         recipientName: primaryName,
         recipientEmail: primaryProfile.email ?? details?.email ?? "",
         recipientContactId: primaryProfile.briitely_contact_id ?? null,
-        subject: alreadyPrepared
-          ? "Reminder: Your Client Booking Form - Inspired Vacations"
-          : "Your Client Booking Form - Inspired Vacations",
-        html: alreadyPrepared
-          ? reminderBookingHtml(primaryName, data.url, details?.assignedAdvisorName ?? null)
-          : originalBookingHtml(
-              primaryName,
-              data.url,
-              details?.assignedAdvisorName ?? null,
-              details?.destination ?? null,
-              primaryName,
-              true,
-            ),
+        subject: reminder?.subject || "Reminder: Your Client Booking Form - Inspired Vacations",
+        html: reminder?.html || reminderBookingHtml(primaryName, data.url, details?.assignedAdvisorName ?? null),
         secureUrl: data.url,
         isPrimary: true,
       });
@@ -235,27 +234,15 @@ export function TravelPartyResendBookingFormsModal({
 
       const recipientProfile = profile(group.recipient);
       const recipientName = fullName(group.recipient);
-      const alreadyPrepared = preparedRecipientIds.includes(group.id);
-      const where = details?.destination?.trim() || "Upcoming";
+      const reminder = applyReminderTemplate(reminderTemplate, recipientName, data.url, details?.assignedAdvisorName ?? null, details?.destination ?? null, primaryName);
 
       setDraft({
         recipientName,
         recipientEmail: recipientProfile?.email ?? "",
         recipientContactId: recipientProfile?.briitely_contact_id ?? null,
         partyMemberId: group.id,
-        subject: alreadyPrepared
-          ? `Reminder: Your Booking Form for Your ${where} Trip`
-          : `Your Booking Form for Your ${where} Trip with ${firstName(primaryName)}`,
-        html: alreadyPrepared
-          ? reminderBookingHtml(recipientName, data.url, details?.assignedAdvisorName ?? null)
-          : originalBookingHtml(
-              recipientName,
-              data.url,
-              details?.assignedAdvisorName ?? null,
-              details?.destination ?? null,
-              primaryName,
-              false,
-            ),
+        subject: reminder?.subject || "Reminder: Your Client Booking Form - Inspired Vacations",
+        html: reminder?.html || reminderBookingHtml(recipientName, data.url, details?.assignedAdvisorName ?? null),
         secureUrl: data.url,
         isPrimary: false,
       });
