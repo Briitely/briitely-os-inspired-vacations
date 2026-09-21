@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getContact } from "@/lib/briitely/contacts";
 
 async function context() {
   const { user } = await getAuthenticatedUser();
@@ -18,14 +19,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tra
   if (!ctx) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const { travelFileId } = await params;
   const [{ data: party, error: partyError }, { data: groups, error: groupError }] = await Promise.all([
-    ctx.db.from("travel_file_travellers").select("id,traveller_role,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)").eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
+    ctx.db.from("travel_file_travellers").select("id,traveller_role,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name,email,briitely_contact_id)").eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
     ctx.db.from("travel_payment_groups").select("id,label,payment_email_recipient_traveller_id,travel_payment_group_travellers(travel_file_traveller_id)").eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
   ]);
   if (partyError || groupError) return NextResponse.json({ error: partyError?.message ?? groupError?.message ?? "Could not load payment groups." }, { status: 500 });
-  const travellers = (party ?? []).map((member: any) => {
+  const travellers = await Promise.all((party ?? []).map(async (member: any) => {
     const p = profile(member);
-    return { id: member.id, name: [p?.preferred_name || p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Traveller", email: p?.email?.trim() || null, isPrimary: member.traveller_role === "primary" };
-  });
+    let email = p?.email?.trim() || null;
+    if (!email && p?.briitely_contact_id) {
+      try { email = (await getContact(p.briitely_contact_id)).email?.trim() || null; } catch {}
+    }
+    return { id: member.id, name: [p?.preferred_name || p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Traveller", email, isPrimary: member.traveller_role === "primary" };
+  }));
   const normalizedGroups = (groups ?? []).map((group: any) => ({
     id: group.id,
     label: group.label ?? "",
