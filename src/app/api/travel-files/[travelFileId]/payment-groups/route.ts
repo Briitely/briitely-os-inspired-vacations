@@ -55,3 +55,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   }
   return NextResponse.json({ group: { id: group.id, label: group.label ?? "", travellerIds, paymentEmailRecipientTravellerId: group.payment_email_recipient_traveller_id ?? "" } }, { status: 201 });
 }
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ travelFileId: string }> }) {
+  const ctx = await context(); if (!ctx) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { travelFileId } = await params;
+  const body = await request.json().catch(() => null) as { groupId?: string; label?: string; travellerIds?: string[]; paymentEmailRecipientTravellerId?: string } | null;
+  const groupId=body?.groupId?.trim(),travellerIds=Array.from(new Set((body?.travellerIds??[]).filter(Boolean))),recipientId=body?.paymentEmailRecipientTravellerId?.trim()||"";
+  if(!groupId)return NextResponse.json({error:"Booking group is required."},{status:400});
+  if(!travellerIds.length)return NextResponse.json({error:"Choose at least one traveller for this booking group."},{status:400});
+  if(!recipientId||!travellerIds.includes(recipientId))return NextResponse.json({error:"Choose a payment email recipient from the travellers in this booking group."},{status:400});
+  const {data:valid,error:travellerError}=await ctx.db.from("travel_file_travellers").select("id,traveller_profiles:traveller_profile_id(email)").eq("travel_file_id",travelFileId).in("id",travellerIds);
+  if(travellerError||(valid??[]).length!==travellerIds.length)return NextResponse.json({error:"One or more selected travellers are not on this Travel File."},{status:400});
+  const recipient=(valid??[]).find((t:any)=>t.id===recipientId),p=Array.isArray(recipient?.traveller_profiles)?recipient.traveller_profiles[0]:recipient?.traveller_profiles;
+  if(!p?.email?.trim())return NextResponse.json({error:"The payment email recipient must have an email address on file."},{status:400});
+  const {data:group,error}=await ctx.db.from("travel_payment_groups").update({label:body?.label?.trim()||null,payment_email_recipient_traveller_id:recipientId}).eq("id",groupId).eq("travel_file_id",travelFileId).select("id,label,payment_email_recipient_traveller_id").single();
+  if(error||!group)return NextResponse.json({error:error?.message??"Could not update booking group."},{status:500});
+  const {error:deleteError}=await ctx.db.from("travel_payment_group_travellers").delete().eq("payment_group_id",groupId);if(deleteError)return NextResponse.json({error:deleteError.message},{status:500});
+  const {error:linkError}=await ctx.db.from("travel_payment_group_travellers").insert(travellerIds.map(id=>({payment_group_id:groupId,travel_file_traveller_id:id})));if(linkError)return NextResponse.json({error:linkError.message},{status:500});
+  return NextResponse.json({group:{id:group.id,label:group.label??"",travellerIds,paymentEmailRecipientTravellerId:group.payment_email_recipient_traveller_id??""}});
+}
