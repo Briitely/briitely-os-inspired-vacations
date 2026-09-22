@@ -77,7 +77,7 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
   }
 
   const title = `${PAYMENT_TASK_PREFIX}${formatDate(dueDate)}`;
-  const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}${formatDate(dueDate)}`;
+  const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}for invoices due on ${formatDate(dueDate)}`;
   const { data: existing, error: taskLookupError } = await db
     .from("travel_file_tasks")
     .select("id,status")
