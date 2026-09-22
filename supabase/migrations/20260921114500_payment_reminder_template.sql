@@ -1,0 +1,3 @@
+INSERT INTO public.travel_email_templates(email_code,email_name,subject,body_html) VALUES
+('payment_reminder','Payment Reminder','Upcoming payment for your {{destination}} trip','<p>Hi {{first_name}},</p><p>Just a quick heads-up that we''ll be charging the credit card we have on file for the following payment{{payment_plural}} this week:</p><p>{{payment_list}}</p><p><strong>Total to be charged: {{payment_total}}</strong></p><p>We''ll send you a receipt once the payment{{payment_plural}} {{payment_verb}} processed.</p><p>If you have any questions before then, just hit reply — we''re happy to help.</p><p>Cheers,</p><p>{{advisor_first_name}} &amp; the Inspired Vacations Team ✈️</p>')
+ON CONFLICT(email_code) DO NOTHING;
