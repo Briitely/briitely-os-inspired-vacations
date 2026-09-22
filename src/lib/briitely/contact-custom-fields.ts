@@ -86,7 +86,7 @@ export async function updateContactCustomField(
   contactId: string,
   fieldId: string,
   fieldKey: string | null,
-  fieldValue: string
+  fieldValue: string | null
 ): Promise<UpdateContactCustomFieldResult> {
   try {
     const body: Record<string, unknown> = {
