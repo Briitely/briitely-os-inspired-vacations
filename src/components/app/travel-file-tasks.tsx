@@ -191,6 +191,40 @@ export function TravelFileTasks({
     }
   }
 
+  async function reactivatePayment(payment: Payment) {
+    if (!canEdit || saving || payment.status !== "paid" || !payment.due_date) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/travel-files/${travelFileId}/payments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: payment.id,
+          paymentType: payment.payment_type,
+          description: payment.description,
+          supplier: payment.supplier,
+          confirmationNumber: payment.confirmation_number,
+          amount: payment.amount,
+          currency: payment.currency,
+          dueDate: payment.due_date,
+          status: "upcoming",
+          processedDate: null,
+          cardLastFour: payment.card_last_four,
+          processingMethod: payment.processing_method ?? "manual",
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Could not reactivate payment.");
+      await load();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reactivate payment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const open = tasks.filter((task) => task.status !== "complete");
   const done = tasks.filter((task) => task.status === "complete");
 
@@ -315,10 +349,10 @@ export function TravelFileTasks({
                               <div key={payment.id} className={`grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[auto_minmax(0,1fr)_120px] sm:items-center ${paid ? "opacity-60" : ""}`}>
                                 <button
                                   type="button"
-                                  disabled={!canEdit || saving || paid}
-                                  onClick={() => void markPaymentPaid(payment)}
+                                  disabled={!canEdit || saving}
+                                  onClick={() => paid ? void reactivatePayment(payment) : void markPaymentPaid(payment)}
                                   className={`flex h-5 w-5 items-center justify-center rounded border ${paid ? "bg-muted" : ""}`}
-                                  aria-label={paid ? "Payment completed" : "Mark payment paid"}
+                                  aria-label={paid ? "Reactivate payment" : "Mark payment paid"}
                                 >
                                   {paid && <Check className="h-3.5 w-3.5" />}
                                 </button>
