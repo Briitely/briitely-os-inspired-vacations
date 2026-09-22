@@ -130,12 +130,15 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
     .from("travel_file_tasks")
     .select("id,status")
     .eq("travel_file_id", travelFileId)
-    .eq("title", reminderTitle)
+    .or(`title.eq.${reminderTitle},title.eq.${PAYMENT_REMINDER_TASK_PREFIX}${formatDate(dueDate)}`)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (reminderLookupError) console.error("PAYMENT_REMINDER_TASK_LOOKUP_FAILED", reminderLookupError);
-  if (!reminder && !reminderLookupError) {
+  if (reminder && !reminderLookupError) {
+    const { error: reminderUpdateError } = await db.from("travel_file_tasks").update({ title: reminderTitle, due_date: sevenDaysBefore(dueDate), assigned_to: dana?.id ?? assignedTo, updated_at: now }).eq("id", reminder.id);
+    if (reminderUpdateError) console.error("PAYMENT_REMINDER_TASK_UPDATE_FAILED", reminderUpdateError);
+  } else if (!reminderLookupError) {
     const { error: reminderError } = await db.from("travel_file_tasks").insert({
       travel_file_id: travelFileId,
       title: reminderTitle,
