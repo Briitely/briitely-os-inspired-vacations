@@ -1,1 +1,1 @@
-{"crons":[{"path":"/api/cron/pretrip-emails","schedule":"0 14 * * *"},{"path":"/api/cron/payment-reminders","schedule":"0 16 * * *"}]}
+{"crons":[{"path":"/api/cron/pretrip-emails","schedule":"0 17 * * *"},{"path":"/api/cron/payment-reminders","schedule":"5 17 * * *"}]}
