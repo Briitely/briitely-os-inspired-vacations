@@ -1,6 +1,7 @@
 import "server-only";
 
 const PAYMENT_TASK_PREFIX = "Payments due — ";
+const PAYMENT_REMINDER_TASK_PREFIX = "Send payment reminder — ";
 
 function clean(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -33,6 +34,12 @@ function formatDate(value: string) {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+function sevenDaysBefore(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 7);
+  return date.toISOString().slice(0, 10);
 }
 
 function formatMoney(amount: number | null, currency: string | null) {
@@ -70,6 +77,7 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
   }
 
   const title = `${PAYMENT_TASK_PREFIX}${formatDate(dueDate)}`;
+  const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}${formatDate(dueDate)}`;
   const { data: existing, error: taskLookupError } = await db
     .from("travel_file_tasks")
     .select("id,status")
@@ -117,6 +125,29 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
   const notes = [`Payment batch for ${formatDate(dueDate)}${totalText ? ` — ${totalText}` : ""}`, "", ...lines].join("\n");
   const assignedTo = assignedToOverride ?? dana?.id ?? file?.assigned_advisor_id ?? null;
   const now = new Date().toISOString();
+
+  const { data: reminder, error: reminderLookupError } = await db
+    .from("travel_file_tasks")
+    .select("id,status")
+    .eq("travel_file_id", travelFileId)
+    .eq("title", reminderTitle)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (reminderLookupError) console.error("PAYMENT_REMINDER_TASK_LOOKUP_FAILED", reminderLookupError);
+  if (!reminder && !reminderLookupError) {
+    const { error: reminderError } = await db.from("travel_file_tasks").insert({
+      travel_file_id: travelFileId,
+      title: reminderTitle,
+      notes: `Send the client payment reminder email for payments due ${formatDate(dueDate)}.`,
+      assigned_to: dana?.id ?? assignedTo,
+      due_date: sevenDaysBefore(dueDate),
+      status: "todo",
+      task_context: "travel_file",
+      created_by: null,
+    });
+    if (reminderError) console.error("PAYMENT_REMINDER_TASK_CREATE_FAILED", reminderError);
+  }
 
   if (existing) {
     const update: Record<string, unknown> = {
