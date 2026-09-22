@@ -50,25 +50,20 @@ function formatMoney(amount: number | null, currency: string | null) {
   }).format(amount);
 }
 
-export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDate: string, assignedToOverride?: string | null) {
+export async function syncPaymentBatchTask(
+  db: any,
+  travelFileId: string,
+  dueDate: string,
+  assignedToOverride?: string | null
+) {
   const [{ data: rows, error: rowsError }, { data: file }, { data: dana }] = await Promise.all([
     db
       .from("travel_payments")
-      .select("description,amount,currency,status,details,external_reference")
+      .select("payment_group_id,description,amount,currency,status,details,external_reference")
       .eq("travel_file_id", travelFileId)
       .eq("due_date", dueDate),
-    db
-      .from("travel_files")
-      .select("assigned_advisor_id")
-      .eq("id", travelFileId)
-      .maybeSingle(),
-    db
-      .from("profiles")
-      .select("id")
-      .ilike("full_name", "Dana%")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle(),
+    db.from("travel_files").select("assigned_advisor_id").eq("id", travelFileId).maybeSingle(),
+    db.from("profiles").select("id").ilike("full_name", "Dana%").eq("is_active", true).limit(1).maybeSingle(),
   ]);
 
   if (rowsError) {
@@ -76,108 +71,141 @@ export async function syncPaymentBatchTask(db: any, travelFileId: string, dueDat
     return;
   }
 
-  const title = `${PAYMENT_TASK_PREFIX}${formatDate(dueDate)}`;
-  const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}for invoices due on ${formatDate(dueDate)}`;
-  const { data: existing, error: taskLookupError } = await db
-    .from("travel_file_tasks")
-    .select("id,status")
-    .eq("travel_file_id", travelFileId)
-    .eq("title", title)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (taskLookupError) {
-    console.error("PAYMENT_BATCH_TASK_LOOKUP_FAILED", taskLookupError);
-    return;
-  }
+  const groupIds = Array.from(new Set((rows ?? []).map((row: any) => row.payment_group_id).filter(Boolean)));
+  const { data: groups } = groupIds.length
+    ? await db.from("travel_payment_groups").select("id,label").in("id", groupIds)
+    : { data: [] };
+  const groupLabels = new Map((groups ?? []).map((group: any) => [group.id, clean(group.label) ?? "Booking Group"]));
 
   const upcoming = (rows ?? []).filter((row: any) => row.status !== "paid" && row.status !== "cancelled");
-  if (!upcoming.length) {
-    if (existing && existing.status !== "complete") {
-      const now = new Date().toISOString();
-      const { error } = await db
-        .from("travel_file_tasks")
-        .update({ status: "complete", completed_at: now, updated_at: now })
-        .eq("id", existing.id);
-      if (error) console.error("PAYMENT_BATCH_TASK_COMPLETE_FAILED", error);
-    }
-    return;
+  const byGroup = new Map<string, any[]>();
+  for (const row of upcoming) {
+    const key = row.payment_group_id ?? "__ungrouped__";
+    byGroup.set(key, [...(byGroup.get(key) ?? []), row]);
   }
 
-  const totals = new Map<string, number>();
-  const lines = upcoming.map((row: any) => {
-    const details = parseDetails(row.details);
-    if (row.amount != null) {
-      const currency = row.currency || "CAD";
-      totals.set(currency, (totals.get(currency) ?? 0) + Number(row.amount));
-    }
-    const action = details.processingMethod === "supplier_auto" ? "VERIFY supplier charge" : "PROCESS payment";
-    const supplier = details.supplier ? ` — ${details.supplier}` : "";
-    const confirmation = row.external_reference ? ` #${row.external_reference}` : "";
-    const card = details.cardLastFour ? ` — card •••• ${details.cardLastFour}` : "";
-    return `• ${action}: ${row.description}${supplier}${confirmation} — ${formatMoney(row.amount == null ? null : Number(row.amount), row.currency)}${card}`;
-  });
-
-  const totalText = Array.from(totals.entries())
-    .map(([currency, amount]) => formatMoney(amount, currency))
-    .join(" + ");
-  const notes = [`Payment batch for ${formatDate(dueDate)}${totalText ? ` — ${totalText}` : ""}`, "", ...lines].join("\n");
+  const dateLabel = formatDate(dueDate);
   const assignedTo = assignedToOverride ?? dana?.id ?? file?.assigned_advisor_id ?? null;
   const now = new Date().toISOString();
+  const expectedTitles = new Set<string>();
+  const expectedReminderTitles = new Set<string>();
 
-  const { data: reminder, error: reminderLookupError } = await db
-    .from("travel_file_tasks")
-    .select("id,status")
-    .eq("travel_file_id", travelFileId)
-    .or(`title.eq.${reminderTitle},title.eq.${PAYMENT_REMINDER_TASK_PREFIX}${formatDate(dueDate)}`)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (reminderLookupError) console.error("PAYMENT_REMINDER_TASK_LOOKUP_FAILED", reminderLookupError);
-  if (reminder && !reminderLookupError) {
-    const { error: reminderUpdateError } = await db.from("travel_file_tasks").update({ title: reminderTitle, due_date: sevenDaysBefore(dueDate), assigned_to: dana?.id ?? assignedTo, updated_at: now }).eq("id", reminder.id);
-    if (reminderUpdateError) console.error("PAYMENT_REMINDER_TASK_UPDATE_FAILED", reminderUpdateError);
-  } else if (!reminderLookupError) {
-    const { error: reminderError } = await db.from("travel_file_tasks").insert({
-      travel_file_id: travelFileId,
-      title: reminderTitle,
-      notes: `Send the client payment reminder email for payments due ${formatDate(dueDate)}.`,
-      assigned_to: dana?.id ?? assignedTo,
-      due_date: sevenDaysBefore(dueDate),
-      status: "todo",
-      task_context: "travel_file",
-      created_by: null,
+  for (const [groupId, groupRows] of byGroup) {
+    const groupLabel = groupId === "__ungrouped__" ? "No Booking Group" : groupLabels.get(groupId) ?? "Booking Group";
+    const title = `${PAYMENT_TASK_PREFIX}${dateLabel} — ${groupLabel}`;
+    const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}for ${groupLabel} invoices due on ${dateLabel}`;
+    expectedTitles.add(title);
+    expectedReminderTitles.add(reminderTitle);
+
+    const totals = new Map<string, number>();
+    const lines = groupRows.map((row: any) => {
+      const details = parseDetails(row.details);
+      if (row.amount != null) {
+        const currency = row.currency || "CAD";
+        totals.set(currency, (totals.get(currency) ?? 0) + Number(row.amount));
+      }
+      const action = details.processingMethod === "supplier_auto" ? "VERIFY supplier charge" : "PROCESS payment";
+      const supplier = details.supplier ? ` — ${details.supplier}` : "";
+      const confirmation = row.external_reference ? ` #${row.external_reference}` : "";
+      const card = details.cardLastFour ? ` — card •••• ${details.cardLastFour}` : "";
+      return `• ${action}: ${row.description}${supplier}${confirmation} — ${formatMoney(
+        row.amount == null ? null : Number(row.amount),
+        row.currency
+      )}${card}`;
     });
-    if (reminderError) console.error("PAYMENT_REMINDER_TASK_CREATE_FAILED", reminderError);
-  }
 
-  if (existing) {
-    const update: Record<string, unknown> = {
-      notes,
-      assigned_to: assignedTo,
-      due_date: dueDate,
-      updated_at: now,
-    };
-    if (existing.status === "complete") {
-      update.status = "todo";
-      update.completed_at = null;
-      update.completed_by = null;
+    const totalText = Array.from(totals.entries())
+      .map(([currency, amount]) => formatMoney(amount, currency))
+      .join(" + ");
+    const notes = [
+      `${groupLabel} payment batch for ${dateLabel}${totalText ? ` — ${totalText}` : ""}`,
+      "",
+      ...lines,
+    ].join("\n");
+
+    const { data: existing } = await db
+      .from("travel_file_tasks")
+      .select("id,status")
+      .eq("travel_file_id", travelFileId)
+      .eq("title", title)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const update: Record<string, unknown> = { notes, assigned_to: assignedTo, due_date: dueDate, updated_at: now };
+      if (existing.status === "complete") {
+        update.status = "todo";
+        update.completed_at = null;
+        update.completed_by = null;
+      }
+      const { error } = await db.from("travel_file_tasks").update(update).eq("id", existing.id);
+      if (error) console.error("PAYMENT_BATCH_TASK_UPDATE_FAILED", error);
+    } else {
+      const { error } = await db.from("travel_file_tasks").insert({
+        travel_file_id: travelFileId,
+        title,
+        notes,
+        assigned_to: assignedTo,
+        due_date: dueDate,
+        status: "todo",
+        task_context: "travel_file",
+        created_by: null,
+      });
+      if (error) console.error("PAYMENT_BATCH_TASK_CREATE_FAILED", error);
     }
-    const { error } = await db.from("travel_file_tasks").update(update).eq("id", existing.id);
-    if (error) console.error("PAYMENT_BATCH_TASK_UPDATE_FAILED", error);
-    return;
+
+    const { data: reminder } = await db
+      .from("travel_file_tasks")
+      .select("id,status")
+      .eq("travel_file_id", travelFileId)
+      .eq("title", reminderTitle)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (reminder) {
+      const reminderUpdate: Record<string, unknown> = {
+        due_date: sevenDaysBefore(dueDate),
+        assigned_to: dana?.id ?? assignedTo,
+        updated_at: now,
+      };
+      if (reminder.status === "complete") {
+        reminderUpdate.status = "todo";
+        reminderUpdate.completed_at = null;
+        reminderUpdate.completed_by = null;
+      }
+      const { error } = await db.from("travel_file_tasks").update(reminderUpdate).eq("id", reminder.id);
+      if (error) console.error("PAYMENT_REMINDER_TASK_UPDATE_FAILED", error);
+    } else {
+      const { error } = await db.from("travel_file_tasks").insert({
+        travel_file_id: travelFileId,
+        title: reminderTitle,
+        notes: `Send the client payment reminder email for ${groupLabel} payments due ${dateLabel}.`,
+        assigned_to: dana?.id ?? assignedTo,
+        due_date: sevenDaysBefore(dueDate),
+        status: "todo",
+        task_context: "travel_file",
+        created_by: null,
+      });
+      if (error) console.error("PAYMENT_REMINDER_TASK_CREATE_FAILED", error);
+    }
   }
 
-  const { error } = await db.from("travel_file_tasks").insert({
-    travel_file_id: travelFileId,
-    title,
-    notes,
-    assigned_to: assignedTo,
-    due_date: dueDate,
-    status: "todo",
-    task_context: "travel_file",
-    created_by: null,
-  });
-  if (error) console.error("PAYMENT_BATCH_TASK_CREATE_FAILED", error);
+  // Remove obsolete, still-open automated tasks for this date (including the older ungrouped format).
+  const { data: dateTasks } = await db
+    .from("travel_file_tasks")
+    .select("id,title,status")
+    .eq("travel_file_id", travelFileId)
+    .or(`title.eq.${PAYMENT_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_TASK_PREFIX}${dateLabel} — %,title.eq.${PAYMENT_REMINDER_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_REMINDER_TASK_PREFIX}%due on ${dateLabel}`);
+
+  for (const task of dateTasks ?? []) {
+    if (task.status === "complete") continue;
+    const isPaymentTask = task.title.startsWith(PAYMENT_TASK_PREFIX);
+    const keep = isPaymentTask ? expectedTitles.has(task.title) : expectedReminderTitles.has(task.title);
+    if (!keep) {
+      const { error } = await db.from("travel_file_tasks").delete().eq("id", task.id);
+      if (error) console.error("PAYMENT_OBSOLETE_TASK_DELETE_FAILED", error);
+    }
+  }
 }
