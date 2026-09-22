@@ -50,7 +50,9 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
     if(paymentError)return NextResponse.json({error:`Could not record the Retainer payment: ${paymentError.message}`},{status:500});
   }
 
-  await syncPaymentBatchTask(supabase, travelFileId, today);\n\n  // Retainer receipt does not jump straight to proposal creation. Tracy first assigns
+  await syncPaymentBatchTask(supabase, travelFileId, today);
+
+  // Retainer receipt does not jump straight to proposal creation. Tracy first assigns
   // the proposal owner and review due date.
   const{data:nextAction,error:nextError}=await supabase.from("travel_actions").insert({
     travel_file_id:travelFileId,
