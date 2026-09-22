@@ -225,6 +225,47 @@ export function TravelFileTasks({
     }
   }
 
+  async function reactivatePaymentBatch(task: Task) {
+    if (!canEdit || saving || !task.due_date) return;
+    const batch = payments.filter((payment) => payment.due_date === task.due_date && payment.status === "paid");
+    if (!batch.length) {
+      await patch(task.id, { status: "todo" });
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      for (const payment of batch) {
+        const response = await fetch(`/api/travel-files/${travelFileId}/payments`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paymentId: payment.id,
+            paymentType: payment.payment_type,
+            description: payment.description,
+            supplier: payment.supplier,
+            confirmationNumber: payment.confirmation_number,
+            amount: payment.amount,
+            currency: payment.currency,
+            dueDate: payment.due_date,
+            status: "upcoming",
+            processedDate: null,
+            cardLastFour: payment.card_last_four,
+            processingMethod: payment.processing_method ?? "manual",
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error ?? "Could not reactivate payment batch.");
+      }
+      await load();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reactivate payment batch.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const open = tasks.filter((task) => task.status !== "complete");
   const done = tasks.filter((task) => task.status === "complete");
 
@@ -400,7 +441,7 @@ export function TravelFileTasks({
                           {task.completed_at ? ` · ${new Date(task.completed_at).toLocaleDateString()}` : ""}
                         </p>
                       </div>
-                      {canEdit && <Button size="sm" variant="ghost" onClick={() => patch(task.id, { status: "todo" })}>Reopen</Button>}
+                      {canEdit && <Button size="sm" variant="ghost" onClick={() => isPaymentBatchTask(task) ? void reactivatePaymentBatch(task) : void patch(task.id, { status: "todo" })}>Reopen</Button>}
                     </div>
                   ))}
                 </div>
