@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getContactCustomFieldDefinitions, updateContactCustomField } from "@/lib/briitely/contact-custom-fields";
-import { upsertContact } from "@/lib/briitely/contacts";
+import { searchContacts } from "@/lib/briitely/contacts";
 
 const FIELD_NAMES: Record<string, string> = {
   trip_plans_sent: "TripPlans Has Been Sent",
@@ -84,13 +84,15 @@ export async function POST(
     }
 
     try {
-      const result = await upsertContact({
-        firstName: traveller.first_name ?? "",
-        lastName: traveller.last_name ?? "",
-        email: traveller.email.trim(),
-        phone: traveller.phone?.trim() || undefined,
-      });
-      const contactId = result.customer.id;
+      const email = traveller.email.trim().toLowerCase();
+      const result = await searchContacts(email);
+      const exactMatches = result.customers.filter(
+        (contact) => contact.email?.trim().toLowerCase() === email
+      );
+      if (exactMatches.length !== 1) {
+        throw new Error("Expected exactly one Briitely contact for this email.");
+      }
+      const contactId = exactMatches[0].id;
       const { error: linkError } = await db
         .from("traveller_profiles")
         .update({ briitely_contact_id: contactId })
