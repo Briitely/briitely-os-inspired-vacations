@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/core/ui/button";
 import { PaymentEditorModal } from "@/components/app/payment-editor-modal";
 import { PaymentsTable } from "@/components/app/payments-table";
+import { PaymentGroupManagerModal } from "@/components/app/payment-group-manager-modal";
 
 export function PaymentsSection({ travelFileId }: { travelFileId: string }) {
   const [editorOpen, setEditorOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
 
   return (
@@ -20,7 +22,7 @@ export function PaymentsSection({ travelFileId }: { travelFileId: string }) {
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Payment schedule and current status.
           </p>
-          <div className="mt-3 w-full">
+          <div className="mt-3 flex w-full flex-col items-start gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -29,12 +31,27 @@ export function PaymentsSection({ travelFileId }: { travelFileId: string }) {
             >
               + Add Payment
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="justify-start"
+              onClick={() => setGroupsOpen(true)}
+            >
+              Create / Edit Booking Groups
+            </Button>
           </div>
         </div>
         <div>
           <PaymentsTable travelFileId={travelFileId} refreshToken={refreshToken} />
         </div>
       </div>
+
+      <PaymentGroupManagerModal
+        travelFileId={travelFileId}
+        isOpen={groupsOpen}
+        onClose={() => setGroupsOpen(false)}
+        onSaved={() => setRefreshToken((value) => value + 1)}
+      />
 
       <PaymentEditorModal
         travelFileId={travelFileId}
