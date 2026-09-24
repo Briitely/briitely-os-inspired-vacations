@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getContactCustomFieldDefinitions, updateContactCustomField } from "@/lib/briitely/contact-custom-fields";
+import { upsertContact } from "@/lib/briitely/contacts";
 
 const FIELD_NAMES: Record<string, string> = {
   trip_plans_sent: "TripPlans Has Been Sent",
@@ -50,7 +51,7 @@ export async function POST(
     db
       .from("travel_file_travellers")
       .select(
-        "traveller_role,receive_trip_communications,traveller_profiles:traveller_profile_id(briitely_contact_id,email)"
+        "traveller_role,receive_trip_communications,traveller_profiles:traveller_profile_id(id,briitely_contact_id,first_name,last_name,email,phone)"
       )
       .eq("travel_file_id", travelFileId),
   ]);
@@ -62,13 +63,53 @@ export async function POST(
     );
   }
 
-  const recipients = (party ?? [])
+  const selectedTravellers = (party ?? [])
     .filter(
       (member: any) =>
         member.traveller_role === "primary" || member.receive_trip_communications
     )
     .map((member: any) => profile(member))
-    .filter((traveller: any) => traveller?.briitely_contact_id && traveller?.email);
+    .filter((traveller: any) => traveller?.email?.trim());
+
+  // A traveller can be selected for trip communications before their local
+  // traveller profile has a Briitely contact ID. Resolve/create that contact
+  // by email instead of silently dropping the traveller from the sync.
+  const recipients: any[] = [];
+  const resolutionFailures: string[] = [];
+
+  for (const traveller of selectedTravellers) {
+    if (traveller.briitely_contact_id) {
+      recipients.push(traveller);
+      continue;
+    }
+
+    try {
+      const result = await upsertContact({
+        firstName: traveller.first_name ?? "",
+        lastName: traveller.last_name ?? "",
+        email: traveller.email.trim(),
+        phone: traveller.phone?.trim() || undefined,
+      });
+      const contactId = result.customer.id;
+      const { error: linkError } = await db
+        .from("traveller_profiles")
+        .update({ briitely_contact_id: contactId })
+        .eq("id", traveller.id);
+      if (linkError) throw new Error(linkError.message);
+      recipients.push({ ...traveller, briitely_contact_id: contactId });
+    } catch {
+      resolutionFailures.push(traveller.email);
+    }
+  }
+
+  if (resolutionFailures.length) {
+    return NextResponse.json(
+      {
+        error: `Could not connect trip communication recipient${resolutionFailures.length === 1 ? "" : "s"} to Briitely: ${resolutionFailures.join(", ")}`,
+      },
+      { status: 502 }
+    );
+  }
 
   if (!recipients.length) {
     return NextResponse.json(
