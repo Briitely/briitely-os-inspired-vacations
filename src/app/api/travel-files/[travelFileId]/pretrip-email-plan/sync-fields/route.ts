@@ -78,26 +78,30 @@ export async function POST(
   const resolutionFailures: string[] = [];
 
   for (const traveller of selectedTravellers) {
-    if (traveller.briitely_contact_id) {
-      recipients.push(traveller);
-      continue;
-    }
-
     try {
       const email = traveller.email.trim().toLowerCase();
+
+      // Always resolve the current Briitely contact by exact email. An earlier
+      // sync may have stored a stale or incorrect Briitely contact ID.
       const result = await searchContacts(email);
       const exactMatches = result.customers.filter(
         (contact) => contact.email?.trim().toLowerCase() === email
       );
+
       if (exactMatches.length !== 1) {
         throw new Error("Expected exactly one Briitely contact for this email.");
       }
+
       const contactId = exactMatches[0].id;
-      const { error: linkError } = await db
-        .from("traveller_profiles")
-        .update({ briitely_contact_id: contactId })
-        .eq("id", traveller.id);
-      if (linkError) throw new Error(linkError.message);
+
+      if (traveller.briitely_contact_id !== contactId) {
+        const { error: linkError } = await db
+          .from("traveller_profiles")
+          .update({ briitely_contact_id: contactId })
+          .eq("id", traveller.id);
+        if (linkError) throw new Error(linkError.message);
+      }
+
       recipients.push({ ...traveller, briitely_contact_id: contactId });
     } catch {
       resolutionFailures.push(traveller.email);
