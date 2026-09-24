@@ -16,7 +16,7 @@ const orderBy=(order:string[])=>(a:Template,b:Template)=>{const ai=order.indexOf
 function normalizeEmailHtml(html:string){
  const doc=document.implementation.createHTMLDocument("");
  doc.body.innerHTML=html;
- doc.body.querySelectorAll("p").forEach(p=>{p.style.margin="0 0 10pt";p.style.lineHeight="1.5"});
+ doc.body.querySelectorAll("ul,ol").forEach(l=>{(l as HTMLElement).style.margin="0 0 10pt 24px";(l as HTMLElement).style.padding="0"});doc.body.querySelectorAll("li").forEach(li=>{(li as HTMLElement).style.margin="0 0 4pt"});doc.body.querySelectorAll("a").forEach(a=>{if((a.textContent||"").trim()!=="View Itinerary"){a.style.color="#0563c1";a.style.textDecoration="underline"}});doc.body.querySelectorAll("p").forEach(p=>{p.style.margin="0 0 10pt";p.style.lineHeight="1.5"});
  doc.body.querySelectorAll("div").forEach(d=>{if(!d.querySelector("p")){d.style.margin="0 0 10pt";d.style.lineHeight="1.5"}});
  doc.body.querySelectorAll("a").forEach(a=>{if((a.textContent||"").trim()==="View Itinerary"){a.style.display="inline-block";a.style.background="#e2735a";a.style.color="#ffffff";a.style.textDecoration="none";a.style.fontWeight="600";a.style.padding="12px 28px";a.style.borderRadius="5px"}});
  return doc.body.innerHTML
