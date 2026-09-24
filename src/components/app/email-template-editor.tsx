@@ -13,7 +13,14 @@ const scheduledOrder=["trip_plans_sent","insurance","seat_selection","vaccines_v
 const clientCodes=new Set(clientOrder);
 const orderBy=(order:string[])=>(a:Template,b:Template)=>{const ai=order.indexOf(a.email_code),bi=order.indexOf(b.email_code);return(ai<0?999:ai)-(bi<0?999:bi)};
 
-function normalizeEmailHtml(html:string){return html.replace(/<p>/gi,'<p style="margin:0 0 12px;line-height:1.5;">')}
+function normalizeEmailHtml(html:string){
+ const doc=document.implementation.createHTMLDocument("");
+ doc.body.innerHTML=html;
+ doc.body.querySelectorAll("p").forEach(p=>{p.style.margin="0 0 12px";p.style.lineHeight="1.5"});
+ doc.body.querySelectorAll("div").forEach(d=>{if(!d.querySelector("p")){d.style.margin="0 0 12px";d.style.lineHeight="1.5"}});
+ doc.body.querySelectorAll("a").forEach(a=>{if((a.textContent||"").trim()==="View Itinerary"){a.style.display="inline-block";a.style.background="#e2735a";a.style.color="#ffffff";a.style.textDecoration="none";a.style.fontWeight="600";a.style.padding="12px 28px";a.style.borderRadius="5px"}});
+ return doc.body.innerHTML
+}
 function renderPreview(html:string){
   html=normalizeEmailHtml(html).replaceAll('href="{{travefy_trip_plan_url}}"','href="#"');
   return html.replaceAll("{{first_name}}","Lana").replaceAll("{{destination}}","Malaga, Spain").replaceAll("{{departure_date}}","April 18, 2027").replaceAll("{{return_date}}","May 7, 2027").replaceAll("{{travefy_trip_plan_url}}","#").replaceAll("{{payment_list}}","Hotel Deposit — $3,000.00<br>Airport Transfers — $100.00").replaceAll("{{payment_total}}","$3,100.00").replaceAll("{{payment_due_date}}","September 28, 2026").replaceAll("{{card_last_four}}","5641").replaceAll("{{supplier_payment_list}}","Airport Transfers — $100.00 (WestJet, card ending 5641)").replaceAll("{{supplier_payment_total}}","$100.00").replaceAll("{{payment_plural}}","s").replaceAll("{{payment_verb}}","are").replace(/<a href="#">View Itinerary<\/a>/g,'<a href="#" style="display:inline-block;background:#e2735a;color:#fff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:5px;">View Itinerary</a>');
