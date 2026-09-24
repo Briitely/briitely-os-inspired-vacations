@@ -1,1 +1,1 @@
-{"crons":[]}
+{"crons":[{"path":"/api/cron/pretrip-emails-test","schedule":"30 18 24 9 *"}]}
