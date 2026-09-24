@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
+import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 
 export async function POST(_request: Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
@@ -25,6 +26,8 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
   const now=new Date().toISOString();
   const today=now.slice(0,10);
   const tracyId=file.assigned_advisor_id||null;
+  const primaryPaymentGroupId=await ensurePrimaryPaymentGroup(supabase,travelFileId);
+  if(!primaryPaymentGroupId)return NextResponse.json({error:"Could not create the primary traveller booking group."},{status:500});
 
   // Record the externally collected Retainer in the Travel File payment ledger.
   const{data:existingPayment}=await supabase.from("travel_payments")
@@ -37,6 +40,7 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
   if(!existingPayment){
     const{error:paymentError}=await supabase.from("travel_payments").insert({
       travel_file_id:travelFileId,
+      payment_group_id:primaryPaymentGroupId,
       payment_type:"other",
       description:"Retainer",
       amount:file.tmf_amount??null,
