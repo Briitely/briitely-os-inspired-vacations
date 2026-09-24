@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getContact } from "@/lib/briitely/contacts";
+import { assignUnassignedPaymentsToPrimaryGroup } from "@/lib/travel/payment-groups";
 
 async function context() {
   const { user } = await getAuthenticatedUser();
@@ -18,6 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tra
   const ctx = await context();
   if (!ctx) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const { travelFileId } = await params;
+  await assignUnassignedPaymentsToPrimaryGroup(ctx.db, travelFileId);
   const [{ data: party, error: partyError }, { data: groups, error: groupError }] = await Promise.all([
     ctx.db.from("travel_file_travellers").select("id,traveller_role,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name,email,briitely_contact_id)").eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
     ctx.db.from("travel_payment_groups").select("id,label,payment_email_recipient_traveller_id,travel_payment_group_travellers(travel_file_traveller_id)").eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
