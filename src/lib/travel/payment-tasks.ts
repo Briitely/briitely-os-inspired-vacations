@@ -79,6 +79,11 @@ export async function syncPaymentBatchTask(
   }
 
   const dateLabel = formatDate(dueDate);
+  if (upcoming.length === 0) {
+    const { error: cleanupError } = await db.from("travel_file_tasks").delete().eq("travel_file_id", travelFileId).like("title", `${PAYMENT_TASK_PREFIX}${dateLabel}%`).neq("status", "complete");
+    if (cleanupError) console.error("PAYMENT_EMPTY_BATCH_TASK_DELETE_FAILED", cleanupError);
+    return;
+  }
   const assignedTo = assignedToOverride ?? dana?.id ?? file?.assigned_advisor_id ?? null;
   const now = new Date().toISOString();
   const expectedTitles = new Set<string>();
