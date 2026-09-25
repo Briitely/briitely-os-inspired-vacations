@@ -1,7 +1,7 @@
 import "server-only";
 
 const PAYMENT_TASK_PREFIX = "Payments due — ";
-const PAYMENT_REMINDER_TASK_PREFIX = "Send payment reminder — ";
+
 
 function clean(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -34,12 +34,6 @@ function formatDate(value: string) {
     year: "numeric",
     timeZone: "UTC",
   });
-}
-
-function sevenDaysBefore(value: string) {
-  const date = new Date(`${value}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - 7);
-  return date.toISOString().slice(0, 10);
 }
 
 function formatMoney(amount: number | null, currency: string | null) {
@@ -88,14 +82,11 @@ export async function syncPaymentBatchTask(
   const assignedTo = assignedToOverride ?? dana?.id ?? file?.assigned_advisor_id ?? null;
   const now = new Date().toISOString();
   const expectedTitles = new Set<string>();
-  const expectedReminderTitles = new Set<string>();
 
   for (const [groupId, groupRows] of byGroup) {
     const groupLabel = groupId === "__ungrouped__" ? "No Booking Group" : groupLabels.get(groupId) ?? "Booking Group";
     const title = `${PAYMENT_TASK_PREFIX}${dateLabel} — ${groupLabel}`;
-    const reminderTitle = `${PAYMENT_REMINDER_TASK_PREFIX}for ${groupLabel} invoices due on ${dateLabel}`;
     expectedTitles.add(title);
-    expectedReminderTitles.add(reminderTitle);
 
     const totals = new Map<string, number>();
     const lines = groupRows.map((row: any) => {
@@ -155,41 +146,6 @@ export async function syncPaymentBatchTask(
       if (error) console.error("PAYMENT_BATCH_TASK_CREATE_FAILED", error);
     }
 
-    const { data: reminder } = await db
-      .from("travel_file_tasks")
-      .select("id,status")
-      .eq("travel_file_id", travelFileId)
-      .eq("title", reminderTitle)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (reminder) {
-      const reminderUpdate: Record<string, unknown> = {
-        due_date: sevenDaysBefore(dueDate),
-        assigned_to: dana?.id ?? assignedTo,
-        updated_at: now,
-      };
-      if (reminder.status === "complete") {
-        reminderUpdate.status = "todo";
-        reminderUpdate.completed_at = null;
-        reminderUpdate.completed_by = null;
-      }
-      const { error } = await db.from("travel_file_tasks").update(reminderUpdate).eq("id", reminder.id);
-      if (error) console.error("PAYMENT_REMINDER_TASK_UPDATE_FAILED", error);
-    } else {
-      const { error } = await db.from("travel_file_tasks").insert({
-        travel_file_id: travelFileId,
-        title: reminderTitle,
-        notes: `Send the client payment reminder email for ${groupLabel} payments due ${dateLabel}.`,
-        assigned_to: dana?.id ?? assignedTo,
-        due_date: sevenDaysBefore(dueDate),
-        status: "todo",
-        task_context: "travel_file",
-        created_by: null,
-      });
-      if (error) console.error("PAYMENT_REMINDER_TASK_CREATE_FAILED", error);
-    }
   }
 
   // Remove obsolete, still-open automated tasks for this date (including the older ungrouped format).
@@ -197,12 +153,12 @@ export async function syncPaymentBatchTask(
     .from("travel_file_tasks")
     .select("id,title,status")
     .eq("travel_file_id", travelFileId)
-    .or(`title.eq.${PAYMENT_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_TASK_PREFIX}${dateLabel} — %,title.eq.${PAYMENT_REMINDER_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_REMINDER_TASK_PREFIX}%due on ${dateLabel}`);
+    .or(`title.eq.${PAYMENT_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_TASK_PREFIX}${dateLabel} — %,title.like.Send payment reminder — %due on ${dateLabel}`);
 
   for (const task of dateTasks ?? []) {
     if (task.status === "complete") continue;
     const isPaymentTask = task.title.startsWith(PAYMENT_TASK_PREFIX);
-    const keep = isPaymentTask ? expectedTitles.has(task.title) : expectedReminderTitles.has(task.title);
+    const keep = isPaymentTask && expectedTitles.has(task.title);
     if (!keep) {
       const { error } = await db.from("travel_file_tasks").delete().eq("id", task.id);
       if (error) console.error("PAYMENT_OBSOLETE_TASK_DELETE_FAILED", error);
