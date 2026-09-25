@@ -148,11 +148,14 @@ export function TravelFileTasks({
   async function remove(id: string) {
     if (!window.confirm("Delete this task?")) return;
     setSaving(true);
-    await fetch(`/api/travel-files/${travelFileId}/tasks`, {
+    setError(null);
+    const response = await fetch(`/api/travel-files/${travelFileId}/tasks`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taskId: id }),
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) setError(data.error ?? "Could not delete task.");
     await load();
     setSaving(false);
   }
