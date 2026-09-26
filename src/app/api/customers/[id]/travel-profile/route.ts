@@ -54,6 +54,8 @@ export async function PUT(
     travelSeasons?: unknown;
     lastTravelDestination?: unknown;
     lastTravelDate?: unknown;
+    numberOfTrips?: unknown;
+    lifetimeValue?: unknown;
   } | null;
 
   if (!body) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -80,6 +82,8 @@ export async function PUT(
       last_travel_date: typeof body.lastTravelDate === "string" && body.lastTravelDate
         ? body.lastTravelDate
         : null,
+      number_of_trips: Math.max(0, Math.floor(Number(body.numberOfTrips) || 0)),
+      lifetime_value: Math.max(0, Number(body.lifetimeValue) || 0),
     }, { onConflict: "briitely_contact_id" })
     .select("travel_interests, travel_seasons, last_travel_destination, last_travel_date, number_of_trips, lifetime_value")
     .single();
