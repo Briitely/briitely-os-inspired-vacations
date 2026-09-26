@@ -17,6 +17,7 @@ const STAGE_LABELS: Record<TravelStage, string> = {
   paid_in_full: "Paid in Full",
   docs_sent: "Docs Sent",
   travelling: "Travelling",
+  post_trip: "Post-Trip",
   travel_complete: "Travel Complete",
   lost_not_qualified: "Lost / Not Qualified",
 };
