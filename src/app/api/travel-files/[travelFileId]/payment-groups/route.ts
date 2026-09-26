@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getContact } from "@/lib/briitely/contacts";
 import { assignUnassignedPaymentsToPrimaryGroup } from "@/lib/travel/payment-groups";
+import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
 
 async function context() {
   const { user } = await getAuthenticatedUser();
@@ -80,5 +81,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ tr
   if(error||!group)return NextResponse.json({error:error?.message??"Could not update booking group."},{status:500});
   const {error:deleteError}=await ctx.db.from("travel_payment_group_travellers").delete().eq("payment_group_id",groupId);if(deleteError)return NextResponse.json({error:deleteError.message},{status:500});
   const {error:linkError}=await ctx.db.from("travel_payment_group_travellers").insert(travellerIds.map(id=>({payment_group_id:groupId,travel_file_traveller_id:id})));if(linkError)return NextResponse.json({error:linkError.message},{status:500});
+  const {data:paymentDates}=await ctx.db.from("travel_payments").select("due_date").eq("travel_file_id",travelFileId).eq("payment_group_id",groupId).not("due_date","is",null);for(const dueDate of Array.from(new Set((paymentDates??[]).map((row:any)=>row.due_date).filter(Boolean))))await syncPaymentBatchTask(ctx.db,travelFileId,dueDate as string);
   return NextResponse.json({group:{id:group.id,label:group.label??"",travellerIds,paymentEmailRecipientTravellerId:group.payment_email_recipient_traveller_id??""}});
 }
