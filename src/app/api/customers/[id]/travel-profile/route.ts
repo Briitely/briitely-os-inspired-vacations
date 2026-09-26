@@ -23,7 +23,7 @@ export async function GET(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("client_travel_profiles")
-    .select("travel_interests, travel_seasons, last_travel_destination, last_travel_date")
+    .select("travel_interests, travel_seasons, last_travel_destination, last_travel_date, number_of_trips, lifetime_value")
     .eq("briitely_contact_id", id)
     .maybeSingle();
 
@@ -35,6 +35,8 @@ export async function GET(
       travel_seasons: [],
       last_travel_destination: null,
       last_travel_date: null,
+      number_of_trips: 0,
+      lifetime_value: 0,
     },
   });
 }
@@ -79,7 +81,7 @@ export async function PUT(
         ? body.lastTravelDate
         : null,
     }, { onConflict: "briitely_contact_id" })
-    .select("travel_interests, travel_seasons, last_travel_destination, last_travel_date")
+    .select("travel_interests, travel_seasons, last_travel_destination, last_travel_date, number_of_trips, lifetime_value")
     .single();
 
   if (error || !data) {
