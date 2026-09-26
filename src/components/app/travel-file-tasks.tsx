@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
+import { PaymentEditorModal } from "@/components/app/payment-editor-modal";
 
 type Profile = { id: string; full_name: string };
 type Task = {
@@ -78,6 +79,7 @@ export function TravelFileTasks({
   const [due, setDue] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
 
   async function load() {
     setLoading(true);
@@ -387,11 +389,11 @@ export function TravelFileTasks({
                             const paid = payment.status === "paid";
                             const autoCharge = payment.processing_method === "supplier_auto";
                             return (
-                              <div key={payment.id} className={`grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-[auto_minmax(0,1fr)_120px] sm:items-center ${paid ? "opacity-60" : ""}`}>
+                              <div key={payment.id} role="button" tabIndex={0} onClick={() => { if (canEdit && !saving) setEditingPayment(payment); }} onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && canEdit && !saving) { event.preventDefault(); setEditingPayment(payment); } }} className={`grid cursor-pointer gap-3 rounded-md border bg-background p-3 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1fr)_120px] sm:items-center ${paid ? "opacity-60" : ""}`}>
                                 <button
                                   type="button"
                                   disabled={!canEdit || saving}
-                                  onClick={() => paid ? void reactivatePayment(payment) : void markPaymentPaid(payment)}
+                                  onClick={(event) => { event.stopPropagation(); paid ? void reactivatePayment(payment) : void markPaymentPaid(payment); }}
                                   className={`flex h-5 w-5 items-center justify-center rounded border ${paid ? "bg-muted" : ""}`}
                                   aria-label={paid ? "Reactivate payment" : "Mark payment paid"}
                                 >
@@ -451,6 +453,7 @@ export function TravelFileTasks({
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
+        <PaymentEditorModal travelFileId={travelFileId} payment={editingPayment} isOpen={Boolean(editingPayment)} onClose={() => setEditingPayment(null)} onSaved={async () => { setEditingPayment(null); await load(); router.refresh(); }} />
       </CardContent>
     </Card>
   );
