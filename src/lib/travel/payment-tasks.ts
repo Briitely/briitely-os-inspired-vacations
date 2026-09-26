@@ -119,14 +119,18 @@ export async function syncPaymentBatchTask(
       ...lines,
     ].join("\n");
 
-    const { data: existing } = await db
+    const { data: matchingTasks } = await db
       .from("travel_file_tasks")
-      .select("id,status")
+      .select("id,status,created_at")
       .eq("travel_file_id", travelFileId)
       .eq("title", title)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
+    const existing = matchingTasks?.[0] ?? null;
+    const duplicateIds = (matchingTasks ?? []).slice(1).filter((task: any) => task.status !== "complete").map((task: any) => task.id);
+    if (duplicateIds.length) {
+      const { error: duplicateError } = await db.from("travel_file_tasks").delete().in("id", duplicateIds);
+      if (duplicateError) console.error("PAYMENT_DUPLICATE_TASK_DELETE_FAILED", duplicateError);
+    }
 
     if (existing) {
       const update: Record<string, unknown> = { notes, assigned_to: assignedTo, due_date: dueDate, updated_at: now };
