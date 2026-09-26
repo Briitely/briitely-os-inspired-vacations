@@ -26,6 +26,7 @@ import { RetainerConfirmationModal } from "@/components/app/retainer-confirmatio
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
 import { InvoicingItineraryButton } from "@/components/app/invoicing-itinerary-button";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
+import { CloseTravelFileButton } from "@/components/app/close-travel-file-button";
 
 type ResendDetails = {
   clientName: string;
@@ -94,6 +95,7 @@ export function CurrentActionControl(props: Props) {
   const showNegotiating = isActive && props.currentActionCode === "negotiate_proposal";
   const showResendForms = isActive && props.currentActionCode === "await_tmf_and_booking_form";
   const showInvoicingItinerary = isActive && props.currentActionCode === "invoicing_itinerary";
+  const showPostTripClose = isActive && props.currentActionCode === "post_trip_close_file";
 
   useEffect(() => {
     if (!showResendForms) {
@@ -163,6 +165,8 @@ export function CurrentActionControl(props: Props) {
     </Button>
   ) : showInvoicingItinerary ? (
     <InvoicingItineraryButton travelFileId={props.travelFileId} />
+  ) : showPostTripClose ? (
+    <CloseTravelFileButton travelFileId={props.travelFileId} />
   ) : showResendForms && resendDetails ? (
     <Button size="sm" onClick={() => setResendFormsOpen(true)}>
       <RefreshCw className="h-4 w-4" />
