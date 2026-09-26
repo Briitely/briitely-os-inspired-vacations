@@ -15,7 +15,7 @@ export async function GET(request:Request){
  for(const file of files??[]){
   try{
    const{data:current}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle():{data:null};
-   if(current?.action_code==="post_trip_close_file"&&file.client_rollup_recorded_at){results.push({travelFileId:file.id,status:"already_post_trip"});continue}
+   if(!current||!["waiting_for_travel","pre_trip_actions","post_trip_close_file"].includes(current.action_code)){results.push({travelFileId:file.id,status:"not_ready_for_return_processing"});continue}if(current.action_code==="post_trip_close_file"&&file.client_rollup_recorded_at){results.push({travelFileId:file.id,status:"already_post_trip"});continue}
 
    if(!file.client_rollup_recorded_at){
     const{data:members,error:memberError}=await db.from("travel_file_travellers").select("id,traveller_profiles:traveller_profile_id(briitely_contact_id)").eq("travel_file_id",file.id);
