@@ -10,7 +10,7 @@ export async function GET() {
     .from("profiles")
     .select("id, full_name, ghl_user_id")
     .eq("is_active", true)
-    .in("role", ["staff", "admin", "super_admin"])
+    .in("role", ["staff", "admin"])
     .order("full_name", { ascending: true });
   if (error) return NextResponse.json({ error: "Failed to load advisors." }, { status: 500 });
   return NextResponse.json({ advisors: data ?? [] });
