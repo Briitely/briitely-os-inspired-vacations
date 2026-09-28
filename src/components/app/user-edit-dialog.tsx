@@ -115,8 +115,6 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
                 </div>
               )}
 
-                </div>
-              )}
 
               {profile.canToggleActive && (
                 <div className="space-y-2">
