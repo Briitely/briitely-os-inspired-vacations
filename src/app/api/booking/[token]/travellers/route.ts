@@ -6,7 +6,6 @@ const PERMANENT_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child
 const VALID_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child", "parent", "other_family", "travel_companion"]);
 const DUPLICATE_REVIEW_CODE = "check_client_added_traveller_duplicates";
 const DUPLICATE_REVIEW_TITLE = "Check for duplicate traveller files";
-const DUPLICATE_REVIEW_NOTES = "Client added a traveller from the booking form. Search for an existing client or traveller profile and connect the records if a match exists.";
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -14,17 +13,6 @@ function text(value: unknown) {
 
 function profileOf(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
-}
-
-function addBusinessDays(start: Date, days: number) {
-  const date = new Date(start);
-  let added = 0;
-  while (added < days) {
-    date.setUTCDate(date.getUTCDate() + 1);
-    const day = date.getUTCDay();
-    if (day !== 0 && day !== 6) added += 1;
-  }
-  return date.toISOString().slice(0, 10);
 }
 
 async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string) {
@@ -40,41 +28,12 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       return;
     }
 
-    const { data: existingTask, error: taskLookupError } = await db
-      .from("travel_file_tasks")
-      .select("id,status,assigned_to,due_date")
+    // Duplicate review is a blocking workflow requirement, not a general Travel File task.
+    // Remove any legacy duplicate task left by the previous implementation.
+    await db.from("travel_file_tasks").delete()
       .eq("travel_file_id", travelFileId)
       .eq("title", DUPLICATE_REVIEW_TITLE)
-      .neq("status", "complete")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (taskLookupError) console.error("CLIENT_ADDED_TRAVELLER_TASK_LOOKUP_FAILED", taskLookupError);
-
-    const dueDate = addBusinessDays(new Date(), 2);
-    if (existingTask) {
-      const updates: Record<string, unknown> = {};
-      if (existingTask.assigned_to !== (file.assigned_advisor_id ?? null)) updates.assigned_to = file.assigned_advisor_id ?? null;
-      if (!existingTask.due_date) updates.due_date = dueDate;
-      if (Object.keys(updates).length) {
-        updates.updated_at = new Date().toISOString();
-        const { error: updateError } = await db.from("travel_file_tasks").update(updates).eq("id", existingTask.id);
-        if (updateError) console.error("CLIENT_ADDED_TRAVELLER_TASK_UPDATE_FAILED", updateError);
-      }
-    } else {
-      const { error: taskError } = await db.from("travel_file_tasks").insert({
-        travel_file_id: travelFileId,
-        title: DUPLICATE_REVIEW_TITLE,
-        notes: DUPLICATE_REVIEW_NOTES,
-        assigned_to: file.assigned_advisor_id ?? null,
-        due_date: dueDate,
-        status: "todo",
-        task_context: "travel_file",
-        created_by: null,
-      });
-      if (taskError) console.error("CLIENT_ADDED_TRAVELLER_MASTER_TASK_FAILED", taskError);
-    }
+      .neq("status", "complete");
 
     if (!file.current_action_id) return;
 
