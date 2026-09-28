@@ -40,7 +40,6 @@ export function UsersTable({ profiles, isSuperAdmin }: UsersTableProps) {
                   <th className="text-left text-sm font-medium text-muted-foreground pb-3 pr-4">Name</th>
                   <th className="text-left text-sm font-medium text-muted-foreground pb-3 pr-4 hidden sm:table-cell">Email</th>
                   <th className="text-left text-sm font-medium text-muted-foreground pb-3 pr-4">Role</th>
-                  <th className="text-left text-sm font-medium text-muted-foreground pb-3 pr-4 hidden md:table-cell">Briitely User</th>
                   <th className="text-left text-sm font-medium text-muted-foreground pb-3 pr-4">Status</th>
                   <th className="text-right text-sm font-medium text-muted-foreground pb-3">Actions</th>
                 </tr>
@@ -61,7 +60,6 @@ export function UsersTable({ profiles, isSuperAdmin }: UsersTableProps) {
                         {roleLabel(p.role)}
                       </Badge>
                     </td>
-                    <td className="py-3 pr-4 text-sm text-muted-foreground hidden md:table-cell">{p.ghlLabel}</td>
                     <td className="py-3 pr-4">
                       <Badge variant={p.isActive ? "secondary" : "destructive"} className="text-xs">
                         {p.isActive ? "Active" : "Inactive"}
@@ -80,7 +78,7 @@ export function UsersTable({ profiles, isSuperAdmin }: UsersTableProps) {
                 ))}
                 {profiles.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                       No users found.
                     </td>
                   </tr>
