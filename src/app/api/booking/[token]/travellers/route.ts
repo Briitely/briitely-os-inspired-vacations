@@ -45,9 +45,12 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
 
     if (action?.action_code !== "await_tmf_and_booking_form" || action?.status !== "active") return;
 
-    const { data: dana } = await db.from("profiles").select("id").ilike("full_name","Dana%").eq("is_active",true).limit(1).maybeSingle();
-    const danaId = dana?.id || process.env.DEFAULT_TMF_OWNER_PROFILE_ID || null;
-    if (danaId) await db.from("travel_actions").update({ responsible_type: "internal", responsible_user_id: danaId }).eq("id", action.id);
+    const { data: dana } = await db.from("profiles").select("id").eq("is_active",true).ilike("full_name","Dana Pasquotti").maybeSingle();
+    if (!dana?.id) console.error("DANA_PROFILE_NOT_FOUND");
+    else {
+      const { error: assignError } = await db.from("travel_actions").update({ responsible_type: "internal", responsible_user_id: dana.id }).eq("id", action.id);
+      if (assignError) console.error("DANA_ACTION_ASSIGNMENT_FAILED", assignError);
+    }
 
     const { data: existingRequirement } = await db
       .from("travel_action_requirements")
