@@ -136,12 +136,13 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
   const additionalRecipients = recipients.filter((recipient) => !recipient.isPrimary);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-lg bg-background shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center">
+      <div className="my-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-background shadow-xl">
         <div className="flex items-center border-b px-6 py-5">
           <h2 className="text-lg font-semibold">Send Proposal</h2>
           <button type="button" className="ml-auto" onClick={onClose}><X className="h-5 w-5" /></button>
         </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
         {!prepared ? (
           <form onSubmit={prepare}>
             <div className="space-y-5 p-6">
@@ -185,6 +186,7 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
