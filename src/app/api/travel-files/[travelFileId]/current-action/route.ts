@@ -8,8 +8,12 @@ export async function GET(_request:Request,{params}:{params:Promise<{travelFileI
  const {travelFileId}=await params;const supabase=await createClient();
  const {data:file}=await supabase.from("travel_files").select("current_action_id,briitely_contact_id,client_name,destination,tmf_amount,revisions_included,assigned_advisor:profiles!assigned_advisor_id(full_name)").eq("id",travelFileId).maybeSingle();
  if(!file?.current_action_id)return NextResponse.json({action:null});
- const {data:action,error}=await supabase.from("travel_actions").select("id,due_at,notes").eq("id",file.current_action_id).maybeSingle();
+ const {data:action,error}=await supabase.from("travel_actions").select("id,due_at,notes,action_code").eq("id",file.current_action_id).maybeSingle();
  if(error)return NextResponse.json({error:"Could not load current action."},{status:500});
+ if(action?.action_code==="await_tmf_and_booking_form"){
+  const{data:req}=await supabase.from("travel_action_requirements").select("id").eq("travel_action_id",file.current_action_id).eq("requirement_code","check_client_added_traveller_duplicates").maybeSingle();
+  if(req)await supabase.from("travel_file_tasks").delete().eq("travel_file_id",travelFileId).eq("title","Check for duplicate traveller files").neq("status","complete");
+ }
  let email="",phone="";
  if(file.briitely_contact_id){try{const contact=await getContact(file.briitely_contact_id);email=contact.email;phone=contact.phone}catch{}}
  const advisor=Array.isArray(file.assigned_advisor)?file.assigned_advisor[0]:file.assigned_advisor;

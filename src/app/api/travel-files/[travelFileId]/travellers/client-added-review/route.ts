@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
-const DUPLICATE_REVIEW_TITLE = "Check for duplicate traveller files";
+const DUPLICATE_REVIEW_CODE = "check_client_added_traveller_duplicates";
 const ADDED_EVENT = "client_added_traveller";
 const REVIEWED_EVENT = "client_added_traveller_reviewed";
 
@@ -50,34 +50,29 @@ async function getReviewState(s: any, travelFileId: string) {
   return { added, reviewed };
 }
 
-async function syncMasterTask(s: any, travelFileId: string, remainingCount: number, userId: string) {
-  const { data: task, error } = await s
-    .from("travel_file_tasks")
+async function syncWorkflowRequirement(s: any, travelFileId: string, remainingCount: number, userId: string) {
+  const { data: file, error: fileError } = await s.from("travel_files").select("current_action_id").eq("id", travelFileId).maybeSingle();
+  if (fileError) throw new Error(fileError.message);
+  if (!file?.current_action_id) return;
+
+  const { data: requirement, error } = await s.from("travel_action_requirements")
     .select("id,status")
-    .eq("travel_file_id", travelFileId)
-    .eq("title", DUPLICATE_REVIEW_TITLE)
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("travel_action_id", file.current_action_id)
+    .eq("requirement_code", DUPLICATE_REVIEW_CODE)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!task) return;
+  if (!requirement) return;
 
   const now = new Date().toISOString();
-  if (remainingCount === 0 && task.status !== "complete") {
-    const { error: completeError } = await s.from("travel_file_tasks").update({
-      status: "complete",
-      completed_at: now,
-      completed_by: userId,
-      updated_at: now,
-    }).eq("id", task.id);
+  if (remainingCount === 0 && requirement.status !== "complete") {
+    const { error: completeError } = await s.from("travel_action_requirements").update({
+      status: "complete", completed_at: now, completed_by: userId,
+    }).eq("id", requirement.id);
     if (completeError) throw new Error(completeError.message);
-  } else if (remainingCount > 0 && task.status === "complete") {
-    const { error: reopenError } = await s.from("travel_file_tasks").update({
-      status: "todo",
-      completed_at: null,
-      completed_by: null,
-      updated_at: now,
-    }).eq("id", task.id);
+  } else if (remainingCount > 0 && requirement.status === "complete") {
+    const { error: reopenError } = await s.from("travel_action_requirements").update({
+      status: "pending", completed_at: null, completed_by: null,
+    }).eq("id", requirement.id);
     if (reopenError) throw new Error(reopenError.message);
   }
 }
@@ -102,33 +97,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
       return NextResponse.json({ travellers });
     }
 
-    // Backward-compatible recovery for client-added travellers created before the
-    // explicit activity events existed. Only use the shared task for these records.
-    const { data: openTask, error: taskError } = await s
-      .from("travel_file_tasks")
-      .select("id,created_at")
-      .eq("travel_file_id", travelFileId)
-      .eq("title", DUPLICATE_REVIEW_TITLE)
-      .neq("status", "complete")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (taskError) throw new Error(taskError.message);
-    if (!openTask) return NextResponse.json({ travellers: [] });
-
-    const taskCreated = new Date(openTask.created_at).getTime();
-    const recoveryWindowMs = 15 * 60 * 1000;
-    const recoveryCandidates = members
-      .filter((member: any) => member.traveller_role !== "primary")
-      .map((member: any) => ({ member, created: new Date(member.created_at).getTime() }))
-      .filter(({ created }: any) => Number.isFinite(created) && created <= taskCreated && taskCreated - created <= recoveryWindowMs)
-      .sort((a: any, b: any) => b.created - a.created);
-
-    if (recoveryCandidates.length) {
-      const traveller = displayTraveller(recoveryCandidates[0].member);
-      if (traveller) return NextResponse.json({ travellers: [traveller] });
-    }
-
+    // Older records without explicit client-added activity cannot be safely inferred
+    // from a general task. New client-added travellers always carry explicit activity.
     return NextResponse.json({ travellers: [] });
   } catch (error) {
     console.error("CLIENT_ADDED_TRAVELLER_REVIEW_LOOKUP_FAILED", error);
@@ -172,7 +142,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ travelF
     const currentMembers = await getMembers(s, travelFileId);
     const currentIds = new Set(currentMembers.map((member: any) => member.id));
     const remainingIds = Array.from(added).filter(id => currentIds.has(id) && !reviewed.has(id));
-    await syncMasterTask(s, travelFileId, remainingIds.length, user.id);
+    await syncWorkflowRequirement(s, travelFileId, remainingIds.length, user.id);
 
     return NextResponse.json({ reviewed: true, remaining: remainingIds.length });
   } catch (error) {
