@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
-interface Body { advisorId?: string; dueDate?: string }
+interface Body { advisorId?: string; dueDate?: string; insuranceAdvisorId?: string|null; insuranceDueDate?: string|null }
 
 export async function POST(request:Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
@@ -16,7 +16,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
 
   const supabase=await createClient();
   const{data:file,error:fileError}=await supabase.from("travel_files")
-    .select("id,stage,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)")
+    .select("id,stage,insurance_interest,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)")
     .eq("id",travelFileId).maybeSingle();
   if(fileError||!file)return NextResponse.json({error:"Travel File not found."},{status:404});
   const action=Array.isArray(file.current_action)?file.current_action[0]:file.current_action;
@@ -25,6 +25,8 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
   const{data:advisor}=await supabase.from("profiles").select("id,full_name,is_active").eq("id",body.advisorId).maybeSingle();
   if(!advisor?.is_active)return NextResponse.json({error:"Select an active advisor."},{status:400});
 
+  const needsInsurance=Boolean(file.insurance_interest&&!String(file.insurance_interest).toLowerCase().includes("decline all travel insurance"));
+  if(needsInsurance&&(!body.insuranceAdvisorId||!body.insuranceDueDate))return NextResponse.json({error:"Insurance advisor and due date are required."},{status:400});
   const now=new Date().toISOString();
   const dueAt=`${body.dueDate}T23:59:59`;
   const{data:next,error:nextError}=await supabase.from("travel_actions").insert({
@@ -53,6 +55,11 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
   if(updateError||!updated){await supabase.from("travel_actions").delete().eq("id",next.id);return NextResponse.json({error:"Could not assign the proposal."},{status:500});}
 
   await supabase.from("travel_actions").update({status:"completed",completed_at:now,completed_by:user.id,completion_source:"portal",completion_event:"proposal_assigned"}).eq("id",action.id);
+  if(needsInsurance&&body.insuranceAdvisorId&&body.insuranceDueDate){
+    const{data:insuranceAdvisor}=await supabase.from("profiles").select("id,full_name,is_active").eq("id",body.insuranceAdvisorId).maybeSingle();
+    if(!insuranceAdvisor?.is_active)return NextResponse.json({error:"Select an active insurance advisor."},{status:400});
+    await supabase.from("travel_file_tasks").insert({travel_file_id:travelFileId,title:"Review insurance quotes requested",notes:`Client asked for: ${file.insurance_interest}`,assigned_to:body.insuranceAdvisorId,due_date:body.insuranceDueDate,created_by:user.id});
+  }
   await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"proposal_assigned",summary:`Proposal assigned to ${advisor.full_name} for review by ${body.dueDate}.`,actor_type:"internal",actor_user_id:user.id,action_id:action.id,previous_stage:file.stage,new_stage:"planning_proposal",metadata:{advisor_id:body.advisorId,proposal_due_date:body.dueDate}});
 
   return NextResponse.json({success:true,nextActionId:next.id});
