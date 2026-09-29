@@ -1,7 +1,7 @@
 "use client";
 import{useEffect,useState}from"react";import{Loader2,X}from"lucide-react";import{Button}from"@/components/core/ui/button";
 type EmailPlan={email_code:string;email_name:string;enabled:boolean;scheduled_date:string|null;timing_note:string;sequence_order:number;sent_at:string|null;past_due?:boolean};
-export function PreTripEmailConfigModal({travelFileId,isOpen,onClose}:{travelFileId:string;isOpen:boolean;onClose:()=>void}){
+export function PreTripEmailConfigModal({travelFileId,isOpen,onClose,onSaved}:{travelFileId:string;isOpen:boolean;onClose:()=>void;onSaved?:()=>void}){
 const[emails,setEmails]=useState<EmailPlan[]>([]),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[sending,setSending]=useState<string|null>(null),[notice,setNotice]=useState<string|null>(null),[error,setError]=useState<string|null>(null);
 useEffect(()=>{if(!isOpen)return;setLoading(true);setError(null);fetch(`/api/travel-files/${travelFileId}/pretrip-email-plan`,{cache:"no-store"}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error??"Could not load pre-trip emails.");setEmails(d.emails??[])}).catch(e=>setError(e instanceof Error?e.message:"Could not load pre-trip emails.")).finally(()=>setLoading(false))},[isOpen,travelFileId]);
 if(!isOpen)return null;
@@ -22,6 +22,7 @@ async function confirm(){
    if(!sr.ok)throw new Error(`Schedule saved, but ${e.email_name} could not be sent: ${sj.error??"Unknown error."}`);
    sent++;
   }
+  onSaved?.();
   if(sent){setNotice(`Email schedule saved. ${sent} past-due email${sent===1?" was":"s were"} sent immediately.`);const q=await fetch(`/api/travel-files/${travelFileId}/pretrip-email-plan`,{cache:"no-store"}),j=await q.json();if(q.ok)setEmails(j.emails??[]);setTimeout(onClose,1400)}
   else{setNotice(`Email schedule saved and synced to Briitely for ${sd.recipientCount} recipient${sd.recipientCount===1?"":"s"}.`);setTimeout(onClose,900)}
  }catch(e){setError(e instanceof Error?e.message:"Could not save and sync pre-trip email plan.")}finally{setSaving(false)}
