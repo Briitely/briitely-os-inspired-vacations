@@ -118,9 +118,9 @@ export function CurrentActionTasks({
             <div className="space-y-2">
               {tasks.map((task) => (
                 <label key={task.id} className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2">
-                  <input type="checkbox" className="mt-1" checked={task.status === "complete"} disabled={saving} onChange={() => void toggle(task)} />
+                  <input type="checkbox" className="mt-1" checked={task.status === "complete"} onChange={() => void toggle(task)} disabled={saving || task.requirement_label === "Review booking form changes"} />
                   <span className="min-w-0">
-                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>
+                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>{task.requirement_label === "Review booking form changes" && task.status !== "complete" && <span className="block text-xs text-muted-foreground">Open View Forms and mark each changed submission reviewed.</span>}
                     {task.status === "complete" && (
                       <span className="block text-xs text-muted-foreground">
                         Completed{task.completed_by_profile?.full_name ? ` by ${task.completed_by_profile.full_name}` : ""}{task.completed_at ? ` · ${new Date(task.completed_at).toLocaleString()}` : ""}
