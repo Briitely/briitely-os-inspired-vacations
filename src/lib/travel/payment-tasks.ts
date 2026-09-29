@@ -53,7 +53,7 @@ export async function syncPaymentBatchTask(
   const [{ data: rows, error: rowsError }, { data: file }, { data: dana }] = await Promise.all([
     db
       .from("travel_payments")
-      .select("payment_group_id,description,amount,currency,status,details,external_reference")
+      .select("id,payment_group_id,description,amount,currency,status,details,external_reference")
       .eq("travel_file_id", travelFileId)
       .eq("due_date", dueDate),
     db.from("travel_files").select("assigned_advisor_id").eq("id", travelFileId).maybeSingle(),
@@ -71,10 +71,13 @@ export async function syncPaymentBatchTask(
     : { data: [] };
   const groupLabels = new Map((groups ?? []).map((group: any) => [group.id, clean(group.label) ?? "Booking Group"]));
 
-  const upcoming = (rows ?? []).filter((row: any) => row.status !== "paid" && row.status !== "cancelled");
+  const activeRows = (rows ?? []).filter((row: any) => row.status !== "cancelled");
+  const upcoming = activeRows.filter((row: any) => row.status !== "paid");
+  const groupsWithUpcoming = new Set(upcoming.map((row: any) => row.payment_group_id ?? "__ungrouped__"));
   const byGroup = new Map<string, any[]>();
-  for (const row of upcoming) {
+  for (const row of activeRows) {
     const key = row.payment_group_id ?? "__ungrouped__";
+    if (!groupsWithUpcoming.has(key)) continue;
     byGroup.set(key, [...(byGroup.get(key) ?? []), row]);
   }
 
@@ -96,11 +99,12 @@ export async function syncPaymentBatchTask(
     const totals = new Map<string, number>();
     const lines = groupRows.map((row: any) => {
       const details = parseDetails(row.details);
-      if (row.amount != null) {
+      const isPaid = row.status === "paid";
+      if (!isPaid && row.amount != null) {
         const currency = row.currency || "CAD";
         totals.set(currency, (totals.get(currency) ?? 0) + Number(row.amount));
       }
-      const action = details.processingMethod === "supplier_auto" ? "VERIFY supplier charge" : "PROCESS payment";
+      const action = isPaid ? "PAID" : details.processingMethod === "supplier_auto" ? "VERIFY supplier charge" : "PROCESS payment";
       const supplier = details.supplier ? ` — ${details.supplier}` : "";
       const confirmation = row.external_reference ? ` #${row.external_reference}` : "";
       const card = details.cardLastFour ? ` — card •••• ${details.cardLastFour}` : "";
