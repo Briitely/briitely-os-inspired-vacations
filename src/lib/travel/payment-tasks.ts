@@ -161,17 +161,23 @@ export async function syncPaymentBatchTask(
 
   }
 
-  // Remove obsolete, still-open automated tasks for this date (including the older ungrouped format).
+  // Remove obsolete, still-open automated tasks for this date.
+  // Fetch by travel file/date instead of relying on PostgREST title patterns so stale
+  // "No Booking Group" tasks are reliably removed when no ungrouped payments remain.
   const { data: dateTasks } = await db
     .from("travel_file_tasks")
-    .select("id,title,status")
+    .select("id,title,status,due_date")
     .eq("travel_file_id", travelFileId)
-    .or(`title.eq.${PAYMENT_TASK_PREFIX}${dateLabel},title.like.${PAYMENT_TASK_PREFIX}${dateLabel} — %,title.like.Send payment reminder — %due on ${dateLabel}`);
+    .eq("due_date", dueDate);
 
   for (const task of dateTasks ?? []) {
     if (task.status === "complete") continue;
-    const isPaymentTask = task.title.startsWith(PAYMENT_TASK_PREFIX);
-    const keep = isPaymentTask && expectedTitles.has(task.title);
+    const isPaymentTask =
+      task.title === `${PAYMENT_TASK_PREFIX}${dateLabel}` ||
+      task.title.startsWith(`${PAYMENT_TASK_PREFIX}${dateLabel} — `) ||
+      (task.title.startsWith("Send payment reminder — ") && task.title.includes(`due on ${dateLabel}`));
+    if (!isPaymentTask) continue;
+    const keep = task.title.startsWith(PAYMENT_TASK_PREFIX) && expectedTitles.has(task.title);
     if (!keep) {
       const { error } = await db.from("travel_file_tasks").delete().eq("id", task.id);
       if (error) console.error("PAYMENT_OBSOLETE_TASK_DELETE_FAILED", error);
