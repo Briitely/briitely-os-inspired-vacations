@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
@@ -11,6 +11,8 @@ export function InvoicingItineraryButton({ travelFileId }: { travelFileId: strin
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailScheduleConfigured, setEmailScheduleConfigured] = useState(false);
+  useEffect(() => { fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/pretrip-email-plan`, { cache: "no-store" }).then(r => r.json()).then(d => setEmailScheduleConfigured(Boolean(d.configured))).catch(() => {}); }, [travelFileId]);
 
   async function complete() {
     setSaving(true);
@@ -43,10 +45,10 @@ export function InvoicingItineraryButton({ travelFileId }: { travelFileId: strin
       </Button>
       <Button size="sm" variant="outline" className="w-full" onClick={() => setModalOpen(true)} disabled={saving}>
         <Mail className="h-4 w-4" />
-        Configure Email Schedule
+        {emailScheduleConfigured ? "Update Email Schedule" : "Configure Email Schedule"}
       </Button>
       {error && <p className="max-w-sm text-xs text-destructive">{error}</p>}
-      <PreTripEmailConfigModal travelFileId={travelFileId} isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      <PreTripEmailConfigModal travelFileId={travelFileId} isOpen={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => { setEmailScheduleConfigured(true); setModalOpen(false); router.refresh(); }} />
     </div>
   );
 }

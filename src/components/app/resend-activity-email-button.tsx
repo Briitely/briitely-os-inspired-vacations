@@ -1,0 +1,8 @@
+"use client";
+import{useState}from"react";import{useRouter}from"next/navigation";import{RefreshCw,Loader2}from"lucide-react";import{Button}from"@/components/core/ui/button";
+export function ResendActivityEmailButton({travelFileId,emailCode,emailName}:{travelFileId:string;emailCode:string;emailName:string}){
+ const router=useRouter();
+ const[sending,setSending]=useState(false),[sent,setSent]=useState(false),[error,setError]=useState<string|null>(null);
+ async function resend(){if(!window.confirm(`Resend the ${emailName} email now to the current trip communication recipients?`))return;setSending(true);setError(null);try{const r=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/pretrip-email-plan/send-now`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email_code:emailCode})}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error??"Could not resend email.");setSent(true);router.refresh()}catch(e){setError(e instanceof Error?e.message:"Could not resend email.")}finally{setSending(false)}}
+ return <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={()=>void resend()} disabled={sending}>{sending?<Loader2 className="h-3.5 w-3.5 animate-spin"/>:<RefreshCw className="h-3.5 w-3.5"/>}{sent?"Resent":"Resend Email"}</Button>{error&&<span className="text-xs text-destructive">{error}</span>}</div>
+}

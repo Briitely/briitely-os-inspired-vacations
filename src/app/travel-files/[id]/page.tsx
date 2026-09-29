@@ -43,6 +43,6 @@ return <div className="min-h-screen"><DashboardHeaderWrapper fullName={user.full
 <InquiryDetailsSection file={file} edit={edit}/>
 <ConsultationHistorySection consultations={consultations}/>
 <ActionHistorySection actions={sortedActions} profileMap={profileMap}/>
-<ActivityHistorySection activity={activity}/>
+<ActivityHistorySection activity={activity} travelFileId={file.id}/>
 </main><SharedFooter maxWidth="max-w-6xl" label="Travel File"/></div>
 }

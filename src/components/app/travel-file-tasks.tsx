@@ -30,6 +30,8 @@ type Task = {
 
 type Payment = {
   id: string;
+  payment_group_id?: string | null;
+  payment_group?: { id: string; label?: string | null } | null;
   payment_type: string;
   description: string | null;
   supplier?: string | null;
@@ -229,7 +231,8 @@ export function TravelFileTasks({
 
   async function reactivatePaymentBatch(task: Task) {
     if (!canEdit || saving || !task.due_date) return;
-    const batch = payments.filter((payment) => payment.due_date === task.due_date && payment.status === "paid");
+    const taskGroupLabel = task.title.split(" — ").slice(2).join(" — ");
+    const batch = payments.filter((payment) => payment.due_date === task.due_date && payment.status === "paid" && (taskGroupLabel === "No Booking Group" ? !payment.payment_group_id : Boolean(payment.payment_group_id) && (payment.payment_group?.label ?? "Booking Group") === taskGroupLabel));
     if (!batch.length) {
       await patch(task.id, { status: "todo" });
       return;
@@ -317,8 +320,13 @@ export function TravelFileTasks({
           <div className="space-y-2">
             {open.map((task) => {
               const paymentBatch = isPaymentBatchTask(task);
+              const taskGroupLabel = paymentBatch ? task.title.split(" — ").slice(2).join(" — ") : "";
               const batchPayments = paymentBatch
-                ? payments.filter((payment) => payment.due_date === task.due_date)
+                ? payments.filter((payment) => {
+                    if (payment.due_date !== task.due_date) return false;
+                    if (taskGroupLabel === "No Booking Group") return !payment.payment_group_id;
+                    return Boolean(payment.payment_group_id) && (payment.payment_group?.label ?? "Booking Group") === taskGroupLabel;
+                  })
                 : [];
               const pendingPayments = batchPayments.filter((payment) => payment.status !== "paid");
               const isExpanded = expanded[task.id] ?? false;

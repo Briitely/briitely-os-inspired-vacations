@@ -5,8 +5,9 @@ import {
   TravelFileAside as Aside,
   TravelFilePanel as Panel,
 } from "@/components/app/travel-file-display";
-import { formatReadableDate } from "@/lib/travel/format";
+import { formatReadableDate, formatReadableDateTime } from "@/lib/travel/format";
 import type { TravelAction, TravelActivity, TravelConsultation } from "@/lib/travel/types";
+import { ResendActivityEmailButton } from "@/components/app/resend-activity-email-button";
 
 type ConsultationWithProfiles = TravelConsultation & {
   conducted_by_profile: { id: string; full_name: string } | null;
@@ -25,6 +26,36 @@ export function ActionHistorySection({ actions, profileMap }: { actions: TravelA
   return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="History" title="Actions" text="Workflow actions completed or waiting on this file."/><div>{actions.length === 0 ? <p className="text-sm italic text-muted-foreground">No actions recorded.</p> : <div className="divide-y">{actions.slice(0, 4).map(a => <ActionHistoryItem key={a.id} action={a} profileMap={profileMap}/>)}{actions.length > 4 && <details><summary className="cursor-pointer py-3 text-sm font-medium text-primary">See more actions ({actions.length - 4})</summary><div className="divide-y border-t">{actions.slice(4).map(a => <ActionHistoryItem key={a.id} action={a} profileMap={profileMap}/>)}</div></details>}</div>}</div></div></Panel>;
 }
 
-export function ActivityHistorySection({ activity }: { activity: ActivityWithActor[] }) {
-  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="History" title="Activity" text="Chronological audit trail for this travel file."/><div>{activity.length === 0 ? <p className="text-sm italic text-muted-foreground">No activity recorded.</p> : <div className="divide-y">{activity.slice(0, 4).map(a => <ActivityHistoryItem key={a.id} activity={a}/>)}{activity.length > 4 && <details><summary className="cursor-pointer py-3 text-sm font-medium text-primary">See more activity ({activity.length - 4})</summary><div className="divide-y border-t">{activity.slice(4).map(a => <ActivityHistoryItem key={a.id} activity={a}/>)}</div></details>}</div>}</div></div></Panel>;
+export function ActivityHistorySection({ activity, travelFileId }: { activity: ActivityWithActor[]; travelFileId: string }) {
+  const latestResendByCode = new Map<string, ActivityWithActor>();
+  for (const item of activity) {
+    if (item.event_type !== "scheduled_trip_email_resent") continue;
+    const code = typeof item.metadata?.email_code === "string" ? item.metadata.email_code : null;
+    if (!code || latestResendByCode.has(code)) continue;
+    latestResendByCode.set(code, item);
+  }
+
+  const renderItem = (a: ActivityWithActor) => {
+    const code = typeof a.metadata?.email_code === "string" ? a.metadata.email_code : null;
+    const isEmail = a.event_type === "scheduled_trip_email_sent" || a.event_type === "scheduled_trip_email_resent";
+    if (!isEmail || !code) return <ActivityHistoryItem key={a.id} activity={a}/>;
+
+    const latestResend = a.event_type === "scheduled_trip_email_sent" ? latestResendByCode.get(code) : null;
+    const emailName = a.summary.replace(/ email (?:re)?sent through Briitely.*$/,"");
+    return <div key={a.id} className="flex items-start justify-between gap-4 py-2.5">
+      <div className="min-w-0">
+        <p className="text-sm">{a.summary}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {formatReadableDateTime(a.created_at)}
+          {latestResend && <> · Resent {formatReadableDateTime(latestResend.created_at)}</>}
+          {a.actor_user && ` · ${a.actor_user.full_name}`}
+        </p>
+      </div>
+      <div className="shrink-0">
+        <ResendActivityEmailButton travelFileId={travelFileId} emailCode={code} emailName={emailName}/>
+      </div>
+    </div>;
+  };
+
+  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="History" title="Activity" text="Chronological audit trail for this travel file."/><div>{activity.length === 0 ? <p className="text-sm italic text-muted-foreground">No activity recorded.</p> : <div className="divide-y">{activity.slice(0, 4).map(renderItem)}{activity.length > 4 && <details><summary className="cursor-pointer py-3 text-sm font-medium text-primary">See more activity ({activity.length - 4})</summary><div className="divide-y border-t">{activity.slice(4).map(renderItem)}</div></details>}</div>}</div></div></Panel>;
 }

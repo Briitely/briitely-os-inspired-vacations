@@ -247,6 +247,7 @@ export function CurrentActionControl(props: Props) {
           travelFileId={props.travelFileId}
           assignedAdvisorId={props.assignedAdvisorId}
           currentProposalDueDate={null}
+          insuranceInterest={props.insuranceInterest}
           isOpen={assignProposalOpen}
           onClose={() => setAssignProposalOpen(false)}
         />
