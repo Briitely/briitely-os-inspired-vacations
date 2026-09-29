@@ -23,6 +23,10 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
     return NextResponse.json({error:"Collect Retainer Payment is not the active action for this Travel File."},{status:409});
   }
 
+  const{count:pendingRequirements,error:requirementsError}=await supabase.from("travel_action_requirements").select("id",{count:"exact",head:true}).eq("travel_action_id",action.id).neq("status","complete");
+  if(requirementsError)return NextResponse.json({error:"Could not verify the Current Action requirements."},{status:500});
+  if((pendingRequirements??0)>0)return NextResponse.json({error:"Complete all blocking workflow checklist items before marking the Retainer received."},{status:409});
+
   const now=new Date().toISOString();
   const today=now.slice(0,10);
   const tracyId=file.assigned_advisor_id||null;
