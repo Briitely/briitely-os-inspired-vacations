@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(_req:Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
-  if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  if(!user)const{count:unreviewedChangeCount}=await supabase.from("booking_form_submissions").select("id",{count:"exact",head:true}).eq("travel_file_id",travelFileId).gt("change_count",0).is("reviewed_at",null);return NextResponse.json({error:"Unauthorized"},{status:401});
   const{travelFileId}=await params;
   const supabase=await createClient();
   const[{data:party,error:partyError},{data:sessions,error:sessionError},{data:acceptance,error:acceptanceError}]=await Promise.all([
