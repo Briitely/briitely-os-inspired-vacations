@@ -86,7 +86,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const { token } = await params;
     const session = await getBookingFormSession(token);
     if (!session) return NextResponse.json({ error: "This booking form link is invalid or has expired." }, { status: 404 });
-    if (session.completed_at) return NextResponse.json({ error: "This booking form has already been submitted." }, { status: 409 });
 
     const db = createServiceClient();
     if (!db) return NextResponse.json({ error: "Booking form is unavailable." }, { status: 500 });
