@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     referralDetail: optionalText(pick(body, "referralDetail", "referral_detail")),
     eventDetail: optionalText(pick(body, "eventDetail", "event_detail")),
     specialConsiderations: optionalText(pick(body, "specialConsiderations", "special_considerations")),
-    consent: booleanValue(pick(body, "consent")),
+    consent: pick(body, "consent") == null ? true : booleanValue(pick(body, "consent")),
     intakeSource: "website",
     intakeMethod: "website-survey",
     staffNotes: null,
