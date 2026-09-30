@@ -29,6 +29,13 @@ function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
 }
 
+function collapseExactDuplicate(value: string): string {
+  const trimmed=value.trim();
+  if(trimmed.length<2||trimmed.length%2!==0)return trimmed;
+  const half=trimmed.length/2;
+  return trimmed.slice(0,half)===trimmed.slice(half)?trimmed.slice(0,half):trimmed;
+}
+
 function optionalText(value: unknown): string | null {
   const valueText = textValue(value);
   return valueText || null;
@@ -75,7 +82,7 @@ export async function POST(request: Request) {
     lastName: textValue(pick(body, "lastName", "last_name")),
     email: textValue(pick(body, "email")),
     phone: textValue(pick(body, "phone")),
-    destination: textValue(pick(body, "destination")),
+    destination: collapseExactDuplicate(textValue(pick(body, "destination"))),
     tripType: textValue(pick(body, "tripType", "trip_type")),
     travelTimeframe: textValue(pick(body, "travelTimeframe", "travel_timeframe")),
     budgetRange: textValue(pick(body, "budgetRange", "budget_range")),
