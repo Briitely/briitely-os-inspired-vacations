@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processIntake, validateIntake, type IntakeInput } from "@/lib/travel/intake";
+import { budgetRangeOptions } from "@/lib/travel/tag-mappings";
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -27,6 +28,12 @@ function pick(body: Record<string, unknown>, ...keys: string[]): unknown {
 
 function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+}
+
+function normalizeBudgetRange(value:string):string{
+  const normalized=value.replace(/[–—]/g,"-").replace(/\s*-\s*/g," - ").replace(/\s+/g," ").trim();
+  const match=budgetRangeOptions.find(option=>option.replace(/[–—]/g,"-").replace(/\s*-\s*/g," - ").replace(/\s+/g," ").trim()===normalized);
+  return match??value.trim();
 }
 
 function collapseExactDuplicate(value: string): string {
@@ -85,7 +92,7 @@ export async function POST(request: Request) {
     destination: collapseExactDuplicate(textValue(pick(body, "destination"))),
     tripType: textValue(pick(body, "tripType", "trip_type")),
     travelTimeframe: textValue(pick(body, "travelTimeframe", "travel_timeframe")),
-    budgetRange: textValue(pick(body, "budgetRange", "budget_range")),
+    budgetRange: normalizeBudgetRange(textValue(pick(body, "budgetRange", "budget_range"))),
     numberOfAdults: numberValue(pick(body, "numberOfAdults", "number_of_adults"), 0),
     numberOfChildren: pick(body, "numberOfChildren", "number_of_children") == null
       ? null
