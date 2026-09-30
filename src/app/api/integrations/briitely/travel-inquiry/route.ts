@@ -99,15 +99,20 @@ export async function POST(request: Request) {
     staffUserId: null,
   };
 
+  console.log("TRAVEL_INQUIRY_WEBHOOK_RECEIVED",{keys:Object.keys(body),customDataKeys:Object.keys(objectValue(body.customData)),contactKeys:Object.keys(objectValue(body.contact)),mapped:{firstName:input.firstName,lastName:input.lastName,email:input.email,phone:input.phone,destination:input.destination,tripType:input.tripType,travelTimeframe:input.travelTimeframe,budgetRange:input.budgetRange,numberOfAdults:input.numberOfAdults,numberOfChildren:input.numberOfChildren,childrenAges:input.childrenAges,travelInterests:input.travelInterests,travelSeasons:input.travelSeasons,lastTravelDestination:input.lastTravelDestination,lastTravelDate:input.lastTravelDate,referralSource:input.referralSource,referralDetail:input.referralDetail,eventDetail:input.eventDetail,specialConsiderations:input.specialConsiderations,consent:input.consent}});
+
   const validation = validateIntake(input);
   if (!validation.valid) {
-    return NextResponse.json({ error: validation.errors.join(" "), result: "validation_failed" }, { status: 400 });
+    console.error("TRAVEL_INQUIRY_WEBHOOK_VALIDATION_FAILED",{errors:validation.errors,mapped:{firstName:input.firstName,lastName:input.lastName,email:input.email,phone:input.phone,destination:input.destination,tripType:input.tripType,travelTimeframe:input.travelTimeframe,budgetRange:input.budgetRange,numberOfAdults:input.numberOfAdults,numberOfChildren:input.numberOfChildren,childrenAges:input.childrenAges,referralSource:input.referralSource,consent:input.consent}});
+    return NextResponse.json({ error: validation.errors.join(" "), errors:validation.errors, result: "validation_failed" }, { status: 400 });
   }
 
   const result = await processIntake(input);
   if (!result.success) {
+    console.error("TRAVEL_INQUIRY_WEBHOOK_PROCESS_FAILED",{error:result.error,briitelyContactId:result.briitelyContactId,briitelySyncPending:result.briitelySyncPending});
     return NextResponse.json({ error: result.error ?? "Submission failed.", result: "failed" }, { status: 500 });
   }
+  console.log("TRAVEL_INQUIRY_WEBHOOK_CREATED",{travelFileId:result.travelFileId,briitelyContactId:result.briitelyContactId,briitelySyncPending:result.briitelySyncPending});
 
   return NextResponse.json({
     success: true,
