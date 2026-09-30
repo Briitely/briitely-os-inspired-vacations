@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validation.errors.join(" "), errors:validation.errors, result: "validation_failed" }, { status: 400 });
   }
 
-  const result = await processIntake(input);
+  const result = await processIntake(input,{useServiceClient:true});
   if (!result.success) {
     console.error("TRAVEL_INQUIRY_WEBHOOK_PROCESS_FAILED",{error:result.error,briitelyContactId:result.briitelyContactId,briitelySyncPending:result.briitelySyncPending});
     return NextResponse.json({ error: result.error ?? "Submission failed.", result: "failed" }, { status: 500 });
