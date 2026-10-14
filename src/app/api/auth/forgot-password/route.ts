@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
+import { getPublicAppOrigin } from "@/lib/auth/public-origin";
 
 const EMAIL_PATTERN=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,7 +32,7 @@ export async function POST(request:Request){
 
     if(profile?.is_active===false) return NextResponse.json({success:true});
 
-    const origin=new URL(request.url).origin;
+    const origin=getPublicAppOrigin(request);
     const {actionLink}=await generateAuthActionLink({
       kind:"recovery",
       email,
