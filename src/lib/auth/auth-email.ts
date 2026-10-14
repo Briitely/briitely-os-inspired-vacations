@@ -30,9 +30,13 @@ function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
     throw new Error("Supabase auth link contains an invalid redirect target.");
   }
 
+    // The verify link's `token` param is the hashed token that verifyOtp accepts.
+  const tokenHash=sourceUrl.searchParams.get("token") || "";
+  if(!tokenHash) throw new Error("Supabase auth link is missing its token.");
+
   const safeUrl=new URL("/auth/continue",appOrigin);
   safeUrl.searchParams.set("kind",kind);
-  safeUrl.searchParams.set("action",actionLink);
+  safeUrl.searchParams.set("token_hash",tokenHash);
   return safeUrl.toString();
 }
 
