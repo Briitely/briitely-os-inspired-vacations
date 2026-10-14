@@ -60,7 +60,7 @@ export async function POST(
     const { actionLink } = await generateAuthActionLink({
       kind: "recovery",
       email: profile.email,
-      redirectTo: origin + "/reset-password",
+      redirectTo: origin + "/auth/callback?next=/reset-password",
       firstName: profile.first_name,
       lastName: profile.last_name,
     });

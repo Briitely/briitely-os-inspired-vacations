@@ -121,7 +121,7 @@ export async function POST(request: Request) {
   }
 
   const origin = getPublicAppOrigin(request);
-  const redirectTo = origin + "/accept-invite";
+  const redirectTo = origin + "/auth/callback?next=/accept-invite";
 
   let authInviteAttempted = false;
   let authInviteSucceeded = false;
