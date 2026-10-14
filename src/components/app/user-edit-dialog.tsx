@@ -18,6 +18,9 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [tempPasswordLoading, setTempPasswordLoading] = useState(false);
+  const [tempPasswordSuccess, setTempPasswordSuccess] = useState(false);
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -53,6 +56,34 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleTemporaryPassword() {
+    setError(null);
+    setTempPasswordSuccess(false);
+    if (temporaryPassword.trim().length < 8) {
+      setError("Temporary password must be at least 8 characters.");
+      return;
+    }
+    setTempPasswordLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${profile.id}/temporary-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temporaryPassword: temporaryPassword.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Could not set temporary password.");
+        return;
+      }
+      setTemporaryPassword("");
+      setTempPasswordSuccess(true);
+    } catch {
+      setError("Could not set temporary password.");
+    } finally {
+      setTempPasswordLoading(false);
     }
   }
 
@@ -133,6 +164,36 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
                       {isActive ? "Click to deactivate" : "Click to reactivate"}
                     </span>
                   </div>
+                </div>
+              )}
+
+              {profile.canEdit && (
+                <div className="space-y-2 rounded-md border p-3">
+                  <Label htmlFor="temporary-password">Temporary Password</Label>
+                  <Input
+                    id="temporary-password"
+                    type="text"
+                    value={temporaryPassword}
+                    onChange={(e) => setTemporaryPassword(e.target.value)}
+                    placeholder="Enter at least 8 characters"
+                    disabled={tempPasswordLoading}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTemporaryPassword}
+                      disabled={tempPasswordLoading || temporaryPassword.trim().length < 8}
+                    >
+                      {tempPasswordLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Set Temporary Password
+                    </Button>
+                    {tempPasswordSuccess && <span className="text-xs text-green-600">Password updated.</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This changes the login password immediately and does not send an email.
+                  </p>
                 </div>
               )}
 
