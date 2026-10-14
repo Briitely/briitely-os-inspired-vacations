@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processIntake, validateIntake, type IntakeInput } from "@/lib/travel/intake";
+import { budgetRangeOptions } from "@/lib/travel/tag-mappings";
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -27,6 +28,19 @@ function pick(body: Record<string, unknown>, ...keys: string[]): unknown {
 
 function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+}
+
+function normalizeBudgetRange(value:string):string{
+  const normalized=value.replace(/[–—]/g,"-").replace(/\s*-\s*/g," - ").replace(/\s+/g," ").trim();
+  const match=budgetRangeOptions.find(option=>option.replace(/[–—]/g,"-").replace(/\s*-\s*/g," - ").replace(/\s+/g," ").trim()===normalized);
+  return match??value.trim();
+}
+
+function collapseExactDuplicate(value: string): string {
+  const trimmed=value.trim();
+  if(trimmed.length<2||trimmed.length%2!==0)return trimmed;
+  const half=trimmed.length/2;
+  return trimmed.slice(0,half)===trimmed.slice(half)?trimmed.slice(0,half):trimmed;
 }
 
 function optionalText(value: unknown): string | null {
@@ -75,10 +89,10 @@ export async function POST(request: Request) {
     lastName: textValue(pick(body, "lastName", "last_name")),
     email: textValue(pick(body, "email")),
     phone: textValue(pick(body, "phone")),
-    destination: textValue(pick(body, "destination")),
+    destination: collapseExactDuplicate(textValue(pick(body, "destination"))),
     tripType: textValue(pick(body, "tripType", "trip_type")),
     travelTimeframe: textValue(pick(body, "travelTimeframe", "travel_timeframe")),
-    budgetRange: textValue(pick(body, "budgetRange", "budget_range")),
+    budgetRange: normalizeBudgetRange(textValue(pick(body, "budgetRange", "budget_range"))),
     numberOfAdults: numberValue(pick(body, "numberOfAdults", "number_of_adults"), 0),
     numberOfChildren: pick(body, "numberOfChildren", "number_of_children") == null
       ? null
