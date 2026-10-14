@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { logActivity } from "@/lib/logging/activity";
-import { getBriitelyUsersWithFallback } from "@/lib/briitely/users";
 import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,7 +11,6 @@ interface InviteRequestBody {
   lastName?: string;
   email?: string;
   role?: "admin" | "staff" | "super_admin";
-  ghlUserId?: string | null;
 }
 
 export async function POST(request: Request) {
@@ -70,7 +68,6 @@ export async function POST(request: Request) {
   const lastName = (body.lastName ?? "").trim();
   const email = (body.email ?? "").trim();
   const role = body.role ?? "staff";
-  const ghlUserId = body.ghlUserId?.trim() || null;
 
   if (!firstName) return NextResponse.json({ error: "First name is required." }, { status: 400 });
   if (!lastName) return NextResponse.json({ error: "Last name is required." }, { status: 400 });
@@ -84,7 +81,7 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       requestedRole: role,
-      requestedBriitelyUserId: ghlUserId,
+      requestedBriitelyUserId: null,
       authenticatedActorId: user.id,
       authenticatedActorRole: user.role,
       serviceRoleConfigured: false,
@@ -98,52 +95,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only a Super Admin can create Super Admin accounts." }, { status: 403 });
   }
 
-  if (ghlUserId) {
-    try {
-      const briitelyUsersResult = await getBriitelyUsersWithFallback();
-      const validGhlIds = briitelyUsersResult.users.map((u) => u.id);
-      if (!validGhlIds.includes(ghlUserId)) {
-        console.error("ADMIN_INVITE_USER_FAILED_JSON=" + JSON.stringify({
-          failureStage: "briitely_user_validation",
-          email,
-          firstName,
-          lastName,
-          requestedRole: role,
-          requestedBriitelyUserId: ghlUserId,
-          authenticatedActorId: user.id,
-          authenticatedActorRole: user.role,
-          serviceRoleConfigured: false,
-          authInviteAttempted: false,
-          authInviteSucceeded: false,
-          profileUpsertAttempted: false,
-          profileUpsertSucceeded: false,
-          supabaseErrorCode: "INVALID_BRIITELY_USER",
-          supabaseErrorMessage: "Selected Briitely user ID not found in user list",
-        }));
-        return NextResponse.json({ error: "The selected Briitely user is not valid." }, { status: 400 });
-      }
-    } catch (err) {
-      console.error("ADMIN_INVITE_USER_FAILED_JSON=" + JSON.stringify({
-        failureStage: "briitely_user_fetch_failed",
-        email,
-        firstName,
-        lastName,
-        requestedRole: role,
-        requestedBriitelyUserId: ghlUserId,
-        authenticatedActorId: user.id,
-        authenticatedActorRole: user.role,
-        serviceRoleConfigured: false,
-        authInviteAttempted: false,
-        authInviteSucceeded: false,
-        profileUpsertAttempted: false,
-        profileUpsertSucceeded: false,
-        supabaseErrorCode: "BRIITELY_FETCH_ERROR",
-        supabaseErrorMessage: err instanceof Error ? err.message : "unknown error",
-      }));
-      return NextResponse.json({ error: "We couldn't verify the Briitely user. Please try again." }, { status: 502 });
-    }
-  }
-
   const serviceClient = createServiceClient();
   const serviceRoleConfigured = serviceClient !== null;
 
@@ -154,7 +105,7 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       requestedRole: role,
-      requestedBriitelyUserId: ghlUserId,
+      requestedBriitelyUserId: null,
       authenticatedActorId: user.id,
       authenticatedActorRole: user.role,
       serviceRoleConfigured: false,
@@ -168,8 +119,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn't send the invitation. Please try again." }, { status: 503 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || "";
-  const redirectTo = appUrl ? `${appUrl}/accept-invite` : undefined;
+  const origin = new URL(request.url).origin;
+  const redirectTo = origin + "/accept-invite";
 
   let authInviteAttempted = false;
   let authInviteSucceeded = false;
@@ -183,7 +134,7 @@ export async function POST(request: Request) {
     const { actionLink, user: invitedUser } = await generateAuthActionLink({
       kind: "invite",
       email,
-      redirectTo: redirectTo || new URL(request.url).origin + "/accept-invite",
+      redirectTo,
       firstName,
       lastName,
     });
@@ -200,7 +151,7 @@ export async function POST(request: Request) {
       full_name: `${firstName} ${lastName}`,
       role,
       is_active: true,
-      ghl_user_id: ghlUserId,
+      ghl_user_id: null,
     }, { onConflict: "id" });
 
     if (profileError) {
@@ -235,7 +186,7 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       requestedRole: role,
-      requestedBriitelyUserId: ghlUserId,
+      requestedBriitelyUserId: null,
       authenticatedActorId: user.id,
       authenticatedActorRole: user.role,
       serviceRoleConfigured: true,
