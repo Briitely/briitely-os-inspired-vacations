@@ -5,7 +5,7 @@ import { parseDateOnly } from "@/lib/travel/format";
 
 export async function DELETE(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();if(!user)return NextResponse.json({error:"Authentication required."},{status:401});
-  if(user.role!=="admin"&&user.role!=="super_admin")return NextResponse.json({error:"Admin access required."},{status:403});
+  if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
   const{travelFileId}=await params,supabase=await createClient();
   const{data:file,error:fetchError}=await supabase.from("travel_files").select("id, client_name, destination, trip_type").eq("id",travelFileId).maybeSingle();
   if(fetchError||!file)return NextResponse.json({error:"Travel File not found."},{status:404});
