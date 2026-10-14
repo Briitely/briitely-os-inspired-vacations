@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { logActivity } from "@/lib/logging/activity";
 import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
+import { getPublicAppOrigin } from "@/lib/auth/public-origin";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn't send the invitation. Please try again." }, { status: 503 });
   }
 
-  const origin = new URL(request.url).origin;
+  const origin = getPublicAppOrigin(request);
   const redirectTo = origin + "/accept-invite";
 
   let authInviteAttempted = false;
