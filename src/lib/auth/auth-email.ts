@@ -18,6 +18,15 @@ export async function generateAuthActionLink(input:{kind:"invite"|"recovery";ema
   return {actionLink,user:data.user};
 }
 
+function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
+  const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"").trim().replace(/\/$/,"");
+  if(!appUrl) throw new Error("NEXT_PUBLIC_APP_URL is not configured.");
+  const safeUrl=new URL("/auth/continue",appUrl);
+  safeUrl.searchParams.set("kind",kind);
+  safeUrl.searchParams.set("action",actionLink);
+  return safeUrl.toString();
+}
+
 export async function sendAuthEmail(input:{kind:"invite"|"recovery";email:string;firstName?:string|null;actionLink:string}) {
   const webhook=process.env.BRIITELY_AUTH_EMAIL_WEBHOOK_URL?.trim();
   if(!webhook) throw new Error("BRIITELY_AUTH_EMAIL_WEBHOOK_URL is not configured.");
@@ -29,7 +38,7 @@ export async function sendAuthEmail(input:{kind:"invite"|"recovery";email:string
       email_type:input.kind==="invite"?"dashboard_invitation":"password_reset",
       email:input.email,
       first_name:input.firstName??"",
-      action_link:input.actionLink,
+      action_link:wrapActionLink(input.kind,input.actionLink),
     }),
     cache:"no-store",
   });

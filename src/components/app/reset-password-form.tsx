@@ -30,12 +30,19 @@ export function ResetPasswordForm() {
       }
     }, 8000);
 
+    function acceptSession(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
+      if (!session) return;
+      resolved = true;
+      clearTimeout(timeout);
+      setState("valid");
+    }
+
+    supabase.auth.getSession().then(({ data }) => acceptSession(data.session));
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (event === "PASSWORD_RECOVERY" && session) {
-          resolved = true;
-          clearTimeout(timeout);
-          setState("valid");
+        if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
+          acceptSession(session);
         }
       }
     );
