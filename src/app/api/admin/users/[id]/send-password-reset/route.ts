@@ -29,7 +29,7 @@ export async function POST(
   if (!profile.is_active) return NextResponse.json({ error: "Reactivate this user first." }, { status: 400 });
   if (!profile.email) return NextResponse.json({ error: "This user does not have an email address." }, { status: 400 });
 
-  const origin = (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, "");
+  const origin = new URL(request.url).origin;
 
   try {
     const { data: authUserData, error: authUserError } = await service.auth.admin.getUserById(id);
