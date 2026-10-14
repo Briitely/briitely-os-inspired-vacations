@@ -4,7 +4,7 @@ import { LoginForm } from "@/components/app/login-form";
 import { getBrandingSettings, getBusinessSettings } from "@/lib/briitely/client-settings";
 
 export const metadata: Metadata = {
-  title: "Sign In — Briitely OS",
+  title: "Sign In — Inspired Vacations",
 };
 
 export default async function LoginPage() {
@@ -29,7 +29,7 @@ export default async function LoginPage() {
             </h1>
           )}
           <p className="mt-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Briitely OS · Business Dashboard
+            {business.businessName} · Team Dashboard
           </p>
         </div>
 
