@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { logActivity } from "@/lib/logging/activity";
 import { getBriitelyUsersWithFallback } from "@/lib/briitely/users";
+import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -178,42 +179,17 @@ export async function POST(request: Request) {
 
   try {
     authInviteAttempted = true;
-    const { data: inviteData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
-      ...(redirectTo ? { redirectTo } : {}),
-      data: { first_name: firstName, last_name: lastName },
+
+    const { actionLink, user: invitedUser } = await generateAuthActionLink({
+      kind: "invite",
+      email,
+      redirectTo: redirectTo || new URL(request.url).origin + "/accept-invite",
+      firstName,
+      lastName,
     });
 
-    if (inviteError) {
-      const msg = inviteError.message.toLowerCase();
-      console.error("ADMIN_INVITE_USER_FAILED_JSON=" + JSON.stringify({
-        failureStage: "auth_invite",
-        email,
-        firstName,
-        lastName,
-        requestedRole: role,
-        requestedBriitelyUserId: ghlUserId,
-        authenticatedActorId: user.id,
-        authenticatedActorRole: user.role,
-        serviceRoleConfigured: true,
-        authInviteAttempted: true,
-        authInviteSucceeded: false,
-        profileUpsertAttempted: false,
-        profileUpsertSucceeded: false,
-        supabaseErrorCode: inviteError.code ?? null,
-        supabaseErrorMessage: inviteError.message,
-      }));
-
-      if (msg.includes("already") || msg.includes("exists")) {
-        return NextResponse.json({ error: "An account already exists for this email." }, { status: 409 });
-      }
-      if (inviteError.code === "over_email_send_rate_limit" || msg.includes("rate limit")) {
-        return NextResponse.json({ error: "Supabase has temporarily limited invitation emails. Please wait a few minutes and try again." }, { status: 429 });
-      }
-      return NextResponse.json({ error: "We couldn't send the invitation. Please try again." }, { status: 502 });
-    }
-
     authInviteSucceeded = true;
-    returnedAuthUserId = inviteData.user.id;
+    returnedAuthUserId = invitedUser.id;
 
     profileUpsertAttempted = true;
     const { error: profileError } = await serviceClient.from("profiles").upsert({
@@ -228,28 +204,17 @@ export async function POST(request: Request) {
     }, { onConflict: "id" });
 
     if (profileError) {
-      console.error("ADMIN_INVITE_USER_FAILED_JSON=" + JSON.stringify({
-        failureStage: "profile_creation",
-        email,
-        firstName,
-        lastName,
-        requestedRole: role,
-        requestedBriitelyUserId: ghlUserId,
-        authenticatedActorId: user.id,
-        authenticatedActorRole: user.role,
-        serviceRoleConfigured: true,
-        authInviteAttempted: true,
-        authInviteSucceeded: true,
-        returnedAuthUserId,
-        profileUpsertAttempted: true,
-        profileUpsertSucceeded: false,
-        supabaseErrorCode: profileError.code ?? null,
-        supabaseErrorMessage: profileError.message,
-      }));
-      return NextResponse.json({ error: "The invitation was sent, but we couldn't save the profile. Please contact an administrator." }, { status: 500 });
+      return NextResponse.json({ error: "The account was created, but we couldn't save the profile." }, { status: 500 });
     }
 
     profileUpsertSucceeded = true;
+
+    await sendAuthEmail({
+      kind: "invite",
+      email,
+      firstName,
+      actionLink,
+    });
 
     await logActivity(user.id, {
       action: "user.invited",
