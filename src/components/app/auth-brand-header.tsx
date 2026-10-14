@@ -20,7 +20,7 @@ export async function AuthBrandHeader() {
         </h1>
       )}
       <p className="mt-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        Briitely OS · Business Dashboard
+        {business.businessName} · Team Dashboard
       </p>
     </div>
   );
