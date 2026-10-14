@@ -18,6 +18,8 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -53,6 +55,25 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSendPasswordReset() {
+    setError(null);
+    setResetSuccess(false);
+    setResetLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${profile.id}/send-password-reset`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "We couldn't send the password reset. Please try again.");
+        return;
+      }
+      setResetSuccess(true);
+    } catch {
+      setError("We couldn't send the password reset. Please try again.");
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -115,6 +136,28 @@ export function UserEditDialog({ profile, isSuperAdmin, onClose, onSaved }: User
                 </div>
               )}
 
+
+              {profile.canEdit && (
+                <div className="space-y-2 rounded-md border p-3">
+                  <Label>Password Access</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSendPasswordReset}
+                      disabled={resetLoading}
+                    >
+                      {resetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Send Password Reset
+                    </Button>
+                    {resetSuccess && <span className="text-xs text-green-600">Reset email sent.</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sends a secure reset link through Inspired Vacations email.
+                  </p>
+                </div>
+              )}
 
               {profile.canToggleActive && (
                 <div className="space-y-2">
