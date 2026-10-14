@@ -21,14 +21,15 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-  const isAuthPage = pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname === "/accept-invite";
+  const isAuthPage = pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname === "/accept-invite" || pathname === "/auth/continue";
+  const isPublicAuthRoute = pathname === "/api/auth/forgot-password" || pathname === "/api/auth/continue";
   const isTrustedWebhook = pathname === "/api/integrations/briitely/inquiry" || pathname === "/api/integrations/briitely/consultation-booked" || pathname === "/api/integrations/briitely/travel-inquiry";
   const isPublicBookingForm = pathname.startsWith("/booking/") || pathname.startsWith("/api/booking/");
   // Vercel Cron requests are authenticated inside the cron route with CRON_SECRET.
   // They do not have a Supabase user session, so middleware must allow them through.
   const isCronRoute = pathname.startsWith("/api/cron/");
 
-  if (!user && !isAuthPage && !isTrustedWebhook && !isPublicBookingForm && !isCronRoute) {
+  if (!user && !isAuthPage && !isPublicAuthRoute && !isTrustedWebhook && !isPublicBookingForm && !isCronRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
