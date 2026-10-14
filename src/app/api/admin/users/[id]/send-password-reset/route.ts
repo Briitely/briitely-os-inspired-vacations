@@ -32,6 +32,30 @@ export async function POST(
   const origin = (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/$/, "");
 
   try {
+    const { data: authUserData, error: authUserError } = await service.auth.admin.getUserById(id);
+    if (authUserError || !authUserData.user) {
+      return NextResponse.json({ error: "We couldn't verify the user's login account." }, { status: 502 });
+    }
+
+    let emailConfirmed = Boolean(authUserData.user.email_confirmed_at);
+
+    if (!emailConfirmed) {
+      const { error: confirmError } = await service.auth.admin.updateUserById(id, {
+        email_confirm: true,
+      });
+
+      if (confirmError) {
+        console.error("ADMIN_EMAIL_CONFIRM_FAILED", {
+          targetUserId: id,
+          targetEmail: profile.email,
+          message: confirmError.message,
+        });
+        return NextResponse.json({ error: "We couldn't confirm this user's email address." }, { status: 502 });
+      }
+
+      emailConfirmed = true;
+    }
+
     const { actionLink } = await generateAuthActionLink({
       kind: "recovery",
       email: profile.email,
@@ -54,7 +78,7 @@ export async function POST(
       metadata: { targetEmail: profile.email },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, emailConfirmed });
   } catch (err) {
     console.error("ADMIN_PASSWORD_RESET_FAILED", {
       targetUserId: id,
