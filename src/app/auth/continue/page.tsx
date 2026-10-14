@@ -10,10 +10,10 @@ export const metadata: Metadata = {
 export default async function AuthContinuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; kind?: string }>;
+  searchParams: Promise<{ token_hash?: string; kind?: string }>;
 }) {
   const params = await searchParams;
-  const action = params.action ?? "";
+  const tokenHash = params.token_hash ?? "";
   const kind = params.kind === "invite" ? "invite" : "recovery";
   const invite = kind === "invite";
 
@@ -34,8 +34,9 @@ export default async function AuthContinuePage({
                 : "Click below to continue to the secure password reset."}
             </p>
             <form action="/api/auth/continue" method="post">
-              <input type="hidden" name="action" value={action} />
-              <Button type="submit" size="lg" className="w-full text-base" disabled={!action}>
+             <input type="hidden" name="token_hash" value={tokenHash} />
+              <input type="hidden" name="kind" value={kind} />
+              <Button type="submit" size="lg" className="w-full text-base" disabled={!tokenHash}>
                 {invite ? "Set Up My Account" : "Reset My Password"}
               </Button>
             </form>
