@@ -21,29 +21,14 @@ export async function generateAuthActionLink(input:{kind:"invite"|"recovery";ema
 function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
   const sourceUrl=new URL(actionLink);
   const redirectTo=sourceUrl.searchParams.get("redirect_to") || sourceUrl.searchParams.get("redirectTo") || "";
+  if(!redirectTo) throw new Error("Supabase auth link is missing its redirect target.");
+
   let appOrigin="";
-
-  if(redirectTo){
-    try{
-      appOrigin=new URL(redirectTo).origin;
-    }catch{
-      appOrigin="";
-    }
+  try{
+    appOrigin=new URL(redirectTo).origin;
+  }catch{
+    throw new Error("Supabase auth link contains an invalid redirect target.");
   }
-
-  if(!appOrigin){
-    const configured=(process.env.NEXT_PUBLIC_APP_URL||"").trim();
-    if(configured){
-      appOrigin=new URL(configured.startsWith("http")?configured:`https://${configured}`).origin;
-    }
-  }
-
-  if(!appOrigin){
-    const vercelHost=(process.env.VERCEL_PROJECT_PRODUCTION_URL||process.env.VERCEL_URL||"").trim();
-    if(vercelHost) appOrigin=new URL(vercelHost.startsWith("http")?vercelHost:`https://${vercelHost}`).origin;
-  }
-
-  if(!appOrigin) throw new Error("Could not determine the dashboard URL for the auth email.");
 
   const safeUrl=new URL("/auth/continue",appOrigin);
   safeUrl.searchParams.set("kind",kind);

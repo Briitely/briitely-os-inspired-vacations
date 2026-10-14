@@ -56,8 +56,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
-  if (user.role !== "admin" && user.role !== "super_admin") {
-    return NextResponse.json({ error: "Admin access required to delete notes." }, { status: 403 });
+  if (user.role !== "staff" && user.role !== "admin" && user.role !== "super_admin") {
+    return NextResponse.json({ error: "Staff access required." }, { status: 403 });
   }
 
   const { travelFileId, noteId } = await params;

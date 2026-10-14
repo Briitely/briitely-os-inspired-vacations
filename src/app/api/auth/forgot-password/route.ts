@@ -31,7 +31,7 @@ export async function POST(request:Request){
 
     if(profile?.is_active===false) return NextResponse.json({success:true});
 
-    const origin=(process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin).replace(/\/$/,"");
+    const origin=new URL(request.url).origin;
     const {actionLink}=await generateAuthActionLink({
       kind:"recovery",
       email,
