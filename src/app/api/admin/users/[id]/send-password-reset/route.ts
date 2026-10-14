@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
 import { logActivity } from "@/lib/logging/activity";
+import { getPublicAppOrigin } from "@/lib/auth/public-origin";
 
 export async function POST(
   request: Request,
@@ -29,7 +30,7 @@ export async function POST(
   if (!profile.is_active) return NextResponse.json({ error: "Reactivate this user first." }, { status: 400 });
   if (!profile.email) return NextResponse.json({ error: "This user does not have an email address." }, { status: 400 });
 
-  const origin = new URL(request.url).origin;
+  const origin = getPublicAppOrigin(request);
 
   try {
     const { data: authUserData, error: authUserError } = await service.auth.admin.getUserById(id);
