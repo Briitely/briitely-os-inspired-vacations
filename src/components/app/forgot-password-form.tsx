@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
@@ -19,10 +18,10 @@ export function ForgotPasswordForm() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-      await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${appUrl}/reset-password`,
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
       setSubmitted(true);
     } catch {
@@ -71,7 +70,7 @@ export function ForgotPasswordForm() {
             <Input
               id="email"
               type="email"
-              placeholder="you@scatteredacres.com"
+              placeholder="you@inspiredvacations.ca"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
