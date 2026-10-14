@@ -19,9 +19,33 @@ export async function generateAuthActionLink(input:{kind:"invite"|"recovery";ema
 }
 
 function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
-  const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"").trim().replace(/\/$/,"");
-  if(!appUrl) throw new Error("NEXT_PUBLIC_APP_URL is not configured.");
-  const safeUrl=new URL("/auth/continue",appUrl);
+  const sourceUrl=new URL(actionLink);
+  const redirectTo=sourceUrl.searchParams.get("redirect_to") || sourceUrl.searchParams.get("redirectTo") || "";
+  let appOrigin="";
+
+  if(redirectTo){
+    try{
+      appOrigin=new URL(redirectTo).origin;
+    }catch{
+      appOrigin="";
+    }
+  }
+
+  if(!appOrigin){
+    const configured=(process.env.NEXT_PUBLIC_APP_URL||"").trim();
+    if(configured){
+      appOrigin=new URL(configured.startsWith("http")?configured:`https://${configured}`).origin;
+    }
+  }
+
+  if(!appOrigin){
+    const vercelHost=(process.env.VERCEL_PROJECT_PRODUCTION_URL||process.env.VERCEL_URL||"").trim();
+    if(vercelHost) appOrigin=new URL(vercelHost.startsWith("http")?vercelHost:`https://${vercelHost}`).origin;
+  }
+
+  if(!appOrigin) throw new Error("Could not determine the dashboard URL for the auth email.");
+
+  const safeUrl=new URL("/auth/continue",appOrigin);
   safeUrl.searchParams.set("kind",kind);
   safeUrl.searchParams.set("action",actionLink);
   return safeUrl.toString();
