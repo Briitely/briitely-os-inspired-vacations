@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
@@ -8,40 +8,14 @@ import { Card, CardContent } from "@/components/core/ui/card";
 import { Loader2, X, CheckCircle2, Mail } from "lucide-react";
 import type { InviteUserDialogProps } from "@/lib/admin/types";
 
-interface BriitelyUserOption {
-  id: string;
-  label: string;
-}
-
 export function InviteUserDialog({ isSuperAdmin, onClose, onInvited }: InviteUserDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "staff" | "super_admin">("staff");
-  const [ghlUserId, setGhlUserId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [briitelyUsers, setBriitelyUsers] = useState<BriitelyUserOption[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [usersFallback, setUsersFallback] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/briitely/users")
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data.users) setBriitelyUsers(data.users);
-        if (data.fallback) setUsersFallback(true);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setUsersLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -61,7 +35,6 @@ export function InviteUserDialog({ isSuperAdmin, onClose, onInvited }: InviteUse
           lastName: lastName.trim(),
           email: email.trim(),
           role,
-          ghlUserId: ghlUserId || null,
         }),
       });
 
@@ -129,27 +102,6 @@ export function InviteUserDialog({ isSuperAdmin, onClose, onInvited }: InviteUse
                   {isSuperAdmin && <option value="super_admin">Super Admin</option>}
                 </select>
               </div>
-              {isSuperAdmin && (
-                <div className="space-y-2">
-                  <Label htmlFor="invite-ghl">Briitely User</Label>
-                  <select
-                    id="invite-ghl"
-                    value={ghlUserId}
-                    onChange={(e) => setGhlUserId(e.target.value)}
-                    disabled={loading || usersLoading}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">Not mapped</option>
-                    {briitelyUsers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.label}</option>
-                    ))}
-                  </select>
-                  {usersFallback && (
-                    <p className="text-xs text-muted-foreground">Briitely users couldn&apos;t be loaded.</p>
-                  )}
-                </div>
-              )}
-
               {error && (
                 <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3">
                   <p className="text-sm text-destructive">{error}</p>
