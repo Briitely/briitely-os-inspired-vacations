@@ -29,7 +29,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   if(linkError||!linked)return NextResponse.json({error:"Client was created in Briitely, but linking the traveller failed. Please contact support to link the existing client instead of creating another."},{status:500});
   const {data:primaryProfile,error:primaryError}=await db.from("traveller_profiles").select("id").eq("briitely_contact_id",id).maybeSingle();
   if(primaryError)return NextResponse.json({error:"Client created and linked, but reverse relationship could not be loaded."},{status:500});
-  if(primaryProfile){
+  if(primaryProfile&&!body.unlinkAfterCreation){
    const inverse=body.reciprocalRelationshipType??(rel.relationship_type==="child"||rel.relationship_type==="adult_child"?"parent":rel.relationship_type==="parent"?"adult_child":rel.relationship_type);
    if(!["spouse_partner","child","adult_child","parent","other_family"].includes(inverse))return NextResponse.json({error:"Choose a valid reciprocal relationship."},{status:400});
    const {error:reverseError}=await db.from("client_relationships").upsert({primary_contact_id:created.id,related_traveller_id:primaryProfile.id,relationship_type:inverse},{onConflict:"primary_contact_id,related_traveller_id"});
@@ -37,11 +37,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   }
   if(body.unlinkAfterCreation){
    const {error:unlinkError}=await db.from("client_relationships").delete().eq("id",rel.id).eq("primary_contact_id",id);
-   if(unlinkError)return NextResponse.json({error:"New client created and linked, but unlinking failed. Reopen the relationship and unlink the existing client record. "+unlinkError.message,clientId:created.id},{status:500});
-   if(primaryProfile){
-    const {error:reverseDeleteError}=await db.from("client_relationships").delete().eq("primary_contact_id",created.id).eq("related_traveller_id",primaryProfile.id);
-    if(reverseDeleteError)return NextResponse.json({error:"New client created and forward relationship removed, but reciprocal unlink failed. "+reverseDeleteError.message,clientId:created.id},{status:500});
-   }
+   if(unlinkError)return NextResponse.json({error:"Client created and linked, but unlinking failed. Open the new client file and unlink the existing relationship. "+unlinkError.message,clientId:created.id},{status:500});
   }
   return NextResponse.json({success:true,clientId:created.id,unlinked:Boolean(body.unlinkAfterCreation)});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not create client."},{status:500})}
