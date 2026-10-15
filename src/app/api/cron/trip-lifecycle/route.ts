@@ -11,19 +11,10 @@ export async function GET(request:Request){
  const db=createSupabaseClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}}),today=todayKey();
  const{data:files,error}=await db.from("travel_files").select("id,destination,departure_date,return_date,stage,current_action_id,assigned_advisor_id,client_rollup_recorded_at").eq("file_status","open").or(`departure_date.lte.${today},return_date.lt.${today}`);
  if(error)return NextResponse.json({error:error.message},{status:500});
- let advanced=0,rolledUp=0,failed=0;const results:any[]=[];
+ let advanced=0,failed=0;const results:any[]=[];
  for(const file of files??[]){
   try{
    const{data:current,error:currentError}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle():{data:null,error:null};if(currentError)throw currentError;
-   // Record trip history independently of the Current Action. An immediate date edit
-   // may already have moved the file to Post-Trip before this cron executes.
-   if(file.return_date&&file.return_date<today&&!file.client_rollup_recorded_at&&file.stage==="post_trip"){
-    const{data:recorded,error:rollupError}=await db.rpc("record_travel_file_trip_history",{p_travel_file_id:file.id});
-    if(rollupError)throw rollupError;
-    if(recorded)rolledUp++;
-    results.push({travelFileId:file.id,status:recorded?"post_trip_history_recorded":"post_trip_history_already_recorded"});
-    continue;
-   }
    if(!current||current.status!=="active"||!["waiting_for_travel","travelling","pre_trip_actions","post_trip_close_file"].includes(current.action_code)){results.push({travelFileId:file.id,status:"not_ready_for_return_processing"});continue}if(current.action_code==="post_trip_close_file"&&file.client_rollup_recorded_at){results.push({travelFileId:file.id,status:"already_post_trip"});continue}
 
    // Departure triggers travelling; return triggers post-trip on the following calendar day.
@@ -40,14 +31,6 @@ export async function GET(request:Request){
     advanced++;results.push({travelFileId:file.id,status:"travelling"});continue;
    }
    if(!file.return_date || file.return_date>=today){results.push({travelFileId:file.id,status:"awaiting_return_plus_one_day"});continue;}
-   // The database function locks the file and commits every profile increment together.
-   // Concurrent cron runs return false rather than counting the same trip twice.
-   if(!file.client_rollup_recorded_at){
-    const{data:recorded,error:rollupError}=await db.rpc("record_travel_file_trip_history",{p_travel_file_id:file.id});
-    if(rollupError)throw rollupError;
-    if(recorded)rolledUp++;
-   }
-
    if(current?.action_code!=="post_trip_close_file"){
     const now=new Date().toISOString();
     const{data:next,error:nextError}=await db.from("travel_actions").insert({travel_file_id:file.id,action_code:"post_trip_close_file",title:"Post-Trip / Close File",description:"Complete any post-trip follow-up, resolve outstanding issues, and close the Travel File.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id??null,status:"active",waiting_since:now,activated_at:now,metadata:{trigger:"day_after_return",return_date:file.return_date}}).select("id").single();
@@ -61,5 +44,5 @@ export async function GET(request:Request){
    results.push({travelFileId:file.id,status:"post_trip"});
   }catch(e){failed++;results.push({travelFileId:file.id,status:"failed",error:e instanceof Error?e.message:"Unknown error"})}
  }
- return NextResponse.json({date:today,files:(files??[]).length,advanced,rolledUp,failed,results});
+ return NextResponse.json({date:today,files:(files??[]).length,advanced,failed,results});
 }
