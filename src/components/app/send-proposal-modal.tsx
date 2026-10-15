@@ -124,7 +124,7 @@ export function SendProposalModal({ travelFileId, isOpen, onClose }: Props) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Email sent, but the Travel File could not be advanced.");
       onClose();
-      router.refresh();
+      window.location.reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not send proposal email.");
     } finally {
