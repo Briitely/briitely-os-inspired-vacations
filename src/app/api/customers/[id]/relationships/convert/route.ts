@@ -8,7 +8,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
  const {user}=await getAuthenticatedUser();
  if(!user||!user.isActive||!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
  const {id}=await params;
- const body=await request.json().catch(()=>null) as {relationshipId?:string;email?:string;phone?:string;useSameAddress?:boolean;address1?:string;city?:string;state?:string;postalCode?:string;country?:string;reciprocalRelationshipType?:string}|null;
+ const body=await request.json().catch(()=>null) as {relationshipId?:string;email?:string;phone?:string;useSameAddress?:boolean;address1?:string;city?:string;state?:string;postalCode?:string;country?:string;reciprocalRelationshipType?:string;unlinkAfterCreation?:boolean}|null;
  if(!body?.relationshipId)return NextResponse.json({error:"Relationship required."},{status:400});
  const email=body.email?.trim().toLowerCase()||"",phone=body.phone?.trim()||"";
  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return NextResponse.json({error:"Enter a valid email or leave it blank."},{status:400});
@@ -35,6 +35,14 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
    const {error:reverseError}=await db.from("client_relationships").upsert({primary_contact_id:created.id,related_traveller_id:primaryProfile.id,relationship_type:inverse},{onConflict:"primary_contact_id,related_traveller_id"});
    if(reverseError)return NextResponse.json({error:"Client created and linked, but reverse relationship could not be saved."},{status:500});
   }
-  return NextResponse.json({success:true,clientId:created.id});
+  if(body.unlinkAfterCreation){
+   const {error:unlinkError}=await db.from("client_relationships").delete().eq("id",rel.id).eq("primary_contact_id",id);
+   if(unlinkError)return NextResponse.json({error:"New client created and linked, but unlinking failed. Reopen the relationship and unlink the existing client record. "+unlinkError.message,clientId:created.id},{status:500});
+   if(primaryProfile){
+    const {error:reverseDeleteError}=await db.from("client_relationships").delete().eq("primary_contact_id",created.id).eq("related_traveller_id",primaryProfile.id);
+    if(reverseDeleteError)return NextResponse.json({error:"New client created and forward relationship removed, but reciprocal unlink failed. "+reverseDeleteError.message,clientId:created.id},{status:500});
+   }
+  }
+  return NextResponse.json({success:true,clientId:created.id,unlinked:Boolean(body.unlinkAfterCreation)});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not create client."},{status:500})}
 }
