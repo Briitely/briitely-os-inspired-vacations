@@ -31,27 +31,12 @@ export async function GET(request:Request){
     advanced++;results.push({travelFileId:file.id,status:"travelling"});continue;
    }
    if(!file.return_date || file.return_date>=today){results.push({travelFileId:file.id,status:"awaiting_return_plus_one_day"});continue;}
+   // The database function locks the file and commits every profile increment together.
+   // Concurrent cron runs return false rather than counting the same trip twice.
    if(!file.client_rollup_recorded_at){
-    const{data:members,error:memberError}=await db.from("travel_file_travellers").select("id,traveller_profiles:traveller_profile_id(briitely_contact_id)").eq("travel_file_id",file.id);
-    if(memberError)throw memberError;
-    const contactByMember=new Map<string,string>();
-    const tripContacts=new Set<string>();
-    for(const member of members??[]){const p=Array.isArray(member.traveller_profiles)?member.traveller_profiles[0]:member.traveller_profiles;const contact=p?.briitely_contact_id?.trim();if(contact){contactByMember.set(member.id,contact);tripContacts.add(contact)}}
-    const{data:groups,error:groupError}=await db.from("travel_payment_groups").select("id,payment_email_recipient_traveller_id").eq("travel_file_id",file.id);
-    if(groupError)throw groupError;
-    const groupToContact=new Map<string,string>();
-    for(const group of groups??[]){const contact=contactByMember.get(group.payment_email_recipient_traveller_id);if(contact)groupToContact.set(group.id,contact)}
-    const{data:payments,error:paymentError}=await db.from("travel_payments").select("payment_group_id,amount,status").eq("travel_file_id",file.id);
-    if(paymentError)throw paymentError;
-    const values=new Map<string,number>();
-    for(const payment of payments??[]){if(payment.status==="cancelled"||!payment.payment_group_id)continue;const contact=groupToContact.get(payment.payment_group_id);if(!contact)continue;values.set(contact,(values.get(contact)??0)+Number(payment.amount??0))}
-    for(const contactId of tripContacts){
-      const{data:profile,error:profileError}=await db.from("client_travel_profiles").select("id,number_of_trips,lifetime_value").eq("briitely_contact_id",contactId).maybeSingle();
-      if(profileError)throw profileError;
-      if(profile){const{error:updateError}=await db.from("client_travel_profiles").update({number_of_trips:Number(profile.number_of_trips??0)+1,lifetime_value:Number(profile.lifetime_value??0)+(values.get(contactId)??0),last_travel_destination:file.destination??null,last_travel_date:file.return_date}).eq("id",profile.id);if(updateError)throw updateError}
-      else{const{error:insertError}=await db.from("client_travel_profiles").insert({briitely_contact_id:contactId,number_of_trips:1,lifetime_value:values.get(contactId)??0,last_travel_destination:file.destination??null,last_travel_date:file.return_date});if(insertError)throw insertError}
-    }
-    const rollupAt=new Date().toISOString();const{error:markError}=await db.from("travel_files").update({client_rollup_recorded_at:rollupAt}).eq("id",file.id).is("client_rollup_recorded_at",null);if(markError)throw markError;rolledUp++;
+    const{data:recorded,error:rollupError}=await db.rpc("record_travel_file_trip_history",{p_travel_file_id:file.id});
+    if(rollupError)throw rollupError;
+    if(recorded)rolledUp++;
    }
 
    if(current?.action_code!=="post_trip_close_file"){
