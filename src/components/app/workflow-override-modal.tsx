@@ -15,7 +15,8 @@ const OPTIONS=[
 {actionCode:"negotiate_proposal",label:"Negotiating — Manage Negotiation",responsibleType:"internal"},
 {actionCode:"complete_booking",label:"Proposal Accepted — Complete Booking",responsibleType:"internal"},
 {actionCode:"invoicing_itinerary",label:"Booking Complete — Invoicing & Itinerary",responsibleType:"internal"},
-{actionCode:"waiting_for_travel",label:"Booking Complete — Waiting for Travel",responsibleType:"system"},
+{actionCode:"waiting_for_travel",label:"Trip Plans Created — Waiting for Travel",responsibleType:"system"},
+{actionCode:"travelling",label:"Travelling — Travelling",responsibleType:"system"},
 {actionCode:"post_trip_close_file",label:"Post-Trip — Close File",responsibleType:"internal"},
 ] as const;
 export function WorkflowOverrideModal({travelFileId,currentStage,currentActionCode,currentActionStatus,currentResponsibleName,isOpen,onClose}:Props){
