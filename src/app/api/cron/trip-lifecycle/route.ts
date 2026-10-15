@@ -15,6 +15,15 @@ export async function GET(request:Request){
  for(const file of files??[]){
   try{
    const{data:current,error:currentError}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle():{data:null,error:null};if(currentError)throw currentError;
+   // Record trip history independently of the Current Action. An immediate date edit
+   // may already have moved the file to Post-Trip before this cron executes.
+   if(file.return_date&&file.return_date<today&&!file.client_rollup_recorded_at&&file.stage==="post_trip"){
+    const{data:recorded,error:rollupError}=await db.rpc("record_travel_file_trip_history",{p_travel_file_id:file.id});
+    if(rollupError)throw rollupError;
+    if(recorded)rolledUp++;
+    results.push({travelFileId:file.id,status:recorded?"post_trip_history_recorded":"post_trip_history_already_recorded"});
+    continue;
+   }
    if(!current||current.status!=="active"||!["waiting_for_travel","travelling","pre_trip_actions","post_trip_close_file"].includes(current.action_code)){results.push({travelFileId:file.id,status:"not_ready_for_return_processing"});continue}if(current.action_code==="post_trip_close_file"&&file.client_rollup_recorded_at){results.push({travelFileId:file.id,status:"already_post_trip"});continue}
 
    // Departure triggers travelling; return triggers post-trip on the following calendar day.
