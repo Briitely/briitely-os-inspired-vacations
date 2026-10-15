@@ -23,6 +23,8 @@ interface CustomerFormData {
 
 interface CustomerEditModalProps {
   customer: BriitelyCustomer;
+  isDeceased?:boolean;
+  onDeceasedChange?: (value:boolean)=>void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated: (customer: BriitelyCustomer) => void;
@@ -43,9 +45,11 @@ function formFromCustomer(customer: BriitelyCustomer): CustomerFormData {
   };
 }
 
-export function CustomerEditModal({ customer, open, onOpenChange, onUpdated }: CustomerEditModalProps) {
+export function CustomerEditModal({ customer, isDeceased=false, onDeceasedChange, open, onOpenChange, onUpdated }: CustomerEditModalProps) {
   const [form, setForm] = useState<CustomerFormData>(() => formFromCustomer(customer));
   const [saving, setSaving] = useState(false);
+  const [deceasedConfirmation,setDeceasedConfirmation]=useState("");
+  const [deceasedSaving,setDeceasedSaving]=useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateField(field: keyof CustomerFormData, value: string) {
@@ -79,6 +83,7 @@ export function CustomerEditModal({ customer, open, onOpenChange, onUpdated }: C
     }
   }
 
+  async function updateDeceased(){setDeceasedSaving(true);setError(null);try{const action=isDeceased?"remove_deceased":"mark_deceased";const response=await fetch(`/api/customers/${encodeURIComponent(customer.id)}/traveller-profile`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,confirmation:deceasedConfirmation})});const data=await response.json();if(!response.ok)throw new Error(data.error??"Could not update deceased status.");onDeceasedChange?.(Boolean(data.profile?.is_deceased));setDeceasedConfirmation("");}catch(e){setError(e instanceof Error?e.message:"Could not update deceased status.")}finally{setDeceasedSaving(false)}}
   if (!open) return null;
 
   return (
@@ -86,8 +91,8 @@ export function CustomerEditModal({ customer, open, onOpenChange, onUpdated }: C
       <div className="max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border bg-background shadow-xl" role="dialog" aria-modal="true" aria-labelledby="customer-edit-title">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 id="customer-edit-title" className="text-xl font-semibold">Update Customer</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Update this customer without leaving your workflow.</p>
+            <h2 id="customer-edit-title" className="text-xl font-semibold">Update Client</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Update this client without leaving your workflow.</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} disabled={saving} aria-label="Close">
             <X className="h-5 w-5" />
@@ -110,10 +115,11 @@ export function CustomerEditModal({ customer, open, onOpenChange, onUpdated }: C
             <div className="space-y-2"><Label htmlFor="edit-state">Province</Label><select id="edit-state" value={form.state} onChange={(event) => updateField("state", event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select province</option>{CANADIAN_PROVINCES.map((province) => <option key={province.code} value={province.code}>{province.name}</option>)}</select></div>
             <div className="space-y-2"><Label htmlFor="edit-postalCode">Postal Code</Label><Input id="edit-postalCode" value={form.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} /></div>
           </div>
+          <div className="rounded-md border p-4 space-y-3"><p className="text-sm font-medium">Deceased status</p><p className="text-xs text-muted-foreground">{isDeceased?"This client is marked deceased. You can correct this status.":"Mark this client deceased without deleting their records or travel history."}</p>{isDeceased&&<Input value={deceasedConfirmation} onChange={e=>setDeceasedConfirmation(e.target.value)} placeholder="Type REMOVE DECEASED"/>}<Button type="button" variant="outline" disabled={deceasedSaving||(isDeceased&&deceasedConfirmation!=="REMOVE DECEASED")} onClick={updateDeceased}>{deceasedSaving?"Saving...":isDeceased?"Remove deceased status":"Mark client as deceased"}</Button></div>
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
           <div className="flex justify-end gap-3 border-t pt-5">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : "Save Customer"}</Button>
+            <Button type="submit" disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : "Save Client"}</Button>
           </div>
         </form>
       </div>
