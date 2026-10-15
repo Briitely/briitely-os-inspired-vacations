@@ -1,3 +1,4 @@
+import { CurrentActionAssignee } from "@/components/app/current-action-assignee";
 import { CurrentActionTasks } from "@/components/app/current-action-tasks";
 import { SendTmfButton } from "@/components/app/send-tmf-button";
 import { WorkflowOverrideButton } from "@/components/app/workflow-override-button";
@@ -68,7 +69,7 @@ export function CurrentActionSection({
               )}
               <div className="mt-4 grid gap-4 sm:grid-cols-3 sm:items-start">
                 <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
-                  <Info label="Responsible" value={getResponsibleName(currentAction, profileMap)} />
+                  <CurrentActionAssignee travelFileId={file.id} assignedId={currentAction.responsible_user_id} assignedName={getResponsibleName(currentAction, profileMap)} />
                   <Info
                     label="Due / Waiting"
                     value={<span className={isOverdue(currentAction.due_at) ? "text-destructive" : ""}>{formatDueOrWaiting(currentAction.due_at, currentAction.waiting_since)}</span>}
