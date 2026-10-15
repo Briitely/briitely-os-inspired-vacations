@@ -20,7 +20,7 @@ export function InactiveProposalReviewButtons({travelFileId}:{travelFileId:strin
    const r=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/${endpoint}`,{method:"POST"});
    const d=await r.json().catch(()=>({}));
    if(!r.ok)throw new Error(d.error??`Could not ${kind} the proposal.`);
-   setChoice(null);router.refresh();
+   setChoice(null);window.location.reload();
   }catch(e){setError(e instanceof Error?e.message:`Could not ${kind} the proposal.`)}
   finally{setLoading(null)}
  }
