@@ -25,7 +25,7 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   const{user}=await getAuthenticatedUser();if(!user)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
   const{travelFileId}=await params,body=(await request.json())as Partial<EditRequestBody>,supabase=await createClient();
-  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code)").eq("id",travelFileId).maybeSingle();
+  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at,file_status,stage,assigned_advisor_id,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
   if(fetchError||!existing)return NextResponse.json({error:"Travel File not found."},{status:404});
   if(body.updatedAt&&body.updatedAt!==existing.updated_at)return NextResponse.json({error:"This Travel File was modified by another user. Please reload and try again."},{status:409});
   if((body.departureDate===undefined?existing.departure_date:body.departureDate)&&(body.returnDate===undefined?existing.return_date:body.returnDate)&&parseDateOnly((body.returnDate===undefined?existing.return_date:body.returnDate)!)<parseDateOnly((body.departureDate===undefined?existing.departure_date:body.departureDate)!))return NextResponse.json({error:"Return date cannot be before departure date."},{status:400});
@@ -77,6 +77,40 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
     const date=body[dateField];
     const {error:dueError}=await supabase.from("travel_actions").update({due_at:date?`${date}T12:00:00Z`:null}).eq("id",existing.current_action_id).eq("travel_file_id",travelFileId);
     if(dueError)return NextResponse.json({error:"Travel dates were saved but the Current Action due date could not be synchronized. Please retry."},{status:500});
+  }
+  // Immediately advance active system-owned travel stages when edited dates have passed.
+  const departure=body.departureDate===undefined?existing.departure_date:body.departureDate;
+  const returning=body.returnDate===undefined?existing.return_date:body.returnDate;
+  const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Edmonton",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const activeCode=currentAction?.status==="active"?currentAction.action_code:null;
+  const nextCode=existing.file_status==="open"&&(
+    (activeCode==="waiting_for_travel"||activeCode==="travelling")&&returning&&returning<today
+      ?"post_trip_close_file"
+      :activeCode==="waiting_for_travel"&&departure&&departure<=today?"travelling":null
+  );
+  if(nextCode&&existing.current_action_id){
+    const now=new Date().toISOString(),postTrip=nextCode==="post_trip_close_file";
+    const {data:next,error:nextError}=await supabase.from("travel_actions").insert({
+      travel_file_id:travelFileId,action_code:nextCode,
+      title:postTrip?"Post-Trip / Close File":"Travelling",
+      description:postTrip?"Complete post-trip follow-up and close the Travel File.":"Client is travelling. Automatically advances after the return date.",
+      action_role:postTrip?"blocking":"supporting",responsible_type:postTrip?"internal":"system",
+      responsible_user_id:postTrip?existing.assigned_advisor_id:null,
+      due_at:postTrip?null:returning?`${returning}T12:00:00Z`:null,
+      status:"active",waiting_since:now,activated_at:now,
+      metadata:{trigger:"travel_dates_edited",departure_date:departure,return_date:returning}
+    }).select("id").single();
+    if(nextError||!next)return NextResponse.json({error:"Travel dates saved, but workflow advancement failed: "+(nextError?.message??"unknown error")},{status:500});
+    const newStage=postTrip?"post_trip":"travelling";
+    const {data:advanced,error:advanceError}=await supabase.from("travel_files").update({
+      stage:newStage,stage_changed_at:now,current_action_id:next.id
+    }).eq("id",travelFileId).eq("current_action_id",existing.current_action_id).select("id").maybeSingle();
+    if(advanceError||!advanced){
+      await supabase.from("travel_actions").delete().eq("id",next.id);
+      return NextResponse.json({error:"Travel dates saved, but workflow advancement conflicted. Reload the file."},{status:409});
+    }
+    await supabase.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"travel_dates_edited"}).eq("id",existing.current_action_id);
+    await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:postTrip?"trip_returned":"trip_departed",summary:postTrip?"Travel dates updated. File advanced to Post-Trip / Close File.":"Travel dates updated. File advanced to Travelling.",actor_type:"system",actor_user_id:null,action_id:next.id,previous_stage:existing.stage,new_stage:newStage,metadata:{departure_date:departure,return_date:returning,trigger:"travel_dates_edited"}});
   }
   await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"travel_file_updated",summary:"Travel File details updated.",actor_type:"internal",actor_user_id:user.id,metadata:{changedFields:Object.keys(updates)}});
   return NextResponse.json({success:true,changedFieldCount});
