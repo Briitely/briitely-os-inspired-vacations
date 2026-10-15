@@ -26,6 +26,17 @@ interface HighLevelUpsertBody { locationId: string; firstName?: string; lastName
 export interface BriitelyContactUpdateInput { firstName: string; lastName: string; companyName: string; email: string; phone: string; address1: string; city: string; state: string; postalCode: string; country: string; }
 interface HighLevelContactUpdateBody { firstName: string; lastName: string; companyName: string; email: string; phone: string; address1: string; city: string; state: string; postalCode: string; country: string; }
 export function buildContactUpsertBody(input: BriitelyContactUpsertInput, locationId: string): HighLevelUpsertBody { const body: HighLevelUpsertBody = { locationId }; if (input.firstName) body.firstName = input.firstName; if (input.lastName) body.lastName = input.lastName; if (input.companyName) body.companyName = input.companyName; if (input.email) body.email = input.email; if (input.phone) body.phone = normalizePhone(input.phone); if (input.address1) body.address1 = input.address1; if (input.city) body.city = input.city; if (input.state) body.state = input.state; if (input.postalCode) body.postalCode = input.postalCode; if (input.country) body.country = input.country; return body; }
+/** Create a separate Briitely contact, never update a matching contact. */
+export async function createContactWithoutUpsert(input: BriitelyContactUpsertInput): Promise<BriitelyCustomer> {
+  const response = await briitelyRequest<HighLevelUpsertResponse>({
+    method: "POST",
+    path: "/contacts/",
+    body: buildContactUpsertBody(input, getLocationId()),
+  });
+  const contact = response.contact ?? response.contacts?.[0];
+  if (!contact?.id) throw new Error("Briitely did not return a newly created client.");
+  return mapHighLevelContact(contact);
+}
 export async function upsertContact(input: BriitelyContactUpsertInput): Promise<BriitelyContactUpsertResult> { const response = await briitelyRequest<HighLevelUpsertResponse>({ method: "POST", path: "/contacts/upsert", body: buildContactUpsertBody(input, getLocationId()) }); return mapHighLevelUpsertResponse(response); }
 export async function updateContact(contactId: string, updates: BriitelyContactUpdateInput): Promise<BriitelyCustomer> { const body: HighLevelContactUpdateBody = { ...updates, phone: normalizePhone(updates.phone) }; const response = await briitelyRequest<HighLevelUpsertResponse & { contact?: HighLevelContact }>({ method: "PUT", path: `/contacts/${encodeURIComponent(contactId)}`, body }); const contact = response.contact ?? response.contacts?.[0]; if (!contact) throw new Error("HighLevel update response did not include a contact."); return mapHighLevelContact(contact); }
 interface HighLevelGetContactResponse { contact?: HighLevelContact; }
