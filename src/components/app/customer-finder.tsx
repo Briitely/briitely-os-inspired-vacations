@@ -68,7 +68,7 @@ function CustomerCard({ customer, onSelect }: { customer: SearchCustomer; onSele
       <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{customer.companyName || customer.name || "Unnamed customer"}</h2>
+            <h2 className="text-lg font-semibold">{customer.companyName || customer.name || "Unnamed client"}</h2>
             {customer.isDnb && <Badge variant="destructive">DNB</Badge>}
             {customer.companyName && customer.name && <Badge variant="secondary">{customer.name}</Badge>}
           </div>
@@ -77,7 +77,7 @@ function CustomerCard({ customer, onSelect }: { customer: SearchCustomer; onSele
             {customer.email && <span className="inline-flex items-center gap-1.5"><Mail className="h-4 w-4" />{customer.email}</span>}
           </div>
         </div>
-        <Button onClick={() => onSelect(customer)} className="shrink-0">Select Customer</Button>
+        <Button onClick={() => onSelect(customer)} className="shrink-0">Select Client</Button>
       </CardContent>
     </Card>
   );
@@ -132,7 +132,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
     fetch(`/api/customers/${encodeURIComponent(initialCustomerId)}`)
       .then(async (response) => {
         const data = (await response.json()) as { customer?: BriitelyCustomer; error?: string };
-        if (!response.ok || !data.customer) throw new Error(data.error || "We couldn't load this customer.");
+        if (!response.ok || !data.customer) throw new Error(data.error || "We couldn't load this client.");
         if (active) {
           if (onCustomerSelected) {
             onCustomerSelected(data.customer);
@@ -142,7 +142,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
         }
       })
       .catch((loadError: unknown) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : "We couldn't load this customer.");
+        if (active) setError(loadError instanceof Error ? loadError.message : "We couldn't load this client.");
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -211,7 +211,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       const data = (await response.json()) as CreateResponse;
 
       if (!response.ok) {
-        throw new Error(data.error || "We couldn't create this customer.");
+        throw new Error(data.error || "We couldn't create this client.");
       }
 
       if (data.duplicate && data.customer) {
@@ -227,7 +227,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       }
     } catch (createError) {
       setCreateError(
-        createError instanceof Error ? createError.message : "We couldn't create this customer."
+        createError instanceof Error ? createError.message : "We couldn't create this client."
       );
     } finally {
       setCreating(false);
@@ -247,7 +247,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       const data = (await response.json()) as CreateResponse;
 
       if (!response.ok) {
-        throw new Error(data.error || "We couldn't create this customer.");
+        throw new Error(data.error || "We couldn't create this client.");
       }
 
       if (data.customer) {
@@ -255,7 +255,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       }
     } catch (createError) {
       setCreateError(
-        createError instanceof Error ? createError.message : "We couldn't create this customer."
+        createError instanceof Error ? createError.message : "We couldn't create this client."
       );
     } finally {
       setCreating(false);
@@ -273,7 +273,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
             </Button>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
-              Create New Customer
+              Create New Client
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -375,7 +375,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
               <div className="flex gap-3">
                 <Button type="submit" disabled={creating}>
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                  {creating ? "Creating..." : "Create Customer"}
+                  {creating ? "Creating..." : "Create Client"}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleCancelCreate} disabled={creating}>
                   Cancel
@@ -395,12 +395,12 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-warning" />
-              Possible existing customer
+              Possible existing client
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              A customer with matching email or phone was found. Would you like to use the existing customer or create a new one anyway?
+              A client with matching email or phone was found. Would you like to use the existing client or create a new one anyway?
             </p>
             <CustomerCard customer={duplicateMatch} onSelect={handleSelectCustomer} />
             <div className="flex gap-3">
@@ -456,7 +456,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
           <div className="pt-2">
             <Button variant="outline" onClick={handleStartCreate}>
               <UserPlus className="h-4 w-4" />
-              Create New Customer
+              Create New Client
             </Button>
           </div>
         </div>
@@ -470,7 +470,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
             <p className="max-w-sm text-sm text-muted-foreground">We couldn&apos;t find a matching customer. Create a new one to get started.</p>
             <Button onClick={handleStartCreate}>
               <UserPlus className="h-4 w-4" />
-              Create New Customer
+              Create New Client
             </Button>
           </CardContent>
         </Card>
@@ -480,7 +480,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
         <div className="pt-2">
           <Button variant="outline" onClick={handleStartCreate}>
             <UserPlus className="h-4 w-4" />
-            Create New Customer
+            Create New Client
           </Button>
         </div>
       )}
