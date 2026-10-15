@@ -69,7 +69,7 @@ export function CurrentActionTasks({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not update workflow item.");
       await load();
-      router.refresh();
+      if(data.advanced)window.location.reload();else router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not update workflow item.");
     } finally {

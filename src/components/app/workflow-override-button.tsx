@@ -27,6 +27,7 @@ export function WorkflowOverrideButton({
   const [openKey, setOpenKey] = useState(0);
   const [dueAt, setDueAt] = useState<string | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
+  const [responsibleUserId, setResponsibleUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -36,6 +37,7 @@ export function WorkflowOverrideButton({
         if (!active || !data?.action) return;
         setDueAt(data.action.due_at ?? null);
         setNotes(data.action.notes ?? null);
+        setResponsibleUserId(data.action.responsible_user_id ?? null);
       })
       .catch(() => {});
     return () => {
@@ -59,7 +61,7 @@ export function WorkflowOverrideButton({
           Override
         </Button>
         {currentActionCode && (
-          <CurrentActionControls travelFileId={travelFileId} dueAt={dueAt} notes={notes} />
+          <CurrentActionControls travelFileId={travelFileId} dueAt={dueAt} notes={notes} responsibleUserId={responsibleUserId} />
         )}
       </div>
       <WorkflowOverrideModal

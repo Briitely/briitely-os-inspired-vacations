@@ -29,7 +29,7 @@ export function InvoicingItineraryButton({ travelFileId }: { travelFileId: strin
         }
         throw new Error(data.error ?? "Could not complete Invoicing & Itinerary.");
       }
-      router.refresh();
+      window.location.reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not complete Invoicing & Itinerary.");
     } finally {
@@ -48,7 +48,7 @@ export function InvoicingItineraryButton({ travelFileId }: { travelFileId: strin
         {emailScheduleConfigured ? "Update Email Schedule" : "Configure Email Schedule"}
       </Button>
       {error && <p className="max-w-sm text-xs text-destructive">{error}</p>}
-      <PreTripEmailConfigModal travelFileId={travelFileId} isOpen={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => { setEmailScheduleConfigured(true); setModalOpen(false); router.refresh(); }} />
+      <PreTripEmailConfigModal travelFileId={travelFileId} isOpen={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => { setEmailScheduleConfigured(true); setModalOpen(false); window.location.reload(); }} />
     </div>
   );
 }
