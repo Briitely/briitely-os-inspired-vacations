@@ -23,7 +23,7 @@ const FILTER_TABS: { key: TravelFileFilter; label: string; icon: React.ReactNode
   { key: "departing_soon", label: "Departing Soon", icon: <CalendarClock className="h-4 w-4" /> },
 ];
 
-const STAGE_OPTIONS: TravelStage[] = ["new_inquiry", "consult_booked", "consultation_complete", "tmf_sent", "tmf_processing", "planning_proposal", "proposal_sent", "negotiating", "proposal_accepted", "deposit_received", "booking_confirmed", "trip_plans_created", "final_payment_pending", "paid_in_full", "docs_sent", "travelling", "travel_complete", "lost_not_qualified"];
+const STAGE_OPTIONS: TravelStage[] = ["new_inquiry", "consult_booked", "consultation_complete", "tmf_sent", "tmf_processing", "planning_proposal", "proposal_sent", "negotiating", "proposal_accepted", "deposit_received", "booking_confirmed", "trip_plans_created", "final_payment_pending", "paid_in_full", "docs_sent", "travelling", "post_trip", "travel_complete", "lost_not_qualified"];
 
 function responsible(file: DashboardTravelFile) { const a = file.current_action; if (!a) return "—"; if (a.responsible_type === "client") return "Client"; if (a.responsible_type === "system") return "System"; return file.responsible_user?.full_name ?? "Unassigned"; }
 function responsibleKey(file: DashboardTravelFile) { const a = file.current_action; if (!a) return "none"; if (a.responsible_type === "client") return "client"; if (a.responsible_type === "system") return "system"; return a.responsible_user_id ? `user:${a.responsible_user_id}` : "unassigned"; }
