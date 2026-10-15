@@ -137,7 +137,7 @@ export async function syncPaymentBatchTask(
     }
 
     if (existing) {
-      const update: Record<string, unknown> = { notes, assigned_to: assignedTo, due_date: dueDate, updated_at: now };
+      const update: Record<string, unknown> = { notes, due_date: dueDate, updated_at: now };
       if (existing.status === "complete") {
         update.status = "todo";
         update.completed_at = null;
