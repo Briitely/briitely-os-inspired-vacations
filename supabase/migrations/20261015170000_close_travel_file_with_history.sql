@@ -1,0 +1,2 @@
+-- Reserved migration filename. Manual close and trip-history finalization are deferred.
+-- No schema changes are made by this migration.

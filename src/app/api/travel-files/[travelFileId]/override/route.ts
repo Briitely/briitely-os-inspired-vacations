@@ -16,7 +16,8 @@ const OPTIONS:{stage:string;actionCode:string;title:string;responsibleType:"clie
 {stage:"negotiating",actionCode:"negotiate_proposal",title:"Negotiate Proposal",responsibleType:"internal"},
 {stage:"proposal_accepted",actionCode:"complete_booking",title:"Complete Booking",responsibleType:"internal"},
 {stage:"booking_confirmed",actionCode:"invoicing_itinerary",title:"Invoicing & Itinerary",responsibleType:"internal"},
-{stage:"booking_confirmed",actionCode:"waiting_for_travel",title:"Waiting for Travel",responsibleType:"system"},
+{stage:"trip_plans_created",actionCode:"waiting_for_travel",title:"Waiting for Travel",responsibleType:"system"},
+{stage:"travelling",actionCode:"travelling",title:"Travelling",responsibleType:"system"},
 {stage:"post_trip",actionCode:"post_trip_close_file",title:"Post-Trip / Close File",responsibleType:"internal"}];
 
 export async function POST(request:Request,{params}:{params:Promise<{travelFileId:string}>}){
@@ -34,7 +35,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
   const{data:advisor}=await supabase.from("profiles").select("id,is_active").eq("id",body.responsibleUserId).maybeSingle();
   if(!advisor?.is_active)return NextResponse.json({error:"Select an active responsible user."},{status:400});
  }
- const{data:rawFile,error:fileError}=await supabase.from("travel_files").select("id,stage,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
+ const{data:rawFile,error:fileError}=await supabase.from("travel_files").select("id,stage,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
  if(fileError||!rawFile)return NextResponse.json({error:"Travel File not found."},{status:404});
  const file=rawFile as{id:string;stage:string;current_action_id:string|null;current_action:{id:string;action_code:string;status:string}|null};
  const now=new Date().toISOString(),previousStage=file.stage,previousActionCode=file.current_action?.action_code??null;
@@ -43,7 +44,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  const{data:newAction,error:actionError}=await supabase.from("travel_actions").insert({
   travel_file_id:travelFileId,action_code:option.actionCode,title:option.title,action_role:option.actionCode==="waiting_for_travel"?"supporting":"blocking",
   responsible_type:option.responsibleType,responsible_user_id:option.responsibleType==="internal"?body.responsibleUserId:null,status:"active",
-  waiting_since:option.responsibleType==="client"||option.responsibleType==="system"?now:null,activated_at:now,due_at:body.dueAt||null,metadata
+  waiting_since:option.responsibleType==="client"||option.responsibleType==="system"?now:null,activated_at:now,due_at:body.dueAt||(option.actionCode==="waiting_for_travel"&&rawFile.departure_date?`${rawFile.departure_date}T12:00:00Z`:option.actionCode==="travelling"&&rawFile.return_date?`${rawFile.return_date}T12:00:00Z`:null),metadata
  }).select("id").single();
  if(actionError||!newAction)return NextResponse.json({error:"Failed to create new action."},{status:500});
  const{error:fileUpdateError}=await supabase.from("travel_files").update({stage:option.stage,stage_changed_at:now,current_action_id:newAction.id}).eq("id",travelFileId);
