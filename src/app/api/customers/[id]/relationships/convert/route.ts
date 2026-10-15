@@ -23,7 +23,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const existing=await findContactByEmailOrPhone(email,checked?.normalized);
   if(existing)return NextResponse.json({error:"Email or phone already belongs to a client. Open that client instead of creating a duplicate."},{status:409});
   const primary=body.useSameAddress?await getContact(id):null;
-  const created=await createContactWithoutUpsert({firstName:profile.first_name,lastName:profile.last_name,...(email?{email}:{}),...(checked?{phone:checked?.normalized||null}:{}),
+  const created=await createContactWithoutUpsert({firstName:profile.first_name,lastName:profile.last_name,...(email?{email}:{}),...(checked?{phone:checked.normalized}:{}),
    ...(primary?{address1:primary.address1,city:primary.city,state:primary.state,postalCode:primary.postalCode,country:primary.country}:{address1:body.address1?.trim(),city:body.city?.trim(),state:body.state?.trim(),postalCode:body.postalCode?.trim(),country:body.country?.trim()})});
   const {data:linked,error:linkError}=await db.from("traveller_profiles").update({briitely_contact_id:created.id,email:email||null,phone:checked?.normalized||null}).eq("id",profile.id).is("briitely_contact_id",null).select("id").maybeSingle();
   if(linkError||!linked)return NextResponse.json({error:"Client was created in Briitely, but linking the traveller failed. Please contact support to link the existing client instead of creating another."},{status:500});
@@ -34,6 +34,6 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
    const {error:reverseError}=await db.from("client_relationships").upsert({primary_contact_id:created.id,related_traveller_id:primaryProfile.id,relationship_type:inverse},{onConflict:"primary_contact_id,related_traveller_id"});
    if(reverseError)return NextResponse.json({error:"Client created and linked, but reverse relationship could not be saved."},{status:500});
   }
-  return NextResponse.json({success:true,clientId:created.customer.id});
+  return NextResponse.json({success:true,clientId:created.id});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not create client."},{status:500})}
 }
