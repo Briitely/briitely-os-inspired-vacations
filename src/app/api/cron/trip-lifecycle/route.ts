@@ -14,7 +14,7 @@ export async function GET(request:Request){
  let advanced=0,rolledUp=0,failed=0;const results:any[]=[];
  for(const file of files??[]){
   try{
-   const{data:current}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle():{data:null};
+   const{data:current,error:currentError}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle():{data:null,error:null};if(currentError)throw currentError;
    if(!current||current.status!=="active"||!["waiting_for_travel","travelling","pre_trip_actions","post_trip_close_file"].includes(current.action_code)){results.push({travelFileId:file.id,status:"not_ready_for_return_processing"});continue}if(current.action_code==="post_trip_close_file"&&file.client_rollup_recorded_at){results.push({travelFileId:file.id,status:"already_post_trip"});continue}
 
    // Departure triggers travelling; return triggers post-trip on the following calendar day.
@@ -22,9 +22,11 @@ export async function GET(request:Request){
     const now=new Date().toISOString();
     const {data:next,error:nextError}=await db.from("travel_actions").insert({travel_file_id:file.id,action_code:"travelling",title:"Travelling",description:"Client is travelling. Automatically advances after the return date.",action_role:"supporting",responsible_type:"system",responsible_user_id:null,due_at:file.return_date?`${file.return_date}T12:00:00Z`:null,status:"active",waiting_since:now,activated_at:now,metadata:{trigger:"departure_date_reached",departure_date:file.departure_date}}).select("id").single();
     if(nextError||!next)throw nextError??new Error("Could not create Travelling action.");
-    const {error:fileError}=await db.from("travel_files").update({stage:"travelling",stage_changed_at:now,current_action_id:next.id}).eq("id",file.id).eq("current_action_id",current.id);
-    if(fileError)throw fileError;
-    await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"departure_date_reached"}).eq("id",current.id);
+    const {data:swapped,error:fileError}=await db.from("travel_files").update({stage:"travelling",stage_changed_at:now,current_action_id:next.id}).eq("id",file.id).eq("current_action_id",current.id).eq("file_status","open").select("id").maybeSingle();
+    if(fileError||!swapped){await db.from("travel_actions").delete().eq("id",next.id);if(fileError)throw fileError;results.push({travelFileId:file.id,status:"concurrent_transition_skipped"});continue;}
+    const {data:claimed,error:claimError}=await db.from("travel_files").select("id").eq("id",file.id).eq("current_action_id",next.id).maybeSingle();
+    if(claimError||!claimed){await db.from("travel_actions").delete().eq("id",next.id);if(claimError)throw claimError;results.push({travelFileId:file.id,status:"concurrent_transition_skipped"});continue;}
+    const {error:completeError}=await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"departure_date_reached"}).eq("id",current.id).eq("status","active");if(completeError)throw completeError;
     await db.from("travel_activity").insert({travel_file_id:file.id,event_type:"trip_departed",summary:"Departure date reached. Travel File moved to Travelling.",actor_type:"system",actor_user_id:null,action_id:next.id,previous_stage:file.stage,new_stage:"travelling",metadata:{departure_date:file.departure_date}});
     advanced++;results.push({travelFileId:file.id,status:"travelling"});continue;
    }
@@ -56,8 +58,9 @@ export async function GET(request:Request){
     const now=new Date().toISOString();
     const{data:next,error:nextError}=await db.from("travel_actions").insert({travel_file_id:file.id,action_code:"post_trip_close_file",title:"Post-Trip / Close File",description:"Complete any post-trip follow-up, resolve outstanding issues, and close the Travel File.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id??null,status:"active",waiting_since:now,activated_at:now,metadata:{trigger:"day_after_return",return_date:file.return_date}}).select("id").single();
     if(nextError||!next)throw nextError??new Error("Could not create post-trip action.");
-    if(current?.id&&current.status==="active")await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"return_date_reached"}).eq("id",current.id);
-    const{error:fileError}=await db.from("travel_files").update({stage:"post_trip",stage_changed_at:now,current_action_id:next.id}).eq("id",file.id);if(fileError)throw fileError;
+    const{data:swapped,error:fileError}=await db.from("travel_files").update({stage:"post_trip",stage_changed_at:now,current_action_id:next.id}).eq("id",file.id).eq("current_action_id",current.id).eq("file_status","open").select("id").maybeSingle();
+    if(fileError||!swapped){await db.from("travel_actions").delete().eq("id",next.id);if(fileError)throw fileError;results.push({travelFileId:file.id,status:"concurrent_transition_skipped"});continue;}
+    const{error:completeError}=await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"return_date_reached"}).eq("id",current.id).eq("status","active");if(completeError)throw completeError;
     await db.from("travel_activity").insert({travel_file_id:file.id,event_type:"trip_returned",summary:"Day after return date reached. Travel File moved to Post-Trip / Close File.",actor_type:"system",actor_user_id:null,action_id:next.id,previous_stage:file.stage,new_stage:"post_trip",metadata:{return_date:file.return_date}});
     advanced++;
    }
