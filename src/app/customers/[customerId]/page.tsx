@@ -36,7 +36,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-5 sm:px-6 lg:px-8">
         <div className="space-y-5">
           <Button variant="ghost" asChild className="-ml-3">
-            <Link href="/dashboard"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
+            <Link href="/customers"><ArrowLeft className="h-4 w-4" />Back to Find or Create Client</Link>
           </Button>
           {customer && (
             <div>
@@ -50,7 +50,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
         {loadError && !customer && (
           <Card><CardContent className="space-y-4 p-6">
             <p className="text-sm text-destructive" role="alert">{loadError}</p>
-            <Button variant="outline" asChild><Link href="/customers"><ArrowLeft className="h-4 w-4" />Back to Client Search</Link></Button>
+            <Button variant="outline" asChild><Link href="/customers"><ArrowLeft className="h-4 w-4" />Back to Find or Create Client</Link></Button>
           </CardContent></Card>
         )}
 
