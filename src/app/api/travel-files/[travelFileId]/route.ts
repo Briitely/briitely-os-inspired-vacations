@@ -25,10 +25,10 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   const{user}=await getAuthenticatedUser();if(!user)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
   const{travelFileId}=await params,body=(await request.json())as Partial<EditRequestBody>,supabase=await createClient();
-  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at").eq("id",travelFileId).maybeSingle();
+  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code)").eq("id",travelFileId).maybeSingle();
   if(fetchError||!existing)return NextResponse.json({error:"Travel File not found."},{status:404});
   if(body.updatedAt&&body.updatedAt!==existing.updated_at)return NextResponse.json({error:"This Travel File was modified by another user. Please reload and try again."},{status:409});
-  if(body.departureDate&&body.returnDate&&parseDateOnly(body.returnDate)<parseDateOnly(body.departureDate))return NextResponse.json({error:"Return date cannot be before departure date."},{status:400});
+  if((body.departureDate===undefined?existing.departure_date:body.departureDate)&&(body.returnDate===undefined?existing.return_date:body.returnDate)&&parseDateOnly((body.returnDate===undefined?existing.return_date:body.returnDate)!)<parseDateOnly((body.departureDate===undefined?existing.departure_date:body.departureDate)!))return NextResponse.json({error:"Return date cannot be before departure date."},{status:400});
   if(body.travefyProposalUrl!==undefined&&body.travefyProposalUrl&&!isValidUrl(body.travefyProposalUrl))return NextResponse.json({error:"Travefy Proposal URL must be a valid http:// or https:// URL."},{status:400});
   if(body.travefyTripPlanUrl!==undefined&&body.travefyTripPlanUrl&&!isValidUrl(body.travefyTripPlanUrl))return NextResponse.json({error:"Travefy Trip Plan URL must be a valid http:// or https:// URL."},{status:400});
   if(body.totalBookingValue!==undefined&&body.totalBookingValue!==null&&(isNaN(body.totalBookingValue)||body.totalBookingValue<0))return NextResponse.json({error:"Total Booking Value must be a valid number."},{status:400});
@@ -71,6 +71,13 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   if(body.numberOfAdults!==undefined||body.numberOfChildren!==undefined){let adults=body.numberOfAdults,children=body.numberOfChildren;if(adults===undefined||children===undefined){const{data:current}=await supabase.from("travel_files").select("number_of_adults, number_of_children").eq("id",travelFileId).maybeSingle();if(adults===undefined)adults=current?.number_of_adults??1;if(children===undefined)children=current?.number_of_children??0}const childCount=children??0;updates.number_of_adults=adults;updates.number_of_children=childCount;updates.number_of_travellers=(adults??0)+childCount}
   const changedFieldCount=Object.keys(updates).length;if(!changedFieldCount)return NextResponse.json({success:true,changedFieldCount:0});
   const{error:updateError}=await supabase.from("travel_files").update(updates).eq("id",travelFileId);if(updateError)return NextResponse.json({error:"Failed to update Travel File."},{status:500});
+  const currentAction=Array.isArray(existing.current_action)?existing.current_action[0]:existing.current_action;
+  const dateField=currentAction?.action_code==="waiting_for_travel"?"departureDate":currentAction?.action_code==="travelling"?"returnDate":null;
+  if(dateField&&body[dateField]!==undefined&&existing.current_action_id){
+    const date=body[dateField];
+    const {error:dueError}=await supabase.from("travel_actions").update({due_at:date?`${date}T12:00:00Z`:null}).eq("id",existing.current_action_id).eq("travel_file_id",travelFileId);
+    if(dueError)return NextResponse.json({error:"Travel dates were saved but the Current Action due date could not be synchronized. Please retry."},{status:500});
+  }
   await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"travel_file_updated",summary:"Travel File details updated.",actor_type:"internal",actor_user_id:user.id,metadata:{changedFields:Object.keys(updates)}});
   return NextResponse.json({success:true,changedFieldCount});
 }
