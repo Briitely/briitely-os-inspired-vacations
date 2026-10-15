@@ -8,7 +8,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
  const {user}=await getAuthenticatedUser();
  if(!user||!user.isActive||!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
  const {id}=await params;
- const body=await request.json().catch(()=>null) as {relationshipId?:string;email?:string;phone?:string;useSameAddress?:boolean;address1?:string;city?:string;state?:string;postalCode?:string;country?:string}|null;
+ const body=await request.json().catch(()=>null) as {relationshipId?:string;email?:string;phone?:string;useSameAddress?:boolean;address1?:string;city?:string;state?:string;postalCode?:string;country?:string;reciprocalRelationshipType?:string}|null;
  if(!body?.relationshipId)return NextResponse.json({error:"Relationship required."},{status:400});
  const email=body.email?.trim().toLowerCase()||"",phone=body.phone?.trim()||"";
  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return NextResponse.json({error:"Enter a valid email or leave it blank."},{status:400});
@@ -30,7 +30,8 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const {data:primaryProfile,error:primaryError}=await db.from("traveller_profiles").select("id").eq("briitely_contact_id",id).maybeSingle();
   if(primaryError)return NextResponse.json({error:"Client created and linked, but reverse relationship could not be loaded."},{status:500});
   if(primaryProfile){
-   const inverse=rel.relationship_type==="child"||rel.relationship_type==="adult_child"?"parent":rel.relationship_type==="parent"?"child":rel.relationship_type;
+   const inverse=body.reciprocalRelationshipType??(rel.relationship_type==="child"||rel.relationship_type==="adult_child"?"parent":rel.relationship_type==="parent"?"adult_child":rel.relationship_type);
+   if(!["spouse_partner","child","adult_child","parent","other_family"].includes(inverse))return NextResponse.json({error:"Choose a valid reciprocal relationship."},{status:400});
    const {error:reverseError}=await db.from("client_relationships").upsert({primary_contact_id:created.id,related_traveller_id:primaryProfile.id,relationship_type:inverse},{onConflict:"primary_contact_id,related_traveller_id"});
    if(reverseError)return NextResponse.json({error:"Client created and linked, but reverse relationship could not be saved."},{status:500});
   }
