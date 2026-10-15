@@ -9,7 +9,7 @@ import { Button } from "@/components/core/ui/button";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Find Customer — Briitely OS",
+  title: "Find or Create Client — Briitely OS",
 };
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ customerId?: string }> }) {
@@ -32,7 +32,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><UserRoundSearch className="h-6 w-6" /></div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Find Customer</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Find or Create Client</h1>
               <p className="mt-2 text-base text-muted-foreground">Search by name, business, or email.</p>
             </div>
           </div>
