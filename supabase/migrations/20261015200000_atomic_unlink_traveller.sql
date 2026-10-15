@@ -52,4 +52,4 @@ end;
 $$;
 revoke all on function public.delete_unlinked_traveller(text,uuid) from public;
 revoke all on function public.delete_unlinked_traveller(text,uuid) from anon;
-grant execute on function public.delete_unlinked_traveller(text,uuid) to authenticated;
+grant execute on function public.delete_unlinked_traveller(text,uuid) to service_role;
