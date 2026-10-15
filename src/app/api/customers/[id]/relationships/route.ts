@@ -35,4 +35,25 @@ if(body.relationshipType&&body.relationshipType!==relationship.relationship_type
 }
 return NextResponse.json({updated:true})}
 
-export async function DELETE(req:Request,{params}:{params:Promise<{id:string}>}){if(!(await requireUser()))return NextResponse.json({error:"Unauthorized"},{status:401});const{id}=await params;const relationshipId=new URL(req.url).searchParams.get("relationshipId");if(!relationshipId)return NextResponse.json({error:"Relationship ID is required."},{status:400});const supabase=await createClient();const{data:existing,error:fetchError}=await supabase.from("client_relationships").select("id, relationship_type, related_traveller_id, traveller_profiles:related_traveller_id(briitely_contact_id)").eq("id",relationshipId).eq("primary_contact_id",id).maybeSingle();if(fetchError)return NextResponse.json({error:fetchError.message},{status:500});if(!existing)return NextResponse.json({error:"Relationship not found."},{status:404});const related=Array.isArray(existing.traveller_profiles)?existing.traveller_profiles[0]:existing.traveller_profiles;const{error:deleteError}=await supabase.from("client_relationships").delete().eq("id",relationshipId).eq("primary_contact_id",id);if(deleteError)return NextResponse.json({error:deleteError.message},{status:500});if(related?.briitely_contact_id){const{data:primaryTraveller}=await supabase.from("traveller_profiles").select("id").eq("briitely_contact_id",id).maybeSingle();if(primaryTraveller)await supabase.from("client_relationships").delete().eq("primary_contact_id",related.briitely_contact_id).eq("related_traveller_id",primaryTraveller.id)}return NextResponse.json({deleted:true})}
+export async function DELETE(req:Request,{params}:{params:Promise<{id:string}>}){
+ const user=await requireUser();if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const {id}=await params;const url=new URL(req.url),relationshipId=url.searchParams.get("relationshipId");
+ if(!relationshipId)return NextResponse.json({error:"Relationship ID required."},{status:400});
+ const db=await createClient();
+ const {data:rel,error}=await db.from("client_relationships").select("id,related_traveller_id,traveller_profiles:related_traveller_id(id,briitely_contact_id)").eq("id",relationshipId).eq("primary_contact_id",id).maybeSingle();
+ if(error)return NextResponse.json({error:error.message},{status:500});
+ if(!rel)return NextResponse.json({error:"Relationship not found."},{status:404});
+ const profile=Array.isArray(rel.traveller_profiles)?rel.traveller_profiles[0]:rel.traveller_profiles;
+ if(!profile)return NextResponse.json({error:"Traveller profile not found."},{status:404});
+ if(!profile.briitely_contact_id){
+   return NextResponse.json({error:"This traveller does not have a separate client file. Choose Create Separate Client File or Permanent Delete in the unlink dialog."},{status:409});
+ }
+ const {error:deleteError}=await db.from("client_relationships").delete().eq("id",relationshipId).eq("primary_contact_id",id);
+ if(deleteError)return NextResponse.json({error:deleteError.message},{status:500});
+ const {data:primary}=await db.from("traveller_profiles").select("id").eq("briitely_contact_id",id).maybeSingle();
+ if(primary){
+  const {error:reverseError}=await db.from("client_relationships").delete().eq("primary_contact_id",profile.briitely_contact_id).eq("related_traveller_id",primary.id);
+  if(reverseError)return NextResponse.json({error:"Forward relationship removed, but reciprocal unlink failed: "+reverseError.message},{status:500});
+ }
+ return NextResponse.json({unlinked:true});
+}
