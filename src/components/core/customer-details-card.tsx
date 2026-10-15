@@ -10,6 +10,8 @@ import type { BriitelyCustomer } from "@/lib/briitely/types";
 
 interface CustomerDetailsCardProps {
   customer: BriitelyCustomer;
+  isDeceased?:boolean;
+  onDeceasedChange?: (value:boolean)=>void;
   onCustomerUpdated: (customer: BriitelyCustomer) => void;
   onChangeCustomer?: () => void;
   onBackToSearch?: () => void;
@@ -20,7 +22,7 @@ interface CustomerDetailsCardProps {
 
 function Item({label,value}:{label:string;value:string|null|undefined}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium break-words">{value||"Not provided"}</p></div>}
 
-export function CustomerDetailsCard({ customer, onCustomerUpdated, onChangeCustomer, onBackToSearch, onCreateInvoice, onReceivePayment, showChangeCustomer = false }: CustomerDetailsCardProps) {
+export function CustomerDetailsCard({ customer, isDeceased, onDeceasedChange, onCustomerUpdated, onChangeCustomer, onBackToSearch, onCreateInvoice, onReceivePayment, showChangeCustomer = false }: CustomerDetailsCardProps) {
   const [editing, setEditing] = useState(false);
   const hasSecondaryActions = Boolean(onCreateInvoice || onReceivePayment || (showChangeCustomer && onChangeCustomer));
   return <>
@@ -47,6 +49,6 @@ export function CustomerDetailsCard({ customer, onCustomerUpdated, onChangeCusto
         </div>
       </div>
     </div>
-    <CustomerEditModal key={`${customer.id}-${editing}`} customer={customer} open={editing} onOpenChange={setEditing} onUpdated={onCustomerUpdated}/>
+    <CustomerEditModal key={`${customer.id}-${editing}`} customer={customer} isDeceased={isDeceased} onDeceasedChange={onDeceasedChange} open={editing} onOpenChange={setEditing} onUpdated={onCustomerUpdated}/>
   </>;
 }

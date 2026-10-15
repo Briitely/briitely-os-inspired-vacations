@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { addContactTag, getContact, removeContactTag } from "@/lib/briitely/contacts";
 
-const PROFILE_FIELDS = "id, briitely_contact_id, first_name, middle_name, last_name, preferred_name, date_of_birth, email, phone, passport_number, passport_country, passport_issue_date, passport_expiry_date, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, is_dnb, dnb_reason";
+const PROFILE_FIELDS = "id, briitely_contact_id, first_name, middle_name, last_name, preferred_name, date_of_birth, email, phone, passport_number, passport_country, passport_issue_date, passport_expiry_date, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, emergency_contact_email, is_dnb, dnb_reason, is_deceased, deceased_at";
 async function requireUser(){const{user,error}=await getAuthenticatedUser();return error||!user?null:user}
 function hasDnbTag(tags?:string[]){return(tags??[]).some(tag=>tag.trim().toLowerCase()==="dnb")}
 
@@ -28,6 +28,21 @@ export async function PUT(req:Request,{params}:{params:Promise<{id:string}>}){
 
 export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){
  const user=await requireUser();if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});const{id}=await params;const body=await req.json().catch(()=>null)as{action?:string;confirmation?:string;reason?:string}|null;const supabase=await createClient();
+ if(body?.action==="mark_deceased"||body?.action==="remove_deceased"){
+  if(body.action==="remove_deceased"&&body.confirmation!=="REMOVE DECEASED")return NextResponse.json({error:"Type REMOVE DECEASED to confirm."},{status:400});
+  const deceased=body.action==="mark_deceased";
+  const {data:existing,error:findError}=await supabase.from("traveller_profiles").select("id").eq("briitely_contact_id",id).maybeSingle();
+  if(findError)return NextResponse.json({error:findError.message},{status:500});
+  if(!existing){
+   const contact=await getContact(id);
+   const {data:created,error:insertError}=await supabase.from("traveller_profiles").insert({briitely_contact_id:id,first_name:contact.firstName||"Unknown",last_name:contact.lastName||"",email:contact.email||null,phone:contact.phone||null,is_deceased:deceased}).select(PROFILE_FIELDS).single();
+   if(insertError||!created)return NextResponse.json({error:insertError?.message||"Could not mark deceased."},{status:500});
+   return NextResponse.json({ok:true,profile:created});
+  }
+  const {data,error}=await supabase.from("traveller_profiles").update({is_deceased:deceased,deceased_at:null}).eq("id",existing.id).select(PROFILE_FIELDS).single();
+  if(error||!data)return NextResponse.json({error:error?.message||"Could not update deceased status."},{status:500});
+  return NextResponse.json({ok:true,profile:data});
+ }
  if(body?.action==="remove_dnb"){
   if(body.confirmation!=="REMOVE DNB")return NextResponse.json({error:"Confirmation does not match."},{status:400});
   const tagResult=await removeContactTag(id,"dnb");if(!tagResult.succeeded)return NextResponse.json({error:"Could not remove the DNB tag from Briitely. The client has not been changed."},{status:502});
