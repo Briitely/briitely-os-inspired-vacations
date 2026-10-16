@@ -75,10 +75,13 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   const newInsurance=body.insuranceInterest!==undefined&&requestedInsurance(body.insuranceInterest)&&!requestedInsurance(existing.insurance_interest);
   let insuranceAssigneeId:string|null=null;
   if(newInsurance){
-    const {data:advisors,error:advisorError}=await supabase.from("profiles").select("id,full_name,is_active").ilike("full_name","Tracy%").eq("is_active",true).limit(10);
-    if(advisorError)return NextResponse.json({error:"Could not find the insurance task assignee."},{status:500});
-    const tracy=advisors?.find(advisor=>/^Tracy(?:\\s|$)/i.test(advisor.full_name??""));
-    if(!tracy)return NextResponse.json({error:"Tracy must be an active team member before an insurance request can be assigned."},{status:409});
+    // Resolve the actual staff profile rather than relying on a name-prefix filter.
+    // Prefer the Travel File advisor when that advisor is Tracy.
+    const {data:advisors,error:advisorError}=await supabase.from("profiles").select("id,full_name,is_active").eq("is_active",true).in("role",["staff","admin","super_admin"]);
+    if(advisorError)return NextResponse.json({error:"Could not load active team members for insurance assignment."},{status:500});
+    const tracy=advisors?.find(advisor=>advisor.id===existing.assigned_advisor_id&&/\\btracy\\b/i.test(advisor.full_name??""))
+      ??advisors?.find(advisor=>/\\btracy\\b/i.test(advisor.full_name??""));
+    if(!tracy)return NextResponse.json({error:"Could not identify Tracy in the active team member list. Please check her staff profile."},{status:409});
     insuranceAssigneeId=tracy.id;
   }
   const changedFieldCount=Object.keys(updates).length;if(!changedFieldCount)return NextResponse.json({success:true,changedFieldCount:0});
