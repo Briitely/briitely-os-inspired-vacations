@@ -44,7 +44,7 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
           travel_file_id:travelFileId,title:DUPLICATE_REVIEW_TITLE,
           notes:"A client added a traveller through a booking form after the initial booking stage. Review the highlighted traveller(s) for existing client or traveller records before creating duplicates.",
           assigned_to:dana?.id??file.assigned_advisor_id??null,
-          due_date:dueDate,status:"open"
+          due_date:dueDate
         });
         if (taskError) console.error("LATE_BOOKING_DUPLICATE_REVIEW_TASK_FAILED",taskError);
       }
