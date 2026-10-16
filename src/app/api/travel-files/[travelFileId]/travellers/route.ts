@@ -241,6 +241,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ travel
     if (body.createClientFile && !clientId && !nextEmail?.trim()) return NextResponse.json({ error: "Enter an email address to create a client file in Briitely." }, { status: 400 });
     if ((body.createClientFile || nextEmail) && !clientId) clientId = await ensureClientFile(s, p, nextEmail, nextPhone);
     if (body.createClientFile && !clientId) throw new Error("Client file was not created. Please try again.");
+    if (body.createClientFile && clientId) {
+      // A new client file is a valid resolution of this traveller's duplicate review.
+      const { data: reviewEvents, error: reviewLookupError } = await s.from("travel_activity")
+        .select("event_type").eq("travel_file_id",travelFileId)
+        .in("event_type",["client_added_traveller","client_added_traveller_reviewed"])
+        .contains("metadata",{party_member_id:body.partyMemberId});
+      if (reviewLookupError) throw new Error(reviewLookupError.message);
+      if (reviewEvents?.some((event:any)=>event.event_type==="client_added_traveller")
+        && !reviewEvents.some((event:any)=>event.event_type==="client_added_traveller_reviewed")) {
+        const reviewResponse = await fetch(new URL(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers/client-added-review`,req.url),{
+          method:"POST",headers:{"Content-Type":"application/json",cookie:req.headers.get("cookie")??""},
+          body:JSON.stringify({partyMemberId:body.partyMemberId,resolution:"no_duplicate"})
+        });
+        if(!reviewResponse.ok) throw new Error("Client file created, but duplicate review could not be marked complete. Please refresh and try again.");
+      }
+    }
     if (m.traveller_role !== "primary" && typeof body.relationshipToPrimary === "string") {
       const { data: f } = await s.from("travel_files").select("briitely_contact_id").eq("id", travelFileId).maybeSingle();
       await syncClientRelationship(s, f?.briitely_contact_id ?? null, m.traveller_profile_id, body.relationshipToPrimary.trim() || null);
