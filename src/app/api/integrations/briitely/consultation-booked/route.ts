@@ -227,39 +227,35 @@ export async function POST(request: Request) {
 
     const candidates = (filesByContact as TravelFile[] | null) ?? [];
 
-    if (candidates.length === 1) {
-      travelFile = candidates[0];
-      matchMethod = "contact_id_single";
-    } else if (candidates.length > 1) {
-      if (booking.opportunityId) {
-        const match = candidates.find(
-          (f) => f.lead_opportunity_id === booking.opportunityId
-        );
-        if (match) {
-          travelFile = match;
-          matchMethod = "contact_id_with_opportunity_filter";
-        }
-      }
+    // Prefer the only inquiry still waiting for its first consultation.
+    // A different trip already at consult_booked must not block a new inquiry.
+    const awaitingConsult = candidates.filter((file) => file.stage === "new_inquiry");
+    const eligible = awaitingConsult.length > 0 ? awaitingConsult : candidates;
 
-      if (!travelFile) {
-        log("ambiguous_travel_file", {
-          candidateCount: candidates.length,
-          contactId: booking.contactId,
-        });
-        await logIntegration({
-          provider: "briitely",
-          operation: "consultation_booked",
-          entityType: "travel_file",
-          externalId: booking.contactId,
-          status: "failed",
-          errorCode: "AMBIGUOUS_TRAVEL_FILE",
-          errorMessage: `Multiple open Travel Files found for contact (${candidates.length})`,
-        });
-        return NextResponse.json(
-          { error: "ambiguous_travel_file", result: "ambiguous_travel_file" },
-          { status: 409 }
-        );
-      }
+    if (eligible.length === 1) {
+      travelFile = eligible[0];
+      matchMethod = awaitingConsult.length === 1
+        ? "contact_id_single_new_inquiry"
+        : "contact_id_single_consult_booked";
+    } else if (eligible.length > 1) {
+      log("ambiguous_travel_file", {
+        candidateCount: eligible.length,
+        awaitingConsultCount: awaitingConsult.length,
+        contactId: booking.contactId,
+      });
+      await logIntegration({
+        provider: "briitely",
+        operation: "consultation_booked",
+        entityType: "travel_file",
+        externalId: booking.contactId,
+        status: "failed",
+        errorCode: "AMBIGUOUS_TRAVEL_FILE",
+        errorMessage: `Multiple ${awaitingConsult.length ? "New Inquiry" : "Consult Booked"} Travel Files found for contact (${eligible.length}); manual review required`,
+      });
+      return NextResponse.json(
+        { error: "ambiguous_travel_file", result: "manual_review_required" },
+        { status: 409 }
+      );
     }
   }
 
