@@ -25,7 +25,7 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   const{user}=await getAuthenticatedUser();if(!user)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
   const{travelFileId}=await params,body=(await request.json())as Partial<EditRequestBody>,supabase=await createClient();
-  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at,file_status,stage,assigned_advisor_id,client_rollup_recorded_at,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
+  const{data:existing,error:fetchError}=await supabase.from("travel_files").select("updated_at,file_status,stage,insurance_interest,assigned_advisor_id,client_rollup_recorded_at,departure_date,return_date,current_action_id,current_action:travel_actions!current_action_id(id,action_code,status)").eq("id",travelFileId).maybeSingle();
   if(fetchError||!existing)return NextResponse.json({error:"Travel File not found."},{status:404});
   if(body.updatedAt&&body.updatedAt!==existing.updated_at)return NextResponse.json({error:"This Travel File was modified by another user. Please reload and try again."},{status:409});
   if((body.departureDate===undefined?existing.departure_date:body.departureDate)&&(body.returnDate===undefined?existing.return_date:body.returnDate)&&parseDateOnly((body.returnDate===undefined?existing.return_date:body.returnDate)!)<parseDateOnly((body.departureDate===undefined?existing.departure_date:body.departureDate)!))return NextResponse.json({error:"Return date cannot be before departure date."},{status:400});
@@ -69,8 +69,32 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
   if(body.bookingRegistrationEligible!==undefined)updates.booking_registration_eligible=body.bookingRegistrationEligible;
   if(body.bookingRegistrationDoneAt!==undefined)updates.booking_registration_done_at=body.bookingRegistrationDoneAt||null;
   if(body.numberOfAdults!==undefined||body.numberOfChildren!==undefined){let adults=body.numberOfAdults,children=body.numberOfChildren;if(adults===undefined||children===undefined){const{data:current}=await supabase.from("travel_files").select("number_of_adults, number_of_children").eq("id",travelFileId).maybeSingle();if(adults===undefined)adults=current?.number_of_adults??1;if(children===undefined)children=current?.number_of_children??0}const childCount=children??0;updates.number_of_adults=adults;updates.number_of_children=childCount;updates.number_of_travellers=(adults??0)+childCount}
+  // Insurance added after consultation must not be lost between workflow stages.
+  // Do not create another task for edits to an existing insurance request.
+  const requestedInsurance=(value:string|null|undefined)=>Boolean(value?.trim()&&!value.toLowerCase().includes("decline all travel insurance"));
+  const newInsurance=body.insuranceInterest!==undefined&&requestedInsurance(body.insuranceInterest)&&!requestedInsurance(existing.insurance_interest);
+  let insuranceAssigneeId:string|null=null;
+  if(newInsurance){
+    // Resolve the actual staff profile rather than relying on a name-prefix filter.
+    // Prefer the Travel File advisor when that advisor is Tracy.
+    const {data:advisors,error:advisorError}=await supabase.from("profiles").select("id,full_name,is_active").eq("is_active",true).in("role",["staff","admin","super_admin"]);
+    if(advisorError)return NextResponse.json({error:"Could not load active team members for insurance assignment."},{status:500});
+    const tracy=advisors?.find(advisor=>advisor.id===existing.assigned_advisor_id&&/\btracy\b/i.test(advisor.full_name??""))
+      ??advisors?.find(advisor=>/\btracy\b/i.test(advisor.full_name??""));
+    if(!tracy)return NextResponse.json({error:"Could not identify Tracy in the active team member list. Please check her staff profile."},{status:409});
+    insuranceAssigneeId=tracy.id;
+  }
   const changedFieldCount=Object.keys(updates).length;if(!changedFieldCount)return NextResponse.json({success:true,changedFieldCount:0});
   const{error:updateError}=await supabase.from("travel_files").update(updates).eq("id",travelFileId);if(updateError)return NextResponse.json({error:"Failed to update Travel File."},{status:500});
+  if(newInsurance&&insuranceAssigneeId){
+    const {data:pendingTasks,error:lookupError}=await supabase.from("travel_file_tasks").select("id").eq("travel_file_id",travelFileId).eq("title","Review insurance quotes requested").is("completed_at",null).limit(1);
+    if(lookupError)return NextResponse.json({error:"Insurance preference saved, but could not check existing insurance tasks."},{status:500});
+    if(!pendingTasks?.length){
+      const dueDate=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Edmonton",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+      const {error:taskError}=await supabase.from("travel_file_tasks").insert({travel_file_id:travelFileId,title:"Review insurance quotes requested",notes:`Client asked for: ${body.insuranceInterest}`,assigned_to:insuranceAssigneeId,due_date:dueDate,created_by:user.id});
+      if(taskError)return NextResponse.json({error:"Insurance preference saved, but the follow-up task could not be created."},{status:500});
+    }
+  }
   const currentAction=Array.isArray(existing.current_action)?existing.current_action[0]:existing.current_action;
   // Reconcile the workflow only when the trip dates actually change.
   const datesChanged=(body.departureDate!==undefined&&body.departureDate!==existing.departure_date)||

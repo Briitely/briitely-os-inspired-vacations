@@ -143,6 +143,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ travelF
     const currentIds = new Set(currentMembers.map((member: any) => member.id));
     const remainingIds = Array.from(added).filter(id => currentIds.has(id) && !reviewed.has(id));
     await syncWorkflowRequirement(s, travelFileId, remainingIds.length, user.id);
+    // Later-stage duplicate reviews are represented by a regular task.
+    // Complete it only when every client-added traveller has been reviewed.
+    if (remainingIds.length === 0) {
+      const { error: taskError } = await s.from("travel_file_tasks").update({
+        status:"complete",completed_at:new Date().toISOString(),completed_by:user.id
+      }).eq("travel_file_id",travelFileId).eq("title","Check for duplicate traveller files").neq("status","complete");
+      if (taskError) throw new Error(taskError.message);
+    }
 
     return NextResponse.json({ reviewed: true, remaining: remainingIds.length });
   } catch (error) {

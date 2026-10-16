@@ -28,22 +28,28 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       return;
     }
 
-    // Duplicate review is a blocking workflow requirement, not a general Travel File task.
-    // Remove any legacy duplicate task left by the previous implementation.
-    await db.from("travel_file_tasks").delete()
-      .eq("travel_file_id", travelFileId)
-      .eq("title", DUPLICATE_REVIEW_TITLE)
-      .neq("status", "complete");
-
-    if (!file.current_action_id) return;
-
-    const { data: action } = await db
-      .from("travel_actions")
-      .select("id,action_code,status")
-      .eq("id", file.current_action_id)
-      .maybeSingle();
-
-    if (action?.action_code !== "await_tmf_and_booking_form" || action?.status !== "active") return;
+    // Keep the original blocking checklist in the initial booking stage.
+    // Later bookings need a regular task because that checklist is no longer active.
+    const { data: action } = file.current_action_id
+      ? await db.from("travel_actions").select("id,action_code,status").eq("id",file.current_action_id).maybeSingle()
+      : { data: null };
+    if (action?.action_code !== "await_tmf_and_booking_form" || action?.status !== "active") {
+      const { data: pending } = await db.from("travel_file_tasks").select("id")
+        .eq("travel_file_id",travelFileId).eq("title",DUPLICATE_REVIEW_TITLE)
+        .neq("status","complete").limit(1);
+      if (!pending?.length) {
+        const { data: dana } = await db.from("profiles").select("id").eq("is_active",true).ilike("full_name","Dana Pasquotti").maybeSingle();
+        const dueDate = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Edmonton",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+        const { error: taskError } = await db.from("travel_file_tasks").insert({
+          travel_file_id:travelFileId,title:DUPLICATE_REVIEW_TITLE,
+          notes:"A client added a traveller through a booking form after the initial booking stage. Review the highlighted traveller(s) for existing client or traveller records before creating duplicates.",
+          assigned_to:dana?.id??file.assigned_advisor_id??null,
+          due_date:dueDate
+        });
+        if (taskError) console.error("LATE_BOOKING_DUPLICATE_REVIEW_TASK_FAILED",taskError);
+      }
+      return;
+    }
 
     const { data: dana } = await db.from("profiles").select("id").eq("is_active",true).ilike("full_name","Dana Pasquotti").maybeSingle();
     if (!dana?.id) console.error("DANA_PROFILE_NOT_FOUND");
