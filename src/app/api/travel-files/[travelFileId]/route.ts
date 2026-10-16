@@ -79,8 +79,8 @@ export async function PATCH(request:Request,{params}:{params:Promise<{travelFile
     // Prefer the Travel File advisor when that advisor is Tracy.
     const {data:advisors,error:advisorError}=await supabase.from("profiles").select("id,full_name,is_active").eq("is_active",true).in("role",["staff","admin","super_admin"]);
     if(advisorError)return NextResponse.json({error:"Could not load active team members for insurance assignment."},{status:500});
-    const tracy=advisors?.find(advisor=>advisor.id===existing.assigned_advisor_id&&/\\btracy\\b/i.test(advisor.full_name??""))
-      ??advisors?.find(advisor=>/\\btracy\\b/i.test(advisor.full_name??""));
+    const tracy=advisors?.find(advisor=>advisor.id===existing.assigned_advisor_id&&/\btracy\b/i.test(advisor.full_name??""))
+      ??advisors?.find(advisor=>/\btracy\b/i.test(advisor.full_name??""));
     if(!tracy)return NextResponse.json({error:"Could not identify Tracy in the active team member list. Please check her staff profile."},{status:409});
     insuranceAssigneeId=tracy.id;
   }
