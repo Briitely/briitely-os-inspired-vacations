@@ -137,7 +137,7 @@ function normalizeBooking(body: Record<string, unknown>): NormalizedBooking {
   };
 }
 
-export async function POST(request: Request) {
+export async function processConsultationBooking(request: Request, forcedTravelFileId?: string) {
   const startTime = Date.now();
 
   // ── 1. Authenticate ──────────────────────────────────────────
@@ -194,7 +194,16 @@ export async function POST(request: Request) {
   let travelFile: TravelFile | null = null;
   let matchMethod: string = "none";
 
-  if (booking.opportunityId) {
+  if (forcedTravelFileId) {
+    const { data: selected, error: selectedError } = await supabase.from("travel_files").select("*")
+      .eq("id", forcedTravelFileId).eq("briitely_contact_id", booking.contactId)
+      .eq("file_status", "open").in("stage", ["new_inquiry","consult_booked"]).maybeSingle();
+    if (selectedError || !selected) return NextResponse.json({error:"Selected Travel File is not eligible for this consultation."},{status:409});
+    travelFile = selected as TravelFile;
+    matchMethod = "manual_review";
+  }
+
+  if (!travelFile && booking.opportunityId) {
     const { data: fileByOpp, error: oppError } = await supabase
       .from("travel_files")
       .select("*")
@@ -227,39 +236,49 @@ export async function POST(request: Request) {
 
     const candidates = (filesByContact as TravelFile[] | null) ?? [];
 
-    if (candidates.length === 1) {
-      travelFile = candidates[0];
-      matchMethod = "contact_id_single";
-    } else if (candidates.length > 1) {
-      if (booking.opportunityId) {
-        const match = candidates.find(
-          (f) => f.lead_opportunity_id === booking.opportunityId
-        );
-        if (match) {
-          travelFile = match;
-          matchMethod = "contact_id_with_opportunity_filter";
-        }
-      }
+    // Prefer the only inquiry still waiting for its first consultation.
+    // A different trip already at consult_booked must not block a new inquiry.
+    const awaitingConsult = candidates.filter((file) => file.stage === "new_inquiry");
+    const eligible = awaitingConsult.length > 0 ? awaitingConsult : candidates;
 
-      if (!travelFile) {
-        log("ambiguous_travel_file", {
-          candidateCount: candidates.length,
-          contactId: booking.contactId,
-        });
-        await logIntegration({
-          provider: "briitely",
-          operation: "consultation_booked",
-          entityType: "travel_file",
-          externalId: booking.contactId,
-          status: "failed",
-          errorCode: "AMBIGUOUS_TRAVEL_FILE",
-          errorMessage: `Multiple open Travel Files found for contact (${candidates.length})`,
-        });
-        return NextResponse.json(
-          { error: "ambiguous_travel_file", result: "ambiguous_travel_file" },
-          { status: 409 }
-        );
+    if (eligible.length === 1) {
+      travelFile = eligible[0];
+      matchMethod = awaitingConsult.length === 1
+        ? "contact_id_single_new_inquiry"
+        : "contact_id_single_consult_booked";
+    } else if (eligible.length > 1) {
+      log("ambiguous_travel_file", {
+        candidateCount: eligible.length,
+        awaitingConsultCount: awaitingConsult.length,
+        contactId: booking.contactId,
+      });
+      const { data: existingReview } = booking.appointmentId
+        ? await supabase.from("consultation_booking_reviews").select("id,status")
+            .eq("contact_id",booking.contactId).eq("appointment_id",booking.appointmentId).maybeSingle()
+        : await supabase.from("consultation_booking_reviews").select("id,status")
+            .eq("contact_id",booking.contactId).is("appointment_id",null).eq("status","pending").maybeSingle();
+      if (!existingReview || existingReview.status === "pending") {
+        const record = {contact_id:booking.contactId,appointment_id:booking.appointmentId,
+          client_name:booking.clientName,appointment_start:booking.appointmentStart,
+          booking_payload:rawBody,candidate_file_ids:eligible.map(file=>file.id),updated_at:new Date().toISOString()};
+        const {error:queueError}=existingReview
+          ? await supabase.from("consultation_booking_reviews").update(record).eq("id",existingReview.id)
+          : await supabase.from("consultation_booking_reviews").insert(record);
+        if(queueError){log("manual_review_queue_failed",{error:queueError.message});return NextResponse.json({error:"Could not queue consultation for manual review."},{status:500});}
       }
+      await logIntegration({
+        provider: "briitely",
+        operation: "consultation_booked",
+        entityType: "travel_file",
+        externalId: booking.contactId,
+        status: "failed",
+        errorCode: "AMBIGUOUS_TRAVEL_FILE",
+        errorMessage: `Multiple ${awaitingConsult.length ? "New Inquiry" : "Consult Booked"} Travel Files found for contact (${eligible.length}); manual review required`,
+      });
+      return NextResponse.json(
+        { error: "ambiguous_travel_file", result: "manual_review_required" },
+        { status: 409 }
+      );
     }
   }
 
@@ -610,3 +629,5 @@ export async function POST(request: Request) {
     diagnostics,
   });
 }
+
+export async function POST(request: Request) { return processConsultationBooking(request); }

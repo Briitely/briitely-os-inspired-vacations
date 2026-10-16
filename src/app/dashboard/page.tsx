@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
+import { ConsultationBookingReviews } from "@/components/app/consultation-booking-reviews";
 import { ClientJourneyDashboard } from "@/components/app/client-journey-dashboard";
 import { WorkflowCard } from "@/components/app/workflow-card";
 import { createClient } from "@/lib/supabase/server";
@@ -112,6 +113,8 @@ export default async function DashboardPage() {
             />
           )}
         </div>
+
+        <ConsultationBookingReviews />
 
         <div id="client-journey" className="scroll-mt-24">
           <ClientJourneyDashboard
