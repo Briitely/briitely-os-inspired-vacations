@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+const insuranceOptions=["Yes, I want to add on insurance","Please provide a quote for the Cancel For Unforeseen Reason (CFUR) coverage","Please provide a quote for the All-Inclusive Package","Please provide a quote for Non Medical Package","I'm not sure, I would like to discuss further","No, I DECLINE all travel insurance and will not hold the Travel Agent responsible for any potential losses that may occur"];
 import { useRouter } from "next/navigation";
 import { Loader2, Save, X, Pencil } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
@@ -468,7 +469,7 @@ export function EditTravelFileModal({ travelFile, isOpen, onClose }: EditTravelF
             <CardHeader><CardTitle className="text-base">Insurance / Pre-Trip</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <Input id="insuranceInterest" value={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.value)} placeholder="Insurance preference" />
+                <select id="insuranceInterest" value={insuranceInterest} onChange={(e) => setInsuranceInterest(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select...</option>{insuranceInterest&&!insuranceOptions.includes(insuranceInterest)&&<option value={insuranceInterest}>{insuranceInterest}</option>}{insuranceOptions.map(option=><option key={option} value={option}>{option}</option>)}</select>
                 <span className="text-sm text-foreground">Interested in travel insurance</span>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
