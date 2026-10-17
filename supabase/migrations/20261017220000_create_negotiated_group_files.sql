@@ -1,5 +1,5 @@
 -- Atomic file split, stage one: create linked files and preserve group memberships.
--- Callable only by service_role; not yet connected to the Finalize button.
+-- Not callable until financial ownership and workflow transition are complete.
 create or replace function public.create_negotiated_group_files(p_source_id uuid)
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
@@ -110,4 +110,6 @@ begin
 end;
 $$;
 revoke all on function public.create_negotiated_group_files(uuid) from public,anon,authenticated;
-grant execute on function public.create_negotiated_group_files(uuid) to service_role;
+-- Do not grant EXECUTE to service_role yet: a successful call would create
+-- new files without transferring retainer ownership or advancing workflows.
+-- A later migration must replace this function and grant EXECUTE atomically.
