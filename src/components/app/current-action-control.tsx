@@ -21,6 +21,7 @@ import { SendProposalModal } from "@/components/app/send-proposal-modal";
 import { CheckProposalStatusModal } from "@/components/app/check-proposal-status-modal";
 import { ReviewOpportunityStatusModal } from "@/components/app/review-opportunity-status-modal";
 import { NegotiationModal } from "@/components/app/negotiation-modal";
+import { NegotiationFollowupControl } from "@/components/app/negotiation-followup-control";
 import { DepositConfirmationModal } from "@/components/app/deposit-confirmation-modal";
 import { RetainerConfirmationModal } from "@/components/app/retainer-confirmation-modal";
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
@@ -159,10 +160,7 @@ export function CurrentActionControl(props: Props) {
   ) : showInactiveProposalReview ? (
     <InactiveProposalReviewButtons travelFileId={props.travelFileId} />
   ) : showNegotiating ? (
-    <Button size="sm" onClick={() => setNegotiationOpen(true)}>
-      <Handshake className="h-4 w-4" />
-      Manage Negotiation
-    </Button>
+    <div className="flex flex-col items-start gap-3"><Button size="sm" onClick={() => setNegotiationOpen(true)}><Handshake className="h-4 w-4" />Manage Negotiation</Button><NegotiationFollowupControl travelFileId={props.travelFileId} onUpdated={() => router.refresh()} /></div>
   ) : showInvoicingItinerary ? (
     <InvoicingItineraryButton travelFileId={props.travelFileId} />
   ) : showPostTripClose ? (

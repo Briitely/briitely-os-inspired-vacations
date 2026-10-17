@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type Body = {
   emailType?: string;
+  recipientPartyMemberId?: string | null;
   recipientContactId?: string | null;
   recipientName?: string;
   recipientEmail?: string;
@@ -77,10 +78,10 @@ export async function POST(
     await db.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "client_email_sent",
-      summary: `${emailType} sent to ${recipientEmail} through Briitely.`,
+      summary: `${emailType === "retainer_booking_form" ? "Retainer Agreement & Booking Form" : emailType === "booking_form" ? "Booking Form" : emailType === "negotiation_reminder_1" ? "First Negotiation Reminder" : emailType === "negotiation_reminder_2" ? "Second Negotiation Reminder" : "Email"} sent to ${recipientName}.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: emailType, recipient_email: recipientEmail, subject },
+      metadata: { email_type: emailType, recipient_email: recipientEmail, recipient_name: recipientName, recipient_party_member_id: body.recipientPartyMemberId ?? null, subject },
     });
 
     return NextResponse.json({ success: true });
