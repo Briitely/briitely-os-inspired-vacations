@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 async function context(travelFileId: string) {
   const { user } = await getAuthenticatedUser();
   if (!user || !["staff", "admin", "super_admin"].includes(user.role)) return null;
-  const db = await createClient();
+  const db = createServiceClient();
+  if (!db) return null;
   return { db, user, travelFileId };
 }
 
