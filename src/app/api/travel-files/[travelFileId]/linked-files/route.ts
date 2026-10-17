@@ -30,6 +30,6 @@ export async function GET(_request:Request,{params}:{params:Promise<{travelFileI
  const names=new Map((files??[]).map(f=>[f.id,f.client_name]));
  const movedTo=Object.fromEntries((siblings??[]).map(s=>[s.recipient_party_member_id,{id:s.resulting_travel_file_id,name:names.get(s.resulting_travel_file_id)??"Linked Travel File"}]));
  const {data:sourceParty}=sourceId===travelFileId?await db.from("travel_file_travellers").select("id,booking_form_recipient_party_member_id").eq("travel_file_id",sourceId):{data:[]};
- const memberDestinations=Object.fromEntries((sourceParty??[]).flatMap(m=>{const dest=movedTo[m.id]??movedTo[m.booking_form_recipient_party_member_id??""];return dest?[[m.id,dest]]:[]}));
+ const memberDestinations=Object.fromEntries((sourceParty??[]).flatMap(m=>{const dest=movedTo[m.id]??movedTo[m.booking_form_recipient_party_member_id??""];return dest?[[m.id,{...dest,isGroupPrimary:!!movedTo[m.id]}]]:[]}));
  return NextResponse.json({linked:true,sourceId,files:ids.map(id=>({id,name:names.get(id)??"Travel File",original:id===sourceId,current:id===travelFileId})),movedMemberIds,memberDestinations});
 }
