@@ -72,3 +72,17 @@ export async function POST(_request:Request,{params}:{params:Promise<{travelFile
   if(error)return NextResponse.json({error:error.message},{status:409});
   return NextResponse.json({success:true,validation:data,createdFiles:0,finalized:false,message:"Transaction validation passed. No Travel Files have been created."});
 }
+
+/** Finalize in a single database transaction. Never retry blindly after a network error. */
+export async function PUT(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
+  const {user}=await getAuthenticatedUser();
+  if(!user?.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
+  if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
+  const {travelFileId}=await params;
+  const db=createServiceClient();
+  if(!db)return NextResponse.json({error:"Split service unavailable."},{status:503});
+  const {data,error}=await db.rpc("create_negotiated_group_files",{p_source_id:travelFileId});
+  if(error)return NextResponse.json({error:error.message},{status:409});
+  if(!data?.finalized)return NextResponse.json({error:"Finalization did not return a confirmed result. Check the Travel Files before retrying."},{status:500});
+  return NextResponse.json({success:true,...data});
+}
