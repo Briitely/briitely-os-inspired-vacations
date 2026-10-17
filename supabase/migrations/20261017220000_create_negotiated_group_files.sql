@@ -110,6 +110,9 @@ begin
 end;
 $$;
 revoke all on function public.create_negotiated_group_files(uuid) from public,anon,authenticated;
+-- PostgreSQL grants EXECUTE on new functions to PUBLIC by default.
+-- Explicitly revoke it from every application role, including service_role.
+revoke all on function public.create_negotiated_group_files(uuid) from service_role;
 -- Do not grant EXECUTE to service_role yet: a successful call would create
 -- new files without transferring retainer ownership or advancing workflows.
 -- A later migration must replace this function and grant EXECUTE atomically.
