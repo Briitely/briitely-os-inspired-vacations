@@ -14,6 +14,9 @@ declare
   decided_count int;
   group_count int;
   member_count int;
+  expected_groups int;
+  assigned_members int;
+  total_members int;
   signed_id uuid;
   payment_id uuid;
 begin
@@ -34,6 +37,15 @@ begin
       and n.recipient_party_member_id=r.recipient_party_member_id
     where r.travel_file_id=p_source_id and n.decision in ('accepted','declined');
   if group_count=0 or group_count<>decided_count then raise exception 'Outstanding group decisions'; end if;
+  select count(*) into expected_groups from public.travel_group_negotiations where travel_file_id=p_source_id;
+  if expected_groups<>group_count then raise exception 'Negotiation groups and retainers differ'; end if;
+  select count(*) into total_members from public.travel_file_travellers where travel_file_id=p_source_id;
+  select count(*) into assigned_members from public.travel_file_travellers t
+    where t.travel_file_id=p_source_id and (
+      (t.booking_form_recipient_party_member_id is null and original_primary is not null)
+      or exists(select 1 from public.travel_group_retainers r where r.travel_file_id=p_source_id
+        and r.recipient_party_member_id=t.booking_form_recipient_party_member_id));
+  if assigned_members<>total_members then raise exception 'Unassigned traveller detected'; end if;
   if not exists(select 1 from public.travel_group_negotiations where travel_file_id=p_source_id
     and recipient_party_member_id=original_primary and decision='accepted')
   then raise exception 'Original primary group must be accepted'; end if;
@@ -52,6 +64,7 @@ begin
       join public.travel_payments p on p.id=l.payment_id and p.travel_file_id=p_source_id
       where l.travel_file_id=p_source_id and l.recipient_party_member_id=grp.recipient_party_member_id;
     if signed_id is null or payment_id is null then raise exception 'Missing signed retainer or payment'; end if;
+    if profile.briitely_contact_id is null then raise exception 'Group primary has no Briitely contact'; end if;
     -- Copy common trip metadata, but never copy the source workflow or reservation identifiers.
     insert into public.travel_files
       (client_name,briitely_contact_id,assigned_advisor_id,destination,trip_type,
@@ -90,6 +103,8 @@ begin
       grp.deposit_amount,payment_id,signed_id);
     created:=array_append(created,new_file);
   end loop;
+  -- NOTE: The file creation function remains intentionally unexposed in the API.
+  -- Final workflow transition and retainer payment ownership are not yet handled.
   return jsonb_build_object('sourceTravelFileId',p_source_id,'newFileIds',to_jsonb(created),
     'createdCount',cardinality(created),'workflowPending',true);
 end;
