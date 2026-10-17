@@ -23,6 +23,7 @@ export function CurrentActionTasks({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [retainerSetup, setRetainerSetup] = useState<{ready:boolean;missing:string[]}|null>(null);
   const [waitingItems, setWaitingItems] = useState<WaitingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,6 +41,7 @@ export function CurrentActionTasks({
       if (!response.ok) throw new Error(data.error ?? "Could not load workflow items.");
       setTasks(data.tasks ?? []);
       setWaitingItems(data.waitingItems ?? []);
+      if(currentActionCode==="send_tmf_agreement"){const res=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/group-retainers`,{cache:"no-store"});const groups=await fetch(`/api/travel-files/${encodeURIComponent(travelFileId)}/travellers`,{cache:"no-store"});if(res.ok&&groups.ok){const r=await res.json(),p=await groups.json();const party=p.party??[];const ids=[...new Set([party.find((m:any)=>m.traveller_role==="primary")?.id,...party.map((m:any)=>m.booking_form_recipient_party_member_id)].filter(Boolean))];const ready=new Set((r.retainers??[]).filter((t:any)=>t.retainer_amount!=null&&t.revisions_included!=null).map((t:any)=>t.recipient_party_member_id));setRetainerSetup({ready:ids.length>0&&ids.every(id=>ready.has(id)),missing:ids.filter(id=>!ready.has(id))})}}else setRetainerSetup(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load workflow items.");
     } finally {
@@ -77,7 +79,7 @@ export function CurrentActionTasks({
     }
   }
 
-  const showWorkflowItems = waitingItems.length > 0 || tasks.length > 0;
+  const showWorkflowItems = waitingItems.length > 0 || tasks.length > 0 || retainerSetup!==null;
   if (!showWorkflowItems && !loading && !error) return null;
 
   return (
@@ -92,6 +94,7 @@ export function CurrentActionTasks({
         </div>
       ) : (
         <>
+          {retainerSetup&&<div className="mb-4 rounded-md border px-3 py-2 text-sm"><div className="flex items-center gap-2">{retainerSetup.ready?<Check className="h-4 w-4 text-emerald-600"/>:<Clock3 className="h-4 w-4 text-amber-600"/>}<strong>Set Travel Group Retainers &amp; Revisions</strong><span className="ml-auto text-xs text-muted-foreground">{retainerSetup.ready?"Complete":"Required before sending"}</span></div><p className="mt-1 text-xs text-muted-foreground">Tracy: set a retainer amount and included revisions for each Travel Group in Travel Party. This step completes automatically when all groups are configured.</p></div>}
           {waitingItems.length > 0 && (
             <div className="mb-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
