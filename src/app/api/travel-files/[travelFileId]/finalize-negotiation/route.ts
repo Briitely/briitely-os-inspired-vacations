@@ -56,3 +56,19 @@ export async function GET(_request:Request,{params}:{params:Promise<{travelFileI
   if(splitResult.data?.length)issues.push("This Travel File already has split records; review them before retrying.");
   return NextResponse.json({ready:issues.length===0,issues,groups,sourceTravelFileId:travelFileId,createsFiles:groups.filter(g=>g.decision==="accepted"&&g.recipientId!==primary?.id).length});
 }
+
+/**
+ * Transaction-locked validation before any write-capable split operation.
+ * The database function currently validates only; it never creates files.
+ */
+export async function POST(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
+  const {user}=await getAuthenticatedUser();
+  if(!user?.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
+  if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
+  const {travelFileId}=await params;
+  const db=createServiceClient();
+  if(!db)return NextResponse.json({error:"Split service unavailable."},{status:503});
+  const {data,error}=await db.rpc("prepare_negotiated_travel_file_split",{p_source_id:travelFileId});
+  if(error)return NextResponse.json({error:error.message},{status:409});
+  return NextResponse.json({success:true,validation:data,createdFiles:0,finalized:false,message:"Transaction validation passed. No Travel Files have been created."});
+}
