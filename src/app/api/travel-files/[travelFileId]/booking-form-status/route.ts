@@ -18,5 +18,6 @@ export async function GET(_req:Request,{params}:{params:Promise<{travelFileId:st
   const primaryPrepared=(sessions??[]).some(s=>s.include_retainer===true&&s.recipient_party_member_id==null);
   const primaryBookingPrepared=(sessions??[]).some(s=>s.recipient_party_member_id==null);
   const preparedRecipientIds=recipientIds.filter(id=>(sessions??[]).some(s=>s.recipient_party_member_id===id));
-  return NextResponse.json({unreviewedChangeCount:unreviewedChangeCount??0,primaryPrepared,primaryBookingPrepared,recipientIds,preparedRecipientIds,acceptedGroupIds,retainerAccepted:Boolean(acceptance?.accepted_at)});
+  const {data:sentEmails,error:sentEmailError}=await supabase.from("travel_activity").select("metadata").eq("travel_file_id",travelFileId).eq("event_type","client_email_sent");if(sentEmailError)return NextResponse.json({error:sentEmailError.message},{status:500});const sentRecipientIds=Array.from(new Set((sentEmails??[]).map(e=>(e.metadata as any)?.recipient_party_member_id).filter(Boolean))) as string[];const primaryId=(party??[]).find((p:any)=>!p.booking_form_recipient_party_member_id)?.id;const primaryEmailSent=Boolean(primaryId&&sentRecipientIds.includes(primaryId));
+  return NextResponse.json({primaryEmailSent,sentRecipientIds,unreviewedChangeCount:unreviewedChangeCount??0,primaryPrepared,primaryBookingPrepared,recipientIds,preparedRecipientIds,acceptedGroupIds,retainerAccepted:Boolean(acceptance?.accepted_at)});
 }
