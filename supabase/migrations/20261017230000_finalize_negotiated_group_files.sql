@@ -16,10 +16,9 @@ declare
   payment_id uuid;
   created uuid[] := array[]::uuid[];
   expected_count integer;
-  accepted_count integer;
   actual_count integer;
   moved_count integer;
-  primary_payment uuid;
+  primary_payment numeric;
 begin
   if auth.role() <> 'service_role' then raise exception 'Service role required'; end if;
   select * into src from public.travel_files where id=p_source_id for update;
