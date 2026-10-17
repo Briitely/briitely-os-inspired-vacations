@@ -78,10 +78,10 @@ export async function POST(
     await db.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "client_email_sent",
-      summary: `${emailType} sent to ${recipientEmail} through Briitely.`,
+      summary: `${emailType === "retainer_booking_form" ? "Retainer Agreement & Booking Form" : emailType === "booking_form" ? "Booking Form" : "Email"} sent to ${recipientName}.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: emailType, recipient_email: recipientEmail, recipient_party_member_id: body.recipientPartyMemberId ?? null, subject },
+      metadata: { email_type: emailType, recipient_email: recipientEmail, recipient_name: recipientName, recipient_party_member_id: body.recipientPartyMemberId ?? null, subject },
     });
 
     return NextResponse.json({ success: true });
