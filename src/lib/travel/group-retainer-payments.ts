@@ -2,6 +2,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 export async function reconcileGroupRetainerPayments(travelFileId:string){
  const db=createServiceClient();if(!db)throw new Error("Retainer payment service unavailable.");
+ // A finalized source file retains historical signatures, but its retainer
+ // payments may belong to linked files. Never recreate those payments here.
+ const {count:splitCount,error:splitError}=await db.from("travel_file_group_splits")
+   .select("id",{count:"exact",head:true}).eq("source_travel_file_id",travelFileId);
+ if(splitError)throw new Error(splitError.message);
+ if((splitCount??0)>0)return;
  const [{data:terms,error:te},{data:acceptances,error:ae},{data:party,error:pe},{data:links,error:le}]=await Promise.all([
  db.from("travel_group_retainers").select("recipient_party_member_id,retainer_amount").eq("travel_file_id",travelFileId),
  db.from("travel_group_retainer_acceptances").select("recipient_party_member_id,retainer_amount,accepted_at").eq("travel_file_id",travelFileId),
