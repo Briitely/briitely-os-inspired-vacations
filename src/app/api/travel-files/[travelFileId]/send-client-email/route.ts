@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type Body = {
   emailType?: string;
+  recipientPartyMemberId?: string | null;
   recipientContactId?: string | null;
   recipientName?: string;
   recipientEmail?: string;
@@ -80,7 +81,7 @@ export async function POST(
       summary: `${emailType} sent to ${recipientEmail} through Briitely.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: emailType, recipient_email: recipientEmail, subject },
+      metadata: { email_type: emailType, recipient_email: recipientEmail, recipient_party_member_id: body.recipientPartyMemberId ?? null, subject },
     });
 
     return NextResponse.json({ success: true });
