@@ -94,8 +94,8 @@ export function CurrentActionTasks({
         </div>
       ) : (
         <>
-          {retainerSetup&&<div className="mb-4 rounded-md border px-3 py-2 text-sm"><div className="flex items-center gap-2">{retainerSetup.ready?<Check className="h-4 w-4 text-emerald-600"/>:<Clock3 className="h-4 w-4 text-amber-600"/>}<strong>Set Travel Group Retainers &amp; Revisions</strong><span className="ml-auto text-xs text-muted-foreground">{retainerSetup.ready?"Complete":"Required before sending"}</span></div><p className="mt-1 text-xs text-muted-foreground">Tracy: set a retainer amount and included revisions for each Travel Group in Travel Party. This step completes automatically when all groups are configured.</p></div>}
-          {waitingItems.length > 0 && (
+          {retainerSetup&&<div className="mb-4 space-y-2"><div className="flex items-center gap-2 text-sm">{retainerSetup.ready?<Check className="h-4 w-4 text-emerald-600"/>:<Clock3 className="h-4 w-4 text-amber-600"/>}<span className={retainerSetup.ready?"text-muted-foreground line-through":""}>Set Travel Group Retainers &amp; Revisions</span><span className="ml-auto text-xs text-muted-foreground">{retainerSetup.ready?"Complete":"Required before sending"}</span></div></div>}
+                    {waitingItems.length > 0 && (
             <div className="mb-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Waiting for client
