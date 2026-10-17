@@ -15,7 +15,7 @@ async function advanceRetainerWorkflow(db:any,travelFileId:string,now:string){co
 const {data:groupRetainers,error:groupRetainerError}=await db.from("travel_group_retainers").select("recipient_party_member_id").eq("travel_file_id",travelFileId);
 if(groupRetainerError){console.error("GROUP_RETAINER_WORKFLOW_CHECK_FAILED",groupRetainerError);return}
 const requiredSignedGroups=new Set((groupRetainers??[]).map((r:any)=>r.recipient_party_member_id));
-if(requiredSignedGroups.size){const {data:groupAcceptances,error:acceptanceError}=await db.from("travel_group_retainer_acceptances").select("recipient_party_member_id,accepted_at").eq("travel_file_id",travelFileId);
+if(requiredSignedGroups.size){if(recipientIds.some(id=>!requiredSignedGroups.has(id)))return;const {data:groupAcceptances,error:acceptanceError}=await db.from("travel_group_retainer_acceptances").select("recipient_party_member_id,accepted_at").eq("travel_file_id",travelFileId);
 if(acceptanceError){console.error("GROUP_ACCEPTANCE_WORKFLOW_CHECK_FAILED",acceptanceError);return}
 const signed=new Set((groupAcceptances??[]).filter((r:any)=>r.accepted_at).map((r:any)=>r.recipient_party_member_id));
 for(const id of requiredSignedGroups){if(!signed.has(id))return}}
