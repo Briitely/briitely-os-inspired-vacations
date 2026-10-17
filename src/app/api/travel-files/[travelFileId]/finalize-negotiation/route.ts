@@ -13,13 +13,16 @@ export async function GET(_request:Request,{params}:{params:Promise<{travelFileI
   const {travelFileId}=await params;
   const db=createServiceClient();
   if(!db)return NextResponse.json({error:"Split service unavailable."},{status:503});
-  const [fileResult,partyResult,decisionResult,splitResult]=await Promise.all([
+  const [fileResult,partyResult,decisionResult,splitResult,signatureResult,retainerLinkResult,paymentResult]=await Promise.all([
     db.from("travel_files").select("id,client_name,current_action_id,current_action:travel_actions!current_action_id(action_code,status)").eq("id",travelFileId).maybeSingle(),
     db.from("travel_file_travellers").select("id,traveller_role,booking_form_recipient_party_member_id,traveller_profiles:traveller_profile_id(first_name,last_name)").eq("travel_file_id",travelFileId),
     db.from("travel_group_negotiations").select("recipient_party_member_id,decision,deposit_amount").eq("travel_file_id",travelFileId),
-    db.from("travel_file_group_splits").select("recipient_party_member_id,resulting_travel_file_id").eq("source_travel_file_id",travelFileId)
+    db.from("travel_file_group_splits").select("recipient_party_member_id,resulting_travel_file_id").eq("source_travel_file_id",travelFileId),
+    db.from("travel_group_retainer_acceptances").select("recipient_party_member_id,accepted_at,accepted_name,agreement_version,retainer_amount").eq("travel_file_id",travelFileId),
+    db.from("travel_group_retainer_payments").select("recipient_party_member_id,payment_id").eq("travel_file_id",travelFileId),
+    db.from("travel_payments").select("id,amount,status").eq("travel_file_id",travelFileId)
   ]);
-  const error=fileResult.error??partyResult.error??decisionResult.error??splitResult.error;
+  const error=fileResult.error??partyResult.error??decisionResult.error??splitResult.error??signatureResult.error??retainerLinkResult.error??paymentResult.error;
   if(error)return NextResponse.json({error:error.message},{status:500});
   const file=fileResult.data;
   if(!file)return NextResponse.json({error:"Travel File not found."},{status:404});
@@ -38,10 +41,15 @@ export async function GET(_request:Request,{params}:{params:Promise<{travelFileI
     const decision=decisionResult.data?.find(d=>d.recipient_party_member_id===id);
     const members=party.filter(p=>p.id===id||(id===primary?.id?!p.booking_form_recipient_party_member_id:p.booking_form_recipient_party_member_id===id));
     const split=splitResult.data?.find(s=>s.recipient_party_member_id===id);
+    const signed=(signatureResult.data??[]).filter(s=>s.recipient_party_member_id===id).sort((a,b)=>b.accepted_at.localeCompare(a.accepted_at))[0];
+    const paymentLink=retainerLinkResult.data?.find(l=>l.recipient_party_member_id===id);
+    const payment=paymentResult.data?.find(p=>p.id===paymentLink?.payment_id);
+    if(decision?.decision==="accepted"&&!signed?.accepted_at)issues.push(name+": signed retainer acceptance is missing.");
+    if(decision?.decision==="accepted"&&!payment)issues.push(name+": linked retainer payment record is missing.");
     if(!decision||decision.decision==="negotiating")issues.push(name+": negotiation decision is outstanding.");
     if(decision?.decision==="accepted"&&!(Number(decision.deposit_amount)>0))issues.push(name+": deposit amount is required.");
     if(!members.length)issues.push(name+": no travellers assigned.");
-    return {recipientId:id,name,travellerCount:members.length,decision:decision?.decision??"negotiating",depositAmount:decision?.deposit_amount??null,resultingTravelFileId:split?.resulting_travel_file_id??null};
+    return {recipientId:id,name,travellerCount:members.length,decision:decision?.decision??"negotiating",depositAmount:decision?.deposit_amount??null,resultingTravelFileId:split?.resulting_travel_file_id??null,retainerSignedAt:signed?.accepted_at??null,retainerSignedBy:signed?.accepted_name??null,retainerAmount:signed?.retainer_amount??null,retainerPaymentId:payment?.id??null,retainerPaymentStatus:payment?.status??null,retainerPaymentAmount:payment?.amount??null};
   });
   const assigned=new Set(groups.flatMap(g=>party.filter(p=>p.id===g.recipientId||(g.recipientId===primary?.id?!p.booking_form_recipient_party_member_id:p.booking_form_recipient_party_member_id===g.recipientId)).map(p=>p.id)));
   if(assigned.size!==party.length)issues.push("Some travellers are not assigned to a valid Travel Group.");
