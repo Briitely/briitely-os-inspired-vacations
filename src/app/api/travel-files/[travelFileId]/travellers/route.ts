@@ -229,11 +229,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ travel
       if (error) throw new Error(error.message);
     }
 
-    const has = ["firstName", "lastName", "preferredName", "dateOfBirth", "email", "phone"].some(k => Object.prototype.hasOwnProperty.call(body, k));
+    const has = ["firstName", "lastName", "preferredName", "dateOfBirth", "email", "phone", "specialConsiderations"].some(k => Object.prototype.hasOwnProperty.call(body, k));
     let clientId = p.briitely_contact_id;
     if (has) {
       const firstName = body.firstName?.trim() || p.first_name, lastName = body.lastName?.trim() || p.last_name;
-      const { error } = await s.from("traveller_profiles").update({ first_name: firstName, last_name: lastName, preferred_name: Object.prototype.hasOwnProperty.call(body, "preferredName") ? body.preferredName?.trim() || null : p.preferred_name, date_of_birth: Object.prototype.hasOwnProperty.call(body, "dateOfBirth") ? body.dateOfBirth || null : p.date_of_birth, email: nextEmail, phone: nextPhone }).eq("id", p.id);
+      const { error } = await s.from("traveller_profiles").update({ first_name: firstName, last_name: lastName, preferred_name: Object.prototype.hasOwnProperty.call(body, "preferredName") ? body.preferredName?.trim() || null : p.preferred_name, date_of_birth: Object.prototype.hasOwnProperty.call(body, "dateOfBirth") ? body.dateOfBirth || null : p.date_of_birth, email: nextEmail, phone: nextPhone, ...(Object.prototype.hasOwnProperty.call(body, "specialConsiderations") ? { special_considerations: typeof body.specialConsiderations === "string" ? body.specialConsiderations.trim() || null : null } : {}) }).eq("id", p.id);
       if (error) throw new Error(error.message);
       p.first_name = firstName;
       p.last_name = lastName;
