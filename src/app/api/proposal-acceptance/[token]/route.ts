@@ -21,9 +21,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const { data: savedCards } = primary?.traveller_profile_id
     ? await db.from("traveller_saved_card_references").select("id,card_brand,last_four,label,is_preferred").eq("traveller_profile_id",primary.traveller_profile_id)
     : {data:[]};
-  const {data:party,error:partyError}=await db.from("travel_file_travellers").select("traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)").eq("travel_file_id",session.travel_file_id);
-  if(partyError)return NextResponse.json({error:"Unable to load travel party."},{status:500});
-  const travelParty=(party??[]).map(member=>{const p=Array.isArray(member.traveller_profiles)?member.traveller_profiles[0]:member.traveller_profiles;return [p?.preferred_name||p?.first_name,p?.last_name].filter(Boolean).join(" ");}).filter(Boolean);
+  // The original file retains historical travellers after split finalization.
+  // Only the travellers in this file's accepted booking group belong on its agreement.
+  const [{data:party,error:partyError},{data:decisions,error:decisionError},{data:linked,error:linkedError}]=await Promise.all([
+    db.from("travel_file_travellers").select("id,traveller_role,booking_form_recipient_party_member_id,traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)").eq("travel_file_id",session.travel_file_id),
+    db.from("travel_group_negotiations").select("recipient_party_member_id,decision").eq("travel_file_id",session.travel_file_id),
+    db.from("travel_file_group_splits").select("recipient_party_member_id").eq("source_travel_file_id",session.travel_file_id),
+  ]);
+  if(partyError||decisionError||linkedError)return NextResponse.json({error:"Unable to load the confirmed travel party."},{status:500});
+  const excludedRecipients=new Set([
+    ...(decisions??[]).filter(item=>item.decision==="declined").map(item=>item.recipient_party_member_id),
+    ...(linked??[]).map(item=>item.recipient_party_member_id),
+  ]);
+  const travelParty=(party??[]).filter(member=>
+    !excludedRecipients.has(member.id)&&
+    !excludedRecipients.has(member.booking_form_recipient_party_member_id??"")
+  ).map(member=>{const p=Array.isArray(member.traveller_profiles)?member.traveller_profiles[0]:member.traveller_profiles;return [p?.preferred_name||p?.first_name,p?.last_name].filter(Boolean).join(" ");}).filter(Boolean);
   return NextResponse.json({
     travelParty,
     savedCards: savedCards ?? [],
