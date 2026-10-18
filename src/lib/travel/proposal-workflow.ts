@@ -11,9 +11,9 @@ export async function proposalWorkflowStatus(travelFileId:string){
  ]);
  if(fileError||sessionsError||partyError||!file)throw new Error("Could not verify proposal workflow.");
  const {data:action}=file.current_action_id?await db.from("travel_actions").select("id,action_code,status,metadata").eq("id",file.current_action_id).maybeSingle():{data:null};
- const {data:cycles,error:cycleError}=await db.from("travel_actions").select("activated_at,created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1);
+ const {data:cycles,error:cycleError}=await db.from("travel_actions").select("created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1);
  if(cycleError)throw new Error("Could not verify current proposal cycle.");
- const cycleStart=cycles?.[0]?.activated_at??cycles?.[0]?.created_at;
+ const cycleStart=cycles?.[0]?.created_at;
  const ids=cycleStart?(sessions??[]).filter(x=>Date.parse(x.created_at)>=Date.parse(cycleStart)).map(x=>x.id):[];
  const [{data:acceptances,error:acceptError},{data:submissions,error:submitError}]=await Promise.all([
   ids.length?db.from("proposal_deposit_agreement_acceptances").select("session_id").in("session_id",ids):Promise.resolve({data:[],error:null}),
@@ -48,8 +48,8 @@ export async function advanceProposalWorkflow(travelFileId:string){
   const {error:syncError}=await db.from("travel_action_requirements").update({status:"complete"}).in("id",outstanding);
   if(syncError)throw new Error("Could not synchronize completed proposal checklist.");
  }
- const {data:cycle}=await db.from("travel_actions").select("activated_at,created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1).maybeSingle();
- const since=cycle?.activated_at??cycle?.created_at;
+ const {data:cycle}=await db.from("travel_actions").select("created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1).maybeSingle();
+ const since=cycle?.created_at;
  if(!since)throw new Error("Proposal cycle not found");
  const {data:acceptances,error:acceptError}=await db.from("proposal_deposit_agreement_acceptances").select("session_id,accepted_at").eq("travel_file_id",travelFileId).gte("accepted_at",since).order("accepted_at",{ascending:false}).limit(1);
  if(acceptError||!acceptances?.[0])throw new Error("Current proposal acceptance not found");
