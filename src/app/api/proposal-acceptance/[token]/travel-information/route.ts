@@ -1,3 +1,4 @@
+import {advanceProposalWorkflow} from "@/lib/travel/proposal-workflow";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getProposalDepositAgreementSession } from "@/lib/travel/proposal-deposit-agreement";
@@ -42,5 +43,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (profileError) return NextResponse.json({ error: "Information received, but profile update needs staff review." }, { status: 500 });
   const { error: completionError } = await db.from("proposal_deposit_agreement_sessions").update({ completed_at: new Date().toISOString() }).eq("id", session.id);
   if (completionError) return NextResponse.json({ error: "Information saved, but completion status needs staff review." }, { status: 500 });
+  try{await advanceProposalWorkflow(session.travel_file_id)}catch(error){console.error("PROPOSAL_WORKFLOW_ADVANCE_FAILED",error)}
   return NextResponse.json({ success: true });
 }
