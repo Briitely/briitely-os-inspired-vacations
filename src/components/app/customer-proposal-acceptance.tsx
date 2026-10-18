@@ -48,6 +48,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   const [acceptedName, setAcceptedName] = useState("");
   const [checked, setChecked] = useState(false);
   const [reviewed,setReviewed]=useState<string[]>([]);
+  const [showValidation,setShowValidation]=useState(false);
   const [paymentChoice,setPaymentChoice]=useState("");
   const [savedCardId,setSavedCardId]=useState("");
   const [saving, setSaving] = useState(false);
@@ -72,6 +73,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
     finally { setInfoSaving(false); }
   }
   async function sign() {
+    setShowValidation(true);
     if (!details?.agreementVersion || !checked || reviewed.length!==3 || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)) return;
     setSaving(true); setError("");
     try {
@@ -131,7 +133,8 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
         <label className="flex items-start gap-3 rounded-lg border p-4 text-sm"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} className="mt-1" /><span>I confirm that I have read, understood, and agree to the terms of this Proposal Agreement. I confirm that I am authorized to accept these terms on behalf of the travellers included in this booking and that I will communicate the applicable travel conditions and responsibilities to them. I understand that typing my name below is a legally binding means of accepting this Agreement and authorizes Inspired Vacations to proceed with charging the deposit fee and booking our travel.</span></label>
         <label className="block text-sm font-medium">Full name <input className="mt-1 block w-full rounded border px-3 py-2" value={acceptedName} onChange={e => setAcceptedName(e.target.value)} maxLength={200} /></label>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        <button type="button" disabled={!checked || reviewed.length!==3 || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId) || saving} onClick={sign} className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? "Recording acceptance…" : "Accept Agreement"}</button>
+        {showValidation && (!checked || reviewed.length!==3 || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)) && <p role="alert" className="text-sm font-medium text-red-700">Please complete: {[reviewed.length!==3?"Review & confirm (all three checkboxes)":null,!checked?"Agreement confirmation":null,!acceptedName.trim()?"Full name":null,!paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)?"Deposit payment selection":null].filter(Boolean).join(", ")}.</p>}
+        <button type="button" disabled={saving} onClick={sign} className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? "Recording acceptance…" : "Accept Agreement"}</button>
       </div>}
         </div>
       </div>
