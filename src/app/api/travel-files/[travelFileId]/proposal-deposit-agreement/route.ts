@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     .eq("id", travelFileId).maybeSingle();
   if (error || !file) return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
   const action = Array.isArray(file.current_action) ? file.current_action[0] : file.current_action;
-  if (action?.action_code !== "proposal_acceptance_deposit_agreement" || action.status !== "active") {
+  if (!["proposal_acceptance_deposit_agreement","await_proposal_acceptance"].includes(action?.action_code??"") || action?.status !== "active") {
     return NextResponse.json({ error: "This Travel File is not awaiting a deposit agreement." }, { status: 409 });
   }
   const amount = Number((action.metadata as { deposit_amount?: unknown } | null)?.deposit_amount);
