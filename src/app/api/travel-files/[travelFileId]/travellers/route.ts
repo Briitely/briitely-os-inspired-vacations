@@ -61,8 +61,8 @@ async function ensureClientFile(s: any, profile: any, email: string | null, phon
   return r.customer.id;
 }
 
-const partySelect = `id, traveller_role, relationship_to_primary, receive_trip_communications, booking_form_required, booking_form_recipient_party_member_id, booking_form_completed_at, traveller_profiles:traveller_profile_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone)`;
-const relationshipSelect = `id, primary_contact_id, relationship_type, traveller_profiles:related_traveller_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone)`;
+const partySelect = `id, traveller_role, relationship_to_primary, receive_trip_communications, booking_form_required, booking_form_recipient_party_member_id, booking_form_completed_at, traveller_profiles:traveller_profile_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone, special_considerations)`;
+const relationshipSelect = `id, primary_contact_id, relationship_type, traveller_profiles:related_traveller_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone, special_considerations)`;
 
 function profileOfPartyMember(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
