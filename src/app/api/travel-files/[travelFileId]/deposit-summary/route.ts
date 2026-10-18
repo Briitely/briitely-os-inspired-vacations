@@ -1,6 +1,8 @@
+import {ensureProposalDepositPayment} from "@/lib/travel/proposal-deposit-payment";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import {createServiceClient} from "@/lib/supabase/service";
 
 export async function GET(
   _request: Request,
@@ -50,8 +52,21 @@ export async function GET(
   }
 
   const { data: payment, error: paymentError } = await paymentLookup.maybeSingle();
-  if (paymentError || !payment) {
-    return NextResponse.json({ error: "No deposit payment could be found for this Travel File." }, { status: 404 });
+  if (paymentError) return NextResponse.json({error:"Could not load deposit payment."},{status:500});
+  if (!payment) {
+    const service=createServiceClient();
+    if(!service)return NextResponse.json({error:"Deposit service unavailable."},{status:500});
+    const {data:cycle}=await service.from("travel_actions").select("activated_at,created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    const since=cycle?.activated_at??cycle?.created_at;
+    const {data:accepted}=since?await service.from("proposal_deposit_agreement_acceptances").select("session_id").eq("travel_file_id",travelFileId).gte("accepted_at",since).order("accepted_at",{ascending:false}).limit(1).maybeSingle():{data:null};
+    if(!accepted)return NextResponse.json({error:"No signed proposal deposit was found for this Travel File."},{status:404});
+    try{
+      const createdId=await ensureProposalDepositPayment(travelFileId,accepted.session_id);
+      const {data:created,error:createdError}=await service.from("travel_payments").select("id,amount,status,due_date,processed_at").eq("id",createdId).single();
+      if(createdError||!created)return NextResponse.json({error:"Deposit created but could not be loaded."},{status:500});
+      await service.from("travel_actions").update({metadata:{...metadata,deposit_payment_id:createdId}}).eq("id",current.id);
+      return NextResponse.json({paymentId:created.id,amount:Number(created.amount??0),status:created.status,dueDate:created.due_date,processedAt:created.processed_at});
+    }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not prepare deposit payment."},{status:500})}
   }
 
   return NextResponse.json({
