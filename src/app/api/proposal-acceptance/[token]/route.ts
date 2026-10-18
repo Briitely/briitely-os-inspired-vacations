@@ -20,7 +20,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const { data: savedCards } = primary?.traveller_profile_id
     ? await db.from("traveller_saved_card_references").select("id,card_brand,last_four,label,is_preferred").eq("traveller_profile_id",primary.traveller_profile_id)
     : {data:[]};
+  const {data:party,error:partyError}=await db.from("travel_file_travellers").select("traveller_profiles:traveller_profile_id(first_name,last_name,preferred_name)").eq("travel_file_id",session.travel_file_id);
+  if(partyError)return NextResponse.json({error:"Unable to load travel party."},{status:500});
+  const travelParty=(party??[]).map(member=>{const p=Array.isArray(member.traveller_profiles)?member.traveller_profiles[0]:member.traveller_profiles;return [p?.preferred_name||p?.first_name,p?.last_name].filter(Boolean).join(" ");}).filter(Boolean);
   return NextResponse.json({
+    travelParty,
     savedCards: savedCards ?? [],
     agreementVersion: agreement?.version ?? null, agreementText: agreement?.text ?? null,
     clientName: file.client_name, destination: file.destination,
