@@ -6,6 +6,7 @@ import {AgreementProgress,AgreementPanel,AgreementAside,AgreementSummary} from "
 type SavedCard = {id:string;card_brand:string;last_four:string;label:string|null;is_preferred:boolean};
 type AgreementPreview = {
   savedCards:SavedCard[];
+  travelParty:string[];
   clientName: string;
   destination: string | null;
   departureDate: string | null;
@@ -24,8 +25,7 @@ const agreementSections = [
   {title:"Deposit Agreement",key:"deposit"},
   {title:"Supplier Terms & Cancellation Policies",key:"supplier"},
   {title:"Traveller Responsibilities",key:"responsibilities"},
-  {title:"Acceptance on Behalf of Travellers",key:"travellers"},
-  {title:"Electronic Acceptance",key:"electronic"}
+
 ] as const;
 function AgreementSections({text}:{text:string}){
   const lines=text.split("\n");
@@ -99,18 +99,19 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   if (!details) return <div className="rounded-xl border bg-white p-6 text-sm">Loading your trip details…</div>;
   return (
     <div className="space-y-4">
-      <AgreementProgress step={details.accepted || signed ? 2 : 1} first="Proposal & Deposit Agreement" second="Travel Preferences"/>
+      <AgreementProgress step={details.accepted || signed ? 2 : 1} first="Proposal and Deposit Agreement" second="Travel Preferences"/>
       <AgreementPanel>
       
       <div className="grid gap-5 md:grid-cols-[200px_1fr]">
-        <AgreementAside eyebrow={details.accepted || signed ? "Step 2" : "Step 1"} title={details.accepted || signed ? "Travel Preferences" : "Proposal Acceptance & Deposit Agreement"} text={details.accepted || signed ? "Confirm your travel preferences and loyalty information." : "Review your travel proposal and deposit agreement before continuing."}/>
+        <AgreementAside eyebrow={details.accepted || signed ? "Step 2" : "Step 1"} title={details.accepted || signed ? "Travel Preferences" : "Proposal and Deposit Agreement"} text={details.accepted || signed ? "Confirm your travel preferences and loyalty information." : "Review your travel proposal and deposit agreement before continuing."}/>
         <div className="min-w-0">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <AgreementSummary label="Destination" value={details.destination||"To be confirmed"}/>
         <AgreementSummary label="Travel dates" value={date(details.departureDate)+" – "+date(details.returnDate)}/>
         <AgreementSummary label="Deposit amount" value={details.depositAmount==null?"Contact your advisor":new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount)}/>
+        <AgreementSummary label="Travel party" value={details.travelParty?.length?details.travelParty.join(", "):details.clientName}/>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">Prepared for {details.clientName}</p>
+
       {(details.accepted || signed) && <div className="mt-6 space-y-4 border-t pt-6">
         <h3 className="text-lg font-semibold">Travel Preferences & Loyalty Information</h3>
         <p className="text-sm text-muted-foreground">Review the primary traveller's information. Leave either field blank if it does not apply.</p>
@@ -122,13 +123,13 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       </div>}
       {details.agreementText && !details.accepted && !signed && <div className="mt-6 space-y-4">
-        <h3 className="font-semibold">Proposal Acceptance & Deposit Agreement</h3>
+
         <AgreementSections text={details.agreementText} />
         <div className="grid items-start gap-4 md:grid-cols-2">
-        <div className="space-y-3 rounded-lg border p-4"><h4 className="font-semibold">Deposit Payment Authorization</h4><p className="text-sm">Deposit to be arranged: <strong>{new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount??0)}</strong>. No payment will be processed upon your signature. Inspired Vacations will process the authorized deposit manually after accepting your agreement.</p>{details.savedCards?.length ? <><label className="flex gap-2 text-sm"><input type="radio" name="deposit-card" checked={paymentChoice==="saved_card"} onChange={()=>setPaymentChoice("saved_card")}/>Use a card already on file</label>{paymentChoice==="saved_card"&&<select className="w-full rounded border p-2 text-sm" value={savedCardId} onChange={e=>setSavedCardId(e.target.value)}>{details.savedCards.map(c=><option key={c.id} value={c.id}>{c.card_brand} ending {c.last_four}{c.is_preferred?" (Preferred)":""}</option>)}</select>}<label className="flex gap-2 text-sm"><input type="radio" name="deposit-card" checked={paymentChoice==="different_card"} onChange={()=>setPaymentChoice("different_card")}/>I'd like to use a different card — my travel advisor will follow up.</label></> : <p className="text-sm">No saved card is available. Your travel advisor will contact you to arrange payment securely.</p>}</div>
+        <div className="space-y-3 rounded-lg border p-4"><h4 className="font-semibold">Deposit Payment Authorization</h4><p className="text-sm">Deposit: <strong>{new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount??0)}</strong></p>{details.savedCards?.length ? <><p className="text-sm">I authorize Inspired Vacations to charge the deposit fee on:</p><select className="w-full rounded border p-2 text-sm" value={paymentChoice==="saved_card"?savedCardId:"different_card"} onChange={e=>{if(e.target.value==="different_card")setPaymentChoice("different_card");else{setPaymentChoice("saved_card");setSavedCardId(e.target.value)}}}>{details.savedCards.map(c=><option key={c.id} value={c.id}>{c.card_brand} ending {c.last_four}{c.is_preferred?" (Preferred)":""}</option>)}<option value="different_card">Use a different card — advisor will follow up</option></select></> : <p className="text-sm">Your travel advisor will contact you to arrange payment securely.</p>}</div>
         <div className="space-y-3 rounded-lg border p-4"><h4 className="font-semibold">Review & confirm</h4><p className="text-sm text-muted-foreground">Please confirm each section before signing.</p>{[["proposal","I have reviewed the proposal and travel arrangements."],["terms","I understand the supplier terms, cancellation policies and traveller responsibilities."],["payment","I confirm my deposit amount and payment instructions."]].map(([id,label])=><label key={id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={reviewed.includes(id)} onChange={e=>setReviewed(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{label}</label>)}</div>
         </div>
-        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} className="mt-1" />I have read and agree to the terms above. I understand that accepting this agreement does not process a payment; Inspired Vacations will process the deposit manually following my acceptance.</label>
+        <label className="flex items-start gap-3 rounded-lg border p-4 text-sm"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} className="mt-1" /><span>I confirm that I have read, understood, and agree to the terms of this Proposal Agreement. I confirm that I am authorized to accept these terms on behalf of the travellers included in this booking and that I will communicate the applicable travel conditions and responsibilities to them. I understand that typing my name below is a legally binding means of accepting this Agreement and authorizes Inspired Vacations to proceed with charging the deposit fee and booking our travel.</span></label>
         <label className="block text-sm font-medium">Full name <input className="mt-1 block w-full rounded border px-3 py-2" value={acceptedName} onChange={e => setAcceptedName(e.target.value)} maxLength={200} /></label>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <button type="button" disabled={!checked || reviewed.length!==3 || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId) || saving} onClick={sign} className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? "Recording acceptance…" : "Accept Agreement"}</button>
