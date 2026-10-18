@@ -107,9 +107,8 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
         <div className="min-w-0">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <AgreementSummary label="Destination" value={details.destination||"To be confirmed"}/>
-        <AgreementSummary label="Travel dates" value={date(details.departureDate)+" – "+date(details.returnDate)}/>
-        <AgreementSummary label="Deposit amount" value={details.depositAmount==null?"Contact your advisor":new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount)}/>
-        <AgreementSummary label="Travel party" value={details.travelParty?.length?details.travelParty.join(", "):details.clientName}/>
+        <div className="rounded-md border bg-background px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Travel dates</div><div className="mt-1 space-y-1 text-sm font-medium"><div>Departure: {date(details.departureDate)}</div><div>Return: {date(details.returnDate)}</div></div></div>
+        <div className="rounded-md border bg-background px-3 py-2 sm:col-span-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">Travel party</div><div className="mt-1 text-sm font-medium">{details.travelParty?.length?details.travelParty.join(", "):details.clientName}</div></div>
       </div>
 
       {(details.accepted || signed) && <div className="mt-6 space-y-4 border-t pt-6">
