@@ -3,8 +3,8 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { createServiceClient } from "@/lib/supabase/service";
 
-export const APPROVED_PROPOSAL_AGREEMENT_VERSION = "2026-10-18-v1";
-export const APPROVED_PROPOSAL_AGREEMENT_TEXT = `Proposal Acceptance & Deposit Agreement
+export const APPROVED_PROPOSAL_AGREEMENT_VERSION = "2026-10-18-v2";
+export const APPROVED_PROPOSAL_AGREEMENT_TEXT = `Proposal and Deposit Agreement
 Inspired Vacations
 
 Your Travel Proposal
@@ -39,16 +39,7 @@ I am also responsible for reviewing passport validity, visa and entry requiremen
 I acknowledge that travel disruptions, government restrictions, supplier changes, weather events and other circumstances beyond the control of Inspired Vacations may affect my travel arrangements.
 
 I understand that travel insurance is strongly recommended and that any insurance coverage, exclusions and limitations are determined by the applicable insurance provider and policy.
-
-Acceptance on Behalf of Travellers
-
-I confirm that I am authorized to accept these terms on behalf of the travellers included in the proposed booking and that I will communicate the applicable travel conditions and responsibilities to them.
-
-Electronic Acceptance
-
-By entering my name and submitting this agreement, I confirm that I have reviewed the proposal and agree to the terms above.
-
-I understand that my electronic acceptance will be recorded by Inspired Vacations as part of my travel file.`;
+`;
 
 export const PROPOSAL_DEPOSIT_AGREEMENT_TTL_DAYS = 30;
 
