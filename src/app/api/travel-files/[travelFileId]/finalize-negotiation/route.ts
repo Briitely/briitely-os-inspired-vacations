@@ -2,6 +2,36 @@ import {NextResponse} from "next/server";
 import {getAuthenticatedUser} from "@/lib/supabase/auth";
 import {createServiceClient} from "@/lib/supabase/service";
 
+/** Set the two-business-day preparation deadline after the database split commits.
+ * The existing advisor assignment is preserved; no separate user migration is needed.
+ * This also covers the original file when one group continues without splitting.
+ */
+async function setAgreementPreparationDeadlines(db:any,sourceId:string){
+  const {data:splits,error:splitError}=await db.from("travel_file_group_splits")
+    .select("resulting_travel_file_id").eq("source_travel_file_id",sourceId);
+  if(splitError)throw new Error(splitError.message);
+  const ids=[sourceId,...(splits??[]).map((row:{resulting_travel_file_id:string|null})=>row.resulting_travel_file_id).filter(Boolean)];
+  const {data:files,error:fileError}=await db.from("travel_files").select("id,assigned_advisor_id").in("id",ids);
+  if(fileError)throw new Error(fileError.message);
+  for(const file of files??[]){
+    const {data:actions,error:actionError}=await db.from("travel_actions")
+      .select("id,activated_at,created_at").eq("travel_file_id",file.id)
+      .eq("action_code","proposal_acceptance_deposit_agreement").eq("status","active");
+    if(actionError)throw new Error(actionError.message);
+    for(const action of actions??[]){
+      const {data:first,error:firstError}=await db.rpc("iv_next_business_day",{p_at:action.activated_at??action.created_at??new Date().toISOString()});
+      if(firstError)throw new Error(firstError.message);
+      const {data:second,error:secondError}=await db.rpc("iv_next_business_day",{p_at:first});
+      if(secondError)throw new Error(secondError.message);
+      const {error:updateError}=await db.from("travel_actions").update({
+        responsible_type:"internal",responsible_user_id:file.assigned_advisor_id??null,
+        due_at:second,waiting_since:null
+      }).eq("id",action.id);
+      if(updateError)throw new Error(updateError.message);
+    }
+  }
+}
+
 /**
  * Read-only preflight for splitting a negotiated Travel File.
  * Deliberately does not create files, move travellers, or mark payments paid.
@@ -84,7 +114,13 @@ export async function PUT(_request:Request,{params}:{params:Promise<{travelFileI
   const {data,error}=await db.rpc("create_negotiated_group_files",{p_source_id:travelFileId});
   if(error)return NextResponse.json({error:error.message},{status:409});
   if(!data?.finalized)return NextResponse.json({error:"Finalization did not return a confirmed result. Check the Travel Files before retrying."},{status:500});
-  return NextResponse.json({success:true,...data});
+  try{await setAgreementPreparationDeadlines(db,travelFileId)}catch(e){
+    return NextResponse.json({success:true,...data,warning:"Files finalized, but preparation deadlines need review: "+(e instanceof Error?e.message:"Unknown error")});
+  }
+  try{await setAgreementPreparationDeadlines(db,travelFileId)}catch(e){
+   return NextResponse.json({success:true,...data,warning:"Negotiation finalized, but preparation deadline needs review: "+(e instanceof Error?e.message:"Unknown error")});
+ }
+ return NextResponse.json({success:true,...data});
 }
 
 /** Finalize one Travel Group in place. No files, retainer payments or signatures are transferred. */
