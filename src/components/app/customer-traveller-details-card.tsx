@@ -5,8 +5,9 @@ import { Loader2, Pencil, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
+import { TravellerSavedCards } from "@/components/app/traveller-saved-cards";
 
-type Profile = { first_name:string;middle_name:string|null;last_name:string;preferred_name:string|null;date_of_birth:string|null;passport_number:string|null;passport_country:string|null;passport_issue_date:string|null;passport_expiry_date:string|null;emergency_contact_name:string|null;emergency_contact_relationship:string|null;emergency_contact_phone:string|null;emergency_contact_email:string|null;special_considerations:string|null; };
+type Profile = { id:string;first_name:string;middle_name:string|null;last_name:string;preferred_name:string|null;date_of_birth:string|null;passport_number:string|null;passport_country:string|null;passport_issue_date:string|null;passport_expiry_date:string|null;emergency_contact_name:string|null;emergency_contact_relationship:string|null;emergency_contact_phone:string|null;emergency_contact_email:string|null;special_considerations:string|null; };
 const empty={firstName:"",middleName:"",lastName:"",preferredName:"",dateOfBirth:"",passportNumber:"",passportCountry:"",passportIssueDate:"",passportExpiryDate:"",emergencyContactName:"",emergencyContactRelationship:"",emergencyContactPhone:"",emergencyContactEmail:"",specialConsiderations:""};
 const emergencyRelationshipOptions=["Spouse / Partner","Parent","Adult Child","Family Member","Other"];
 function formatPhone(value:string){const d=value.replace(/\D/g,"").slice(0,10);if(d.length<=3)return d;if(d.length<=6)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;}
