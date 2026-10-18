@@ -22,7 +22,7 @@ export async function ensureProposalDepositPayment(travelFileId:string,sessionId
  const today=new Date().toISOString().slice(0,10);
  const {data:payment,error}=await db.from("travel_payments").insert({
   travel_file_id:travelFileId,payment_group_id:groupId,payment_type:"deposit",
-  description:"Proposal deposit — "+instruction,amount:Number(acceptance.deposit_amount),
+  description:choice==="saved_card"?"Proposal Deposit — Card Authorized":"Proposal Deposit — Payment Follow-up Required",confirmation_number:"Per signed agreement",card_last_four:cardLastFour,processing_method:"manual",amount:Number(acceptance.deposit_amount),
   commission_amount:0,currency:"CAD",due_date:today,
   client_notification_date:today,status:"upcoming",external_reference:ref,
   details:JSON.stringify({supplier:null,cardLastFour,processingMethod:"manual",paymentChoice:choice,cardBrand,proposalAcceptanceId:acceptance.id})
