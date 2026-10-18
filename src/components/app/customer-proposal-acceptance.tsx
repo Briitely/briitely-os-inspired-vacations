@@ -81,6 +81,16 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
       <div className="mt-6 rounded-lg bg-[#f5f2ff] p-4 text-sm">
         {details.accepted || signed ? "Your acceptance has been recorded. No deposit has been charged." : !details.agreementText ? "Agreement signing is not yet available. Please contact your Inspired Vacations advisor before making a deposit." : "Review the agreement below before signing. Signing does not process a payment."}
       </div>
+      {(details.accepted || signed) && <div className="mt-6 space-y-4 border-t pt-6">
+        <h3 className="text-lg font-semibold">Travel Preferences & Loyalty Information</h3>
+        <p className="text-sm text-muted-foreground">Review the primary traveller's information. Leave either field blank if it does not apply.</p>
+        {travelInfo?.completed ? <p className="rounded-lg bg-[#f5f2ff] p-4 text-sm">Thank you. Your travel information has been received.</p> : travelInfo ? <>
+          <label className="block text-sm font-medium">Preferred travel suppliers<textarea className="mt-1 block min-h-24 w-full rounded border p-3 font-normal" maxLength={5000} value={travelInfo.preferences} onChange={e => setTravelInfo({ ...travelInfo, preferences: e.target.value })} placeholder="Airlines, hotels, car rental companies" /></label>
+          <label className="block text-sm font-medium">Rewards & loyalty programs<textarea className="mt-1 block min-h-24 w-full rounded border p-3 font-normal" maxLength={5000} value={travelInfo.loyaltyPrograms} onChange={e => setTravelInfo({ ...travelInfo, loyaltyPrograms: e.target.value })} placeholder="Program names and membership numbers" /></label>
+          <button type="button" disabled={infoSaving} onClick={submitTravelInfo} className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{infoSaving ? "Saving..." : "Submit Travel Information"}</button>
+        </> : <p className="text-sm">Loading travel information...</p>}
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      </div>}
       {details.agreementText && !details.accepted && !signed && <div className="mt-6 space-y-4">
         <h3 className="font-semibold">Proposal Acceptance & Deposit Agreement</h3>
         <div className="whitespace-pre-wrap rounded-lg border p-4 text-sm leading-6">{details.agreementText}</div>
