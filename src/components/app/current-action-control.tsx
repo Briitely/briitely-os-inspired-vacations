@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpenCheck,
@@ -21,11 +21,13 @@ import { SendProposalModal } from "@/components/app/send-proposal-modal";
 import { CheckProposalStatusModal } from "@/components/app/check-proposal-status-modal";
 import { ReviewOpportunityStatusModal } from "@/components/app/review-opportunity-status-modal";
 import { NegotiationModal } from "@/components/app/negotiation-modal";
+import { NegotiationFollowupControl } from "@/components/app/negotiation-followup-control";
 import { DepositConfirmationModal } from "@/components/app/deposit-confirmation-modal";
 import { RetainerConfirmationModal } from "@/components/app/retainer-confirmation-modal";
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
 import { InvoicingItineraryButton } from "@/components/app/invoicing-itinerary-button";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
+import { ProposalDepositLinkControl } from "@/components/app/proposal-deposit-link-control";
 import { CloseTravelFileButton } from "@/components/app/close-travel-file-button";
 
 type ResendDetails = {
@@ -85,6 +87,8 @@ export function CurrentActionControl(props: Props) {
   const showCompleteBooking = isActive && props.currentActionCode === "complete_booking";
   const showRetainerReceived = isActive && props.currentActionCode === "collect_tmf_payment";
   const showDepositReceived = isActive && props.currentActionCode === "collect_deposit";
+  const showProposalDepositAgreement = isActive && props.currentActionCode === "proposal_acceptance_deposit_agreement";
+  const showResendProposal = isActive && props.currentActionCode === "await_proposal_acceptance";
   const showAssignProposal = isActive && props.currentActionCode === "assign_proposal";
   const showSendProposal =
     isActive &&
@@ -94,6 +98,22 @@ export function CurrentActionControl(props: Props) {
   const showInactiveProposalReview = isActive && props.currentActionCode === "review_inactive_proposal";
   const showNegotiating = isActive && props.currentActionCode === "negotiate_proposal";
   const showResendForms = isActive && props.currentActionCode === "await_tmf_and_booking_form";
+  const proposalReconcileAttempted=useRef<string|null>(null);
+  useEffect(()=>{
+    if(!isActive||props.currentActionCode!=="await_proposal_acceptance")return;
+    if(proposalReconcileAttempted.current===props.travelFileId)return;
+    proposalReconcileAttempted.current=props.travelFileId;
+    let cancelled=false;
+    void fetch(`/api/travel-files/${encodeURIComponent(props.travelFileId)}/proposal-workflow-reconcile`,{method:"POST"})
+      .then(async response=>{
+        const result=await response.json().catch(()=>({}));
+        if(!cancelled&&response.ok&&(result.advanced||result.alreadyAdvanced))router.refresh();
+        if(!response.ok&&response.status!==409)console.error("Proposal workflow reconciliation failed",result.error??response.status);
+      })
+      .catch(error=>console.error("Proposal workflow reconciliation failed",error));
+    return ()=>{cancelled=true};
+  },[isActive,props.currentActionCode,props.travelFileId,router]);
+
   const showInvoicingItinerary = isActive && props.currentActionCode === "invoicing_itinerary";
   const showPostTripClose = isActive && props.currentActionCode === "post_trip_close_file";
 
@@ -131,6 +151,10 @@ export function CurrentActionControl(props: Props) {
       <WalletCards className="h-4 w-4" />
       Retainer Received
     </Button>
+  ) : showProposalDepositAgreement ? (
+    <ProposalDepositLinkControl travelFileId={props.travelFileId} />
+  ) : showResendProposal ? (
+    <ProposalDepositLinkControl travelFileId={props.travelFileId} resend />
   ) : showDepositReceived ? (
     <Button size="sm" onClick={() => setDepositOpen(true)}>
       <WalletCards className="h-4 w-4" />
@@ -159,10 +183,7 @@ export function CurrentActionControl(props: Props) {
   ) : showInactiveProposalReview ? (
     <InactiveProposalReviewButtons travelFileId={props.travelFileId} />
   ) : showNegotiating ? (
-    <Button size="sm" onClick={() => setNegotiationOpen(true)}>
-      <Handshake className="h-4 w-4" />
-      Manage Negotiation
-    </Button>
+    <div className="flex flex-col items-start gap-3"><Button size="sm" onClick={() => setNegotiationOpen(true)}><Handshake className="h-4 w-4" />Manage Negotiation</Button><NegotiationFollowupControl travelFileId={props.travelFileId} onUpdated={() => router.refresh()} /></div>
   ) : showInvoicingItinerary ? (
     <InvoicingItineraryButton travelFileId={props.travelFileId} />
   ) : showPostTripClose ? (
@@ -177,6 +198,7 @@ export function CurrentActionControl(props: Props) {
   return (
     <>
       {control}
+
 
       {showRetainerReceived && (
         <RetainerConfirmationModal

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -40,7 +41,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tra
     paymentEmailRecipientTravellerId: group.payment_email_recipient_traveller_id ?? "",
     travellerIds: (group.travel_payment_group_travellers ?? []).map((link: any) => link.travel_file_traveller_id),
   }));
-  return NextResponse.json({ travellers, groups: normalizedGroups });
+  const service = createServiceClient();
+  const savedCards: any[] = [];
+  if (service) {
+    const { data: members } = await service.from("travel_file_travellers").select("id,traveller_profile_id").eq("travel_file_id",travelFileId);
+    const profileIds = [...new Set((members ?? []).map(m => m.traveller_profile_id).filter(Boolean))];
+    if (profileIds.length) {
+      const { data: cards, error: cardsError } = await service.from("traveller_saved_card_references").select("id,traveller_profile_id,card_brand,last_four,label,is_preferred").in("traveller_profile_id",profileIds);
+      if (cardsError) return NextResponse.json({error:"Could not load saved cards."},{status:500});
+      for (const card of cards ?? []) {
+        for (const member of members ?? []) {
+          if (member.traveller_profile_id === card.traveller_profile_id) savedCards.push({...card,travellerId:member.id});
+        }
+      }
+    }
+  }
+  return NextResponse.json({ travellers, groups: normalizedGroups, savedCards });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ travelFileId: string }> }) {

@@ -61,8 +61,8 @@ async function ensureClientFile(s: any, profile: any, email: string | null, phon
   return r.customer.id;
 }
 
-const partySelect = `id, traveller_role, relationship_to_primary, receive_trip_communications, booking_form_required, booking_form_recipient_party_member_id, booking_form_completed_at, traveller_profiles:traveller_profile_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone)`;
-const relationshipSelect = `id, primary_contact_id, relationship_type, traveller_profiles:related_traveller_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone)`;
+const partySelect = `id, traveller_role, relationship_to_primary, receive_trip_communications, booking_form_required, booking_form_recipient_party_member_id, booking_form_completed_at, traveller_profiles:traveller_profile_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone, special_considerations)`;
+const relationshipSelect = `id, primary_contact_id, relationship_type, traveller_profiles:related_traveller_id (id, briitely_contact_id, first_name, last_name, preferred_name, date_of_birth, email, phone, special_considerations)`;
 
 function profileOfPartyMember(member: any) {
   return Array.isArray(member?.traveller_profiles) ? member.traveller_profiles[0] : member?.traveller_profiles;
@@ -76,7 +76,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
   if (error || !file) return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
 
   try {
-    if (file.briitely_contact_id && file.briitely_contact_id !== "pending") await ensurePrimaryTraveller(s, travelFileId, file.briitely_contact_id);
+    // Split files already carry their primary traveller. Do not re-fetch/recreate that
+    // person from Briitely on every read: linked files may retain a legacy contact ID.
+    const { data: existingPrimary, error: primaryError } = await s.from("travel_file_travellers")
+      .select("id").eq("travel_file_id", travelFileId).eq("traveller_role", "primary").limit(1).maybeSingle();
+    if (primaryError) throw new Error(primaryError.message);
+    if (!existingPrimary && file.briitely_contact_id && file.briitely_contact_id !== "pending") {
+      await ensurePrimaryTraveller(s, travelFileId, file.briitely_contact_id);
+    }
     const [{ data: party, error: pe }, { data: submission }] = await Promise.all([
       s.from("travel_file_travellers").select(partySelect).eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
       s.from("booking_form_submissions").select("id, submitted_at, change_count").eq("travel_file_id", travelFileId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
@@ -229,11 +236,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ travel
       if (error) throw new Error(error.message);
     }
 
-    const has = ["firstName", "lastName", "preferredName", "dateOfBirth", "email", "phone"].some(k => Object.prototype.hasOwnProperty.call(body, k));
+    const has = ["firstName", "lastName", "preferredName", "dateOfBirth", "email", "phone", "specialConsiderations"].some(k => Object.prototype.hasOwnProperty.call(body, k));
     let clientId = p.briitely_contact_id;
     if (has) {
       const firstName = body.firstName?.trim() || p.first_name, lastName = body.lastName?.trim() || p.last_name;
-      const { error } = await s.from("traveller_profiles").update({ first_name: firstName, last_name: lastName, preferred_name: Object.prototype.hasOwnProperty.call(body, "preferredName") ? body.preferredName?.trim() || null : p.preferred_name, date_of_birth: Object.prototype.hasOwnProperty.call(body, "dateOfBirth") ? body.dateOfBirth || null : p.date_of_birth, email: nextEmail, phone: nextPhone }).eq("id", p.id);
+      const { error } = await s.from("traveller_profiles").update({ first_name: firstName, last_name: lastName, preferred_name: Object.prototype.hasOwnProperty.call(body, "preferredName") ? body.preferredName?.trim() || null : p.preferred_name, date_of_birth: Object.prototype.hasOwnProperty.call(body, "dateOfBirth") ? body.dateOfBirth || null : p.date_of_birth, email: nextEmail, phone: nextPhone, ...(Object.prototype.hasOwnProperty.call(body, "specialConsiderations") ? { special_considerations: typeof body.specialConsiderations === "string" ? body.specialConsiderations.trim() || null : null } : {}) }).eq("id", p.id);
       if (error) throw new Error(error.message);
       p.first_name = firstName;
       p.last_name = lastName;

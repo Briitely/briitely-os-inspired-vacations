@@ -1,0 +1,7 @@
+import type {ReactNode} from "react";
+import {ChevronRight} from "lucide-react";
+export function AgreementPage({children}:{children:ReactNode}){return <div className="min-h-screen bg-[#f5f2ff] text-foreground"><main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8">{children}</main></div>}
+export function AgreementProgress({step,first,second}:{step:1|2;first:string;second:string}){return <div className="flex items-center gap-3 text-xs"><span className={step===1?"font-semibold text-primary":"text-muted-foreground"}>1. {first}</span><ChevronRight className="h-3 w-3 text-muted-foreground"/><span className={step===2?"font-semibold text-primary":"text-muted-foreground"}>2. {second}</span></div>}
+export function AgreementPanel({children}:{children:ReactNode}){return <div className="rounded-xl border bg-[#fffefa] p-5 shadow-sm">{children}</div>}
+export function AgreementAside({eyebrow,title,text}:{eyebrow:string;title:string;text:string}){return <div><div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">{eyebrow}</div><div className="mt-1 font-serif text-xl leading-tight">{title}</div><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{text}</p></div>}
+export function AgreementSummary({label,value}:{label:string;value:string}){return <div className="rounded-md border bg-background px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-1 text-sm font-medium">{value}</div></div>}

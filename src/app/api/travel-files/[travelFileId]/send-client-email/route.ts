@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type Body = {
   emailType?: string;
+  recipientPartyMemberId?: string | null;
   recipientContactId?: string | null;
   recipientName?: string;
   recipientEmail?: string;
@@ -77,12 +79,26 @@ export async function POST(
     await db.from("travel_activity").insert({
       travel_file_id: travelFileId,
       event_type: "client_email_sent",
-      summary: `${emailType} sent to ${recipientEmail} through Briitely.`,
+      summary: `${emailType === "retainer_booking_form" ? "Retainer Agreement & Booking Form" : emailType === "booking_form" ? "Booking Form" : emailType === "negotiation_reminder_1" ? "First Negotiation Reminder" : emailType === "negotiation_reminder_2" ? "Second Negotiation Reminder" : "Email"} sent to ${recipientName}.`,
       actor_type: "internal",
       actor_user_id: user.id,
-      metadata: { email_type: emailType, recipient_email: recipientEmail, subject },
+      metadata: { email_type: emailType, recipient_email: recipientEmail, recipient_name: recipientName, recipient_party_member_id: body.recipientPartyMemberId ?? null, subject },
     });
 
+    if(emailType==="proposal_acceptance"){
+      const service=createServiceClient();
+      if(!service)return NextResponse.json({error:"Email sent, but workflow service is unavailable. Contact the administrator."},{status:500});
+      const {data:currentFile}=await service.from("travel_files").select("current_action_id").eq("id",travelFileId).single();
+      const {data:current}=currentFile?.current_action_id?await service.from("travel_actions").select("id,action_code,status,metadata").eq("id",currentFile.current_action_id).single():{data:null};
+      if(current?.action_code==="proposal_acceptance_deposit_agreement"&&current.status==="active"){
+        const now=new Date().toISOString();
+        const {data:next,error:nextError}=await service.from("travel_actions").insert({travel_file_id:travelFileId,action_code:"await_proposal_acceptance",title:"Await Proposal Agreement & Travel Preferences",description:"Waiting for the client's proposal acceptance and travel preferences. Deposit processing follows completion.",action_role:"blocking",responsible_type:"client",status:"active",waiting_since:now,activated_at:now,metadata:current.metadata??{}}).select("id").single();
+        if(nextError||!next)return NextResponse.json({error:"Email sent, but the waiting action could not be created. Contact the administrator."},{status:500});
+        const {data:changed,error:changeError}=await service.from("travel_files").update({current_action_id:next.id}).eq("id",travelFileId).eq("current_action_id",current.id).select("id").maybeSingle();
+        if(changeError||!changed){await service.from("travel_actions").delete().eq("id",next.id);return NextResponse.json({error:"Email sent, but the workflow could not advance. Contact the administrator."},{status:500})}
+        await service.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"portal",completion_event:"proposal_agreement_email_sent"}).eq("id",current.id);
+      }
+    }
     return NextResponse.json({ success: true });
   } catch (webhookError) {
     console.error("CLIENT_EMAIL_WEBHOOK_ERROR", webhookError);

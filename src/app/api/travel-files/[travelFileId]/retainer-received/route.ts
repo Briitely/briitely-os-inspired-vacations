@@ -3,8 +3,11 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
 import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
+import { createServiceClient } from "@/lib/supabase/service";
+import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { addBusinessDays } from "@/lib/travel/due-date";
 
-export async function POST(_request: Request,{params}:{params:Promise<{travelFileId:string}>}){
+export async function POST(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
   if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
@@ -29,36 +32,32 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
 
   const now=new Date().toISOString();
   const today=now.slice(0,10);
-  const tracyId=file.assigned_advisor_id||null;
-  const primaryPaymentGroupId=await ensurePrimaryPaymentGroup(supabase,travelFileId);
-  if(!primaryPaymentGroupId)return NextResponse.json({error:"Could not create the primary traveller booking group."},{status:500});
-
-  // Record the externally collected Retainer in the Travel File payment ledger.
-  const{data:existingPayment}=await supabase.from("travel_payments")
-    .select("id")
-    .eq("travel_file_id",travelFileId)
-    .eq("description","Retainer")
-    .eq("status","paid")
-    .limit(1)
-    .maybeSingle();
-  if(!existingPayment){
-    const{error:paymentError}=await supabase.from("travel_payments").insert({
-      travel_file_id:travelFileId,
-      payment_group_id:primaryPaymentGroupId,
-      payment_type:"other",
-      description:"Retainer",
-      amount:file.tmf_amount??null,
-      currency:"CAD",
-      due_date:today,
-      status:"paid",
-      details:"Collected externally through CBO.",
-      processed_by:user.id,
-      processed_at:now,
-    });
-    if(paymentError)return NextResponse.json({error:`Could not record the Retainer payment: ${paymentError.message}`},{status:500});
+  const {data:tracyProfile,error:tracyError}=await supabase.from("profiles").select("id").eq("is_active",true).ilike("full_name","Tracy Hamilton").maybeSingle();if(tracyError||!tracyProfile?.id)return NextResponse.json({error:"Active Tracy Hamilton profile not found."},{status:500});const tracyId=tracyProfile.id;
+  const service=createServiceClient();
+  if(!service)return NextResponse.json({error:"Retainer payment service unavailable."},{status:500});
+  const {data:terms,error:termsError}=await service.from("travel_group_retainers").select("recipient_party_member_id").eq("travel_file_id",travelFileId);
+  if(termsError)return NextResponse.json({error:termsError.message},{status:500});
+  if(terms?.length){
+    try{await reconcileGroupRetainerPayments(travelFileId)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
+    const body=await request.json().catch(()=>({})) as {recipientIds?:string[]};
+    const requested=Array.isArray(body.recipientIds)?body.recipientIds:[];
+    const required=new Set(terms.map(t=>t.recipient_party_member_id));
+    if(requested.some(id=>!required.has(id)))return NextResponse.json({error:"Invalid Travel Group selection."},{status:400});
+    const {data:links,error:linkError}=await service.from("travel_group_retainer_payments").select("recipient_party_member_id,payment_id").eq("travel_file_id",travelFileId);
+    if(linkError)return NextResponse.json({error:linkError.message},{status:500});
+    if((links??[]).length!==required.size)return NextResponse.json({error:"Each group must have a signed agreement and payment record before confirmation."},{status:409});
+    for(const id of requested){const link=(links??[]).find(l=>l.recipient_party_member_id===id);if(!link)return NextResponse.json({error:"Payment record missing for a selected group."},{status:409});const {error:paymentError}=await service.from("travel_payments").update({status:"paid",processed_at:now,processed_by:user.id}).eq("id",link.payment_id).eq("travel_file_id",travelFileId).neq("status","paid");if(paymentError)return NextResponse.json({error:paymentError.message},{status:500})}
+    const {data:allPayments,error:allError}=await service.from("travel_payments").select("id,status").in("id",(links??[]).map(l=>l.payment_id));
+    if(allError)return NextResponse.json({error:allError.message},{status:500});
+    const allPaid=(allPayments??[]).length===required.size&&(allPayments??[]).every(p=>p.status==="paid");
+    if(!allPaid)return NextResponse.json({success:true,allPaid:false,remaining:required.size-(allPayments??[]).filter(p=>p.status==="paid").length});
+  }else{
+    const primaryPaymentGroupId=await ensurePrimaryPaymentGroup(supabase,travelFileId);
+    if(!primaryPaymentGroupId)return NextResponse.json({error:"Could not create the primary traveller booking group."},{status:500});
+    const {data:existingPayment}=await supabase.from("travel_payments").select("id").eq("travel_file_id",travelFileId).eq("description","Retainer").eq("status","paid").limit(1).maybeSingle();
+    if(!existingPayment){const {error:paymentError}=await supabase.from("travel_payments").insert({travel_file_id:travelFileId,payment_group_id:primaryPaymentGroupId,payment_type:"other",description:"Retainer",amount:file.tmf_amount??null,currency:"CAD",due_date:today,status:"paid",details:"Collected externally through ClientBase.",processed_by:user.id,processed_at:now});if(paymentError)return NextResponse.json({error:paymentError.message},{status:500})}
   }
-
-  await syncPaymentBatchTask(supabase, travelFileId, today);
+  await syncPaymentBatchTask(supabase,travelFileId,today);
 
   // Retainer receipt does not jump straight to proposal creation. Tracy first assigns
   // the proposal owner and review due date.
@@ -71,7 +70,7 @@ export async function POST(_request: Request,{params}:{params:Promise<{travelFil
     responsible_type:"internal",
     responsible_user_id:tracyId,
     status:"active",
-    waiting_since:now,
+    due_at:addBusinessDays(2),
     activated_at:now,
     metadata:{trigger:"retainer_received"},
   }).select("id").single();

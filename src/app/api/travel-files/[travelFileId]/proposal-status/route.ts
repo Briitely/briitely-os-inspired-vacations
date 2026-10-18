@@ -1,7 +1,8 @@
 import {NextResponse} from "next/server";
 import {getAuthenticatedUser} from "@/lib/supabase/auth";
 import {createClient} from "@/lib/supabase/server";
-import {addCalendarDaysRollingWeekend} from "@/lib/travel/due-date";
+import {addCalendarDaysRollingWeekend,addBusinessDays} from "@/lib/travel/due-date";
+import {createServiceClient} from "@/lib/supabase/service";
 
 type Body={outcome?:"engaged"|"no_activity"};
 
@@ -18,9 +19,10 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  if(!current||current.action_code!=="check_proposal_status"||current.status!=="active")return NextResponse.json({error:"Check Proposal Status is not the active action."},{status:409});
  const now=new Date().toISOString();const followUp=Number((current.metadata as Record<string,unknown>|null)?.follow_up_number??1);
  if(body.outcome==="engaged"){
-  const{data:next,error:nextError}=await db.from("travel_actions").insert({travel_file_id:travelFileId,action_code:"negotiate_proposal",title:"Negotiating",description:"Track client feedback and proposal revisions through acceptance or closure.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id,status:"active",waiting_since:now,activated_at:now,metadata:{entered_from:"proposal_engagement",negotiating_started_at:now}}).select("id").single();if(nextError||!next)return NextResponse.json({error:"Could not start Negotiating."},{status:500});
+  const{data:next,error:nextError}=await db.from("travel_actions").insert({travel_file_id:travelFileId,action_code:"negotiate_proposal",title:"Negotiating",description:"Track client feedback and proposal revisions through acceptance or closure.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id,status:"active",due_at:addBusinessDays(3),activated_at:now,metadata:{entered_from:"proposal_engagement",negotiating_started_at:now}}).select("id").single();if(nextError||!next)return NextResponse.json({error:"Could not start Negotiating."},{status:500});
   await db.from("travel_actions").update({status:"completed",completed_at:now,completed_by:user.id,completion_source:"portal",completion_event:"client_engaged"}).eq("id",current.id);
   const{error:updateError}=await db.from("travel_files").update({stage:"negotiating",stage_changed_at:now,current_action_id:next.id}).eq("id",travelFileId);if(updateError)return NextResponse.json({error:"Could not update the Travel File."},{status:500});
+  const service=createServiceClient();if(service){const dueDates=[3,6,11].map(days=>addCalendarDaysRollingWeekend(days,new Date(now)).slice(0,10));const {error:scheduleError}=await service.from("travel_negotiation_followups").upsert(dueDates.map((due_date,index)=>({travel_file_id:travelFileId,step:index+1,due_date,assigned_advisor_id:file.assigned_advisor_id,completed_at:null,completed_by:null})),{onConflict:"travel_file_id,step"});if(scheduleError)console.error("Could not initialize negotiation follow-ups",scheduleError.message);}
   await db.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"proposal_engaged",summary:"Client viewed or responded to the proposal; moved to Negotiating.",actor_type:"internal",actor_user_id:user.id,action_id:current.id,previous_stage:file.stage,new_stage:"negotiating"});return NextResponse.json({success:true,stage:"negotiating"});
  }
  if(body.outcome==="no_activity"){
