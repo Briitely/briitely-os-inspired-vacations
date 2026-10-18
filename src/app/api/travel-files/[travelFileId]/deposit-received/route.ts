@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export async function POST(
   _request: Request,
@@ -15,7 +15,8 @@ export async function POST(
   }
 
   const { travelFileId } = await params;
-  const db = await createClient();
+  const db = createServiceClient();
+  if (!db) return NextResponse.json({ error: "Deposit service unavailable." }, { status: 500 });
   const { data: file, error } = await db
     .from("travel_files")
     .select("id,stage,current_action_id,assigned_advisor_id,current_action:travel_actions!current_action_id(id,action_code,status,metadata)")
@@ -35,28 +36,18 @@ export async function POST(
   const metadata = (current.metadata ?? {}) as Record<string, unknown>;
   const paymentId = typeof metadata.deposit_payment_id === "string" ? metadata.deposit_payment_id : null;
 
-  let paymentLookup = db
-    .from("travel_payments")
-    .select("id,amount,status")
+  // Always settle the proposal-authorized deposit, not another paid deposit on this file.
+  let paymentLookup = db.from("travel_payments")
+    .select("id,amount,status,external_reference")
     .eq("travel_file_id", travelFileId)
     .eq("payment_type", "deposit");
-
-  if (paymentId) {
-    paymentLookup = paymentLookup.eq("id", paymentId);
-  } else {
-    paymentLookup = paymentLookup
-      .in("status", ["processing", "paid"])
-      .order("created_at", { ascending: false })
-      .limit(1);
-  }
-
+  if (paymentId) paymentLookup = paymentLookup.eq("id", paymentId);
+  else paymentLookup = paymentLookup.like("external_reference", "proposal-deposit:%")
+    .order("created_at", { ascending: false }).limit(1);
   const { data: existingPayment, error: paymentLookupError } = await paymentLookup.maybeSingle();
-  if (paymentLookupError || !existingPayment) {
-    return NextResponse.json(
-      { error: "No deposit payment could be found for this Travel File." },
-      { status: 500 }
-    );
-  }
+  if (paymentLookupError || !existingPayment) return NextResponse.json(
+    { error: "The proposal deposit payment could not be found. No other payment was changed." }, { status: 409 }
+  );
 
   let payment = existingPayment;
   if (existingPayment.status !== "paid") {
@@ -66,9 +57,9 @@ export async function POST(
         status: "paid",
         processed_by: user.id,
         processed_at: now,
-        details: "Deposit received and confirmed by the advisor.",
       })
       .eq("id", existingPayment.id)
+      .eq("travel_file_id", travelFileId)
       .select("id,amount,status")
       .single();
 
@@ -80,6 +71,13 @@ export async function POST(
     }
     payment = updatedPayment;
   }
+
+  // Read back the persisted status before moving the workflow.
+  const { data: verified } = await db.from("travel_payments").select("status")
+    .eq("id", payment.id).eq("travel_file_id", travelFileId).single();
+  if (verified?.status !== "paid") return NextResponse.json(
+    { error: "Deposit status was not saved. Booking was not advanced." }, { status: 500 }
+  );
 
   const { data: nextAction, error: actionError } = await db
     .from("travel_actions")
