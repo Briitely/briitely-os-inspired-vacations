@@ -49,7 +49,7 @@ export async function advanceProposalWorkflow(travelFileId:string){
   travel_file_id:travelFileId,action_code:"collect_deposit",title:"Process Deposit",description:"Arrange and record the deposit manually in ClientBase and the Travel File. Do not mark paid until confirmed.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id,status:"active",waiting_since:now,activated_at:now,
   metadata:{trigger:"proposal_agreement_and_preferences_completed",deposit_amount:(action.metadata as {deposit_amount?:number}|null)?.deposit_amount??null,deposit_payment_id:paymentId}
  }).select("id").single();
- if(insertError||!next)throw new Error("Could not create deposit processing action.");
+ if(insertError||!next){console.error("PROCESS_DEPOSIT_ACTION_INSERT_FAILED",{code:insertError?.code,message:insertError?.message,details:insertError?.details,hint:insertError?.hint});throw new Error(insertError?.message??"Could not create deposit processing action.");}
  const {data:updated,error:updateError}=await db.from("travel_files").update({stage_changed_at:now,current_action_id:next.id}).eq("id",travelFileId).eq("current_action_id",action.id).select("id").maybeSingle();
  if(updateError||!updated){await db.from("travel_actions").delete().eq("id",next.id);return false}
  await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"proposal_agreement_and_preferences_completed"}).eq("id",action.id);
