@@ -32,6 +32,8 @@ export async function proposalWorkflowStatus(travelFileId:string){
  ]};
 }
 
+function nextBusinessDay(value:string){const d=new Date(value);const date=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Edmonton",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);const [year,month,day]=date.split("-").map(Number);const next=new Date(Date.UTC(year,month-1,day+1,12));while([0,6].includes(next.getUTCDay()))next.setUTCDate(next.getUTCDate()+1);return new Date(Date.UTC(next.getUTCFullYear(),next.getUTCMonth(),next.getUTCDate(),23)).toISOString();}
+
 export async function advanceProposalWorkflow(travelFileId:string){
  const status=await proposalWorkflowStatus(travelFileId);
  const {db,file,action}=status;
@@ -44,9 +46,11 @@ export async function advanceProposalWorkflow(travelFileId:string){
  const {data:acceptances,error:acceptError}=await db.from("proposal_deposit_agreement_acceptances").select("session_id,accepted_at").eq("travel_file_id",travelFileId).gte("accepted_at",since).order("accepted_at",{ascending:false}).limit(1);
  if(acceptError||!acceptances?.[0])throw new Error("Current proposal acceptance not found");
  const paymentId=await ensureProposalDepositPayment(travelFileId,acceptances[0].session_id);
+ const {data:dana,error:danaError}=await db.from("profiles").select("id").eq("id","57c99ca4-6128-4920-9d69-744f85cc514b").eq("is_active",true).maybeSingle();
+ if(danaError||!dana)throw new Error("Deposit processing assignee is not active.");
  const now=new Date().toISOString();
  const {data:next,error:insertError}=await db.from("travel_actions").insert({
-  travel_file_id:travelFileId,action_code:"collect_deposit",title:"Process Deposit",description:"Arrange and record the deposit manually in ClientBase and the Travel File. Do not mark paid until confirmed.",action_role:"blocking",responsible_type:"internal",responsible_user_id:file.assigned_advisor_id,status:"active",waiting_since:now,activated_at:now,
+  travel_file_id:travelFileId,action_code:"collect_deposit",title:"Process Deposit",description:"Arrange and record the deposit manually in ClientBase and the Travel File. Do not mark paid until confirmed.",action_role:"blocking",responsible_type:"internal",responsible_user_id:dana.id,status:"active",waiting_since:null,activated_at:now,due_at:nextBusinessDay(now),
   metadata:{trigger:"proposal_agreement_and_preferences_completed",deposit_amount:(action.metadata as {deposit_amount?:number}|null)?.deposit_amount??null,deposit_payment_id:paymentId}
  }).select("id").single();
  if(insertError||!next){console.error("PROCESS_DEPOSIT_ACTION_INSERT_FAILED",{code:insertError?.code,message:insertError?.message,details:insertError?.details,hint:insertError?.hint});throw new Error(insertError?.message??"Could not create deposit processing action.");}
