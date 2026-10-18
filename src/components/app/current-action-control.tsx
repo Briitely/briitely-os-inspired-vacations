@@ -27,6 +27,7 @@ import { RetainerConfirmationModal } from "@/components/app/retainer-confirmatio
 import { InactiveProposalReviewButtons } from "@/components/app/inactive-proposal-review-buttons";
 import { InvoicingItineraryButton } from "@/components/app/invoicing-itinerary-button";
 import { SendTmfModal } from "@/components/app/send-tmf-modal";
+import { ProposalDepositLinkControl } from "@/components/app/proposal-deposit-link-control";
 import { CloseTravelFileButton } from "@/components/app/close-travel-file-button";
 
 type ResendDetails = {
@@ -86,6 +87,7 @@ export function CurrentActionControl(props: Props) {
   const showCompleteBooking = isActive && props.currentActionCode === "complete_booking";
   const showRetainerReceived = isActive && props.currentActionCode === "collect_tmf_payment";
   const showDepositReceived = isActive && props.currentActionCode === "collect_deposit";
+  const showProposalDepositAgreement = isActive && props.currentActionCode === "proposal_acceptance_deposit_agreement";
   const showAssignProposal = isActive && props.currentActionCode === "assign_proposal";
   const showSendProposal =
     isActive &&
@@ -132,6 +134,8 @@ export function CurrentActionControl(props: Props) {
       <WalletCards className="h-4 w-4" />
       Retainer Received
     </Button>
+  ) : showProposalDepositAgreement ? (
+    <ProposalDepositLinkControl travelFileId={props.travelFileId} />
   ) : showDepositReceived ? (
     <Button size="sm" onClick={() => setDepositOpen(true)}>
       <WalletCards className="h-4 w-4" />
