@@ -86,3 +86,16 @@ export async function PUT(_request:Request,{params}:{params:Promise<{travelFileI
   if(!data?.finalized)return NextResponse.json({error:"Finalization did not return a confirmed result. Check the Travel Files before retrying."},{status:500});
   return NextResponse.json({success:true,...data});
 }
+
+/** Finalize one Travel Group in place. No files, retainer payments or signatures are transferred. */
+export async function PATCH(_request:Request,{params}:{params:Promise<{travelFileId:string}>}){
+ const {user}=await getAuthenticatedUser();
+ if(!user?.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
+ if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
+ const {travelFileId}=await params;
+ const db=createServiceClient();
+ if(!db)return NextResponse.json({error:"Negotiation service unavailable."},{status:503});
+ const {data,error}=await db.rpc("finalize_unsplit_negotiation",{p_source_id:travelFileId});
+ if(error)return NextResponse.json({error:error.message},{status:409});
+ return NextResponse.json({success:true,...data});
+}
