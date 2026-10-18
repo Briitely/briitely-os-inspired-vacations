@@ -55,6 +55,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     user_agent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
   });
   if (error) return NextResponse.json({ error: error.code === "23505" ? "This agreement has already been accepted." : "Could not record acceptance." }, { status: error.code === "23505" ? 409 : 500 });
-  await db.from("proposal_deposit_agreement_sessions").update({ completed_at: new Date().toISOString() }).eq("id", session.id);
   return NextResponse.json({ success: true });
 }
