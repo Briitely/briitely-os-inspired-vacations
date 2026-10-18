@@ -70,6 +70,8 @@ type Props = {
 
 export function CurrentActionControl(props: Props) {
   const router = useRouter();
+  const [reconcileBusy,setReconcileBusy]=useState(false);
+  const [reconcileError,setReconcileError]=useState<string|null>(null);
   const [consultOpen, setConsultOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [assignProposalOpen, setAssignProposalOpen] = useState(false);
@@ -182,6 +184,16 @@ export function CurrentActionControl(props: Props) {
   return (
     <>
       {control}
+      {showResendProposal && <div className="mt-2 flex flex-col items-start gap-2"><Button size="sm" variant="outline" disabled={reconcileBusy} onClick={async()=>{
+        setReconcileBusy(true);setReconcileError(null);
+        try{
+          const response=await fetch(`/api/travel-files/${encodeURIComponent(props.travelFileId)}/proposal-workflow-reconcile`,{method:"POST"});
+          const data=await response.json();
+          if(!response.ok)throw new Error(data.error??data.message??"Could not check submissions.");
+          router.refresh();
+        }catch(error){setReconcileError(error instanceof Error?error.message:"Could not check submissions.");}
+        finally{setReconcileBusy(false)}
+      }}>{reconcileBusy?"Checking submissions…":"Check Completed Forms & Advance"}</Button>{reconcileError&&<p role="alert" className="text-sm text-red-600">{reconcileError}</p>}</div>}
 
       {showRetainerReceived && (
         <RetainerConfirmationModal
