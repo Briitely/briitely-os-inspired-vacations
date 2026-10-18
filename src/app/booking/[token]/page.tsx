@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { CustomerBookingForm } from "@/components/app/customer-booking-form";
+import { AgreementPage } from "@/components/app/client-agreement-layout";
 
 export const metadata: Metadata = { title: "Retainer & Booking Information — Inspired Vacations" };
 
 export default async function BookingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   return (
-    <div className="min-h-screen bg-[#f5f2ff] text-foreground">
-      <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8">
+    <AgreementPage>
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inspired Vacations</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Let&apos;s get your trip underway</h1>
@@ -15,7 +15,6 @@ export default async function BookingPage({ params }: { params: Promise<{ token:
         </div>
         <CustomerBookingForm token={token} />
         <footer className="py-7 text-center text-xs text-muted-foreground">Inspired Vacations · Your information is used only to plan and book your travel.</footer>
-      </main>
-    </div>
+    </AgreementPage>
   );
 }
