@@ -40,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tra
     paymentEmailRecipientTravellerId: group.payment_email_recipient_traveller_id ?? "",
     travellerIds: (group.travel_payment_group_travellers ?? []).map((link: any) => link.travel_file_traveller_id),
   }));
-  return NextResponse.json({ travellers, groups: normalizedGroups });
+  return NextResponse.json({ travellers, groups: normalizedGroups, savedCards: [] });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ travelFileId: string }> }) {
