@@ -10,7 +10,7 @@ export default async function ProposalAcceptancePage({ params }: { params: Promi
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inspired Vacations</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Review your proposal & deposit</h1>
-        <p className="mt-2 mb-6 text-sm text-muted-foreground">Please review the details of your trip and the deposit amount. Your advisor will provide the agreement for signature when it is ready.</p>
+        <p className="mt-2 mb-6 text-sm text-muted-foreground">Please review the details of your trip and the deposit amount. Review the agreement, confirm your deposit instructions, and then update your travel preferences.</p>
         <CustomerProposalAcceptance token={token} />
       </main>
     </div>
