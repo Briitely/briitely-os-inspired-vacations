@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpenCheck,
@@ -98,6 +98,22 @@ export function CurrentActionControl(props: Props) {
   const showInactiveProposalReview = isActive && props.currentActionCode === "review_inactive_proposal";
   const showNegotiating = isActive && props.currentActionCode === "negotiate_proposal";
   const showResendForms = isActive && props.currentActionCode === "await_tmf_and_booking_form";
+  const proposalReconcileAttempted=useRef<string|null>(null);
+  useEffect(()=>{
+    if(!isActive||props.currentActionCode!=="await_proposal_acceptance")return;
+    if(proposalReconcileAttempted.current===props.travelFileId)return;
+    proposalReconcileAttempted.current=props.travelFileId;
+    let cancelled=false;
+    void fetch(`/api/travel-files/${encodeURIComponent(props.travelFileId)}/proposal-workflow-reconcile`,{method:"POST"})
+      .then(async response=>{
+        const result=await response.json().catch(()=>({}));
+        if(!cancelled&&response.ok&&(result.advanced||result.alreadyAdvanced))router.refresh();
+        if(!response.ok&&response.status!==409)console.error("Proposal workflow reconciliation failed",result.error??response.status);
+      })
+      .catch(error=>console.error("Proposal workflow reconciliation failed",error));
+    return ()=>{cancelled=true};
+  },[isActive,props.currentActionCode,props.travelFileId,router]);
+
   const showInvoicingItinerary = isActive && props.currentActionCode === "invoicing_itinerary";
   const showPostTripClose = isActive && props.currentActionCode === "post_trip_close_file";
 
