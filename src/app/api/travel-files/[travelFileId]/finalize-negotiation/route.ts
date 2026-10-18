@@ -117,9 +117,6 @@ export async function PUT(_request:Request,{params}:{params:Promise<{travelFileI
   try{await setAgreementPreparationDeadlines(db,travelFileId)}catch(e){
     return NextResponse.json({success:true,...data,warning:"Files finalized, but preparation deadlines need review: "+(e instanceof Error?e.message:"Unknown error")});
   }
-  try{await setAgreementPreparationDeadlines(db,travelFileId)}catch(e){
-   return NextResponse.json({success:true,...data,warning:"Negotiation finalized, but preparation deadline needs review: "+(e instanceof Error?e.message:"Unknown error")});
- }
  return NextResponse.json({success:true,...data});
 }
 
@@ -133,5 +130,8 @@ export async function PATCH(_request:Request,{params}:{params:Promise<{travelFil
  if(!db)return NextResponse.json({error:"Negotiation service unavailable."},{status:503});
  const {data,error}=await db.rpc("finalize_unsplit_negotiation",{p_source_id:travelFileId});
  if(error)return NextResponse.json({error:error.message},{status:409});
+ try{await setAgreementPreparationDeadlines(db,travelFileId)}catch(e){
+   return NextResponse.json({success:true,...data,warning:"Negotiation finalized, but preparation deadline needs review: "+(e instanceof Error?e.message:"Unknown error")});
+ }
  return NextResponse.json({success:true,...data});
 }
