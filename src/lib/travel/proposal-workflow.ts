@@ -51,9 +51,14 @@ export async function advanceProposalWorkflow(travelFileId:string){
  const {data:cycle}=await db.from("travel_actions").select("created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1).maybeSingle();
  const since=cycle?.created_at;
  if(!since)throw new Error("Proposal cycle not found");
- const {data:acceptances,error:acceptError}=await db.from("proposal_deposit_agreement_acceptances").select("session_id,accepted_at").eq("travel_file_id",travelFileId).gte("accepted_at",since).order("accepted_at",{ascending:false}).limit(1);
- if(acceptError||!acceptances?.[0])throw new Error("Current proposal acceptance not found");
- const paymentId=await ensureProposalDepositPayment(travelFileId,acceptances[0].session_id);
+ const {data:acceptances,error:acceptError}=await db.from("proposal_deposit_agreement_acceptances").select("session_id,accepted_at").eq("travel_file_id",travelFileId).gte("accepted_at",since).order("accepted_at",{ascending:false});
+ if(acceptError||!acceptances?.length)throw new Error("Current proposal acceptance not found");
+ const {data:submissions,error:submissionError}=await db.from("proposal_travel_information_submissions").select("session_id").in("session_id",acceptances.map(item=>item.session_id));
+ if(submissionError)throw new Error("Could not verify completed travel preferences.");
+ const submittedIds=new Set((submissions??[]).map(item=>item.session_id));
+ const completedAcceptance=acceptances.find(item=>submittedIds.has(item.session_id));
+ if(!completedAcceptance)return false;
+ const paymentId=await ensureProposalDepositPayment(travelFileId,completedAcceptance.session_id);
  const {data:dana,error:danaError}=await db.from("profiles").select("id").eq("id","57c99ca4-6128-4920-9d69-744f85cc514b").eq("is_active",true).maybeSingle();
  if(danaError||!dana)throw new Error("Deposit processing assignee is not active.");
  const now=new Date().toISOString();
