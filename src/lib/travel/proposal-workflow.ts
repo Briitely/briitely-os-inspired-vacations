@@ -40,9 +40,9 @@ export async function advanceProposalWorkflow(travelFileId:string){
   metadata:{trigger:"proposal_agreement_and_preferences_completed",deposit_amount:(action.metadata as {deposit_amount?:number}|null)?.deposit_amount??null}
  }).select("id").single();
  if(insertError||!next)throw new Error("Could not create deposit processing action.");
- const {data:updated,error:updateError}=await db.from("travel_files").update({stage:"deposit_processing",stage_changed_at:now,current_action_id:next.id}).eq("id",travelFileId).eq("current_action_id",action.id).select("id").maybeSingle();
+ const {data:updated,error:updateError}=await db.from("travel_files").update({stage_changed_at:now,current_action_id:next.id}).eq("id",travelFileId).eq("current_action_id",action.id).select("id").maybeSingle();
  if(updateError||!updated){await db.from("travel_actions").delete().eq("id",next.id);return false}
  await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"proposal_agreement_and_preferences_completed"}).eq("id",action.id);
- await db.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"proposal_agreement_and_preferences_completed",summary:"Proposal agreement and travel preferences received. Deposit requires manual processing.",actor_type:"client",action_id:action.id,previous_stage:file.stage,new_stage:"deposit_processing"});
+ await db.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"proposal_agreement_and_preferences_completed",summary:"Proposal agreement and travel preferences received. Deposit requires manual processing.",actor_type:"client",action_id:action.id,previous_stage:file.stage,new_stage:file.stage});
  return true;
 }
