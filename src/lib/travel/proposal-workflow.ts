@@ -38,8 +38,16 @@ export async function advanceProposalWorkflow(travelFileId:string){
  const status=await proposalWorkflowStatus(travelFileId);
  const {db,file,action}=status;
  if(!action||action.action_code!=="await_proposal_acceptance"||action.status!=="active"||!status.agreementComplete||!status.preferencesComplete)return false;
- const {count,error:requirementsError}=await db.from("travel_action_requirements").select("id",{head:true,count:"exact"}).eq("travel_action_id",action.id).neq("status","complete");
- if(requirementsError||(count??0)>0)return false;
+ // The signed agreement and submitted travel preferences are the authoritative
+ // completion evidence. Reconcile the persisted checklist before advancing;
+ // otherwise both items can display Complete while the action stays waiting.
+ const {data:requirements,error:requirementsError}=await db.from("travel_action_requirements").select("id,status").eq("travel_action_id",action.id);
+ if(requirementsError)throw new Error("Could not verify proposal checklist requirements.");
+ const outstanding=(requirements??[]).filter(item=>item.status!=="complete").map(item=>item.id);
+ if(outstanding.length){
+  const {error:syncError}=await db.from("travel_action_requirements").update({status:"complete"}).in("id",outstanding);
+  if(syncError)throw new Error("Could not synchronize completed proposal checklist.");
+ }
  const {data:cycle}=await db.from("travel_actions").select("activated_at,created_at").eq("travel_file_id",travelFileId).eq("action_code","proposal_acceptance_deposit_agreement").order("created_at",{ascending:false}).limit(1).maybeSingle();
  const since=cycle?.activated_at??cycle?.created_at;
  if(!since)throw new Error("Proposal cycle not found");
