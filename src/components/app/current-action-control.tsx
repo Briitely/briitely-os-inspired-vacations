@@ -88,6 +88,7 @@ export function CurrentActionControl(props: Props) {
   const showRetainerReceived = isActive && props.currentActionCode === "collect_tmf_payment";
   const showDepositReceived = isActive && props.currentActionCode === "collect_deposit";
   const showProposalDepositAgreement = isActive && props.currentActionCode === "proposal_acceptance_deposit_agreement";
+  const showResendProposal = isActive && props.currentActionCode === "await_proposal_acceptance";
   const showAssignProposal = isActive && props.currentActionCode === "assign_proposal";
   const showSendProposal =
     isActive &&
@@ -136,6 +137,8 @@ export function CurrentActionControl(props: Props) {
     </Button>
   ) : showProposalDepositAgreement ? (
     <ProposalDepositLinkControl travelFileId={props.travelFileId} />
+  ) : showResendProposal ? (
+    <ProposalDepositLinkControl travelFileId={props.travelFileId} resend />
   ) : showDepositReceived ? (
     <Button size="sm" onClick={() => setDepositOpen(true)}>
       <WalletCards className="h-4 w-4" />
