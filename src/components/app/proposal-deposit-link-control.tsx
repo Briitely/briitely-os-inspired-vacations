@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bold, Italic, Link as LinkIcon, Copy, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 
-export function ProposalDepositLinkControl({ travelFileId }: { travelFileId: string }) {
+export function ProposalDepositLinkControl({ travelFileId, resend = false }: { travelFileId: string; resend?: boolean }) {
+  const router=useRouter();
   const [busy, setBusy] = useState(false);
   const [open,setOpen]=useState(false);
   const [error, setError] = useState("");
@@ -46,13 +48,13 @@ export function ProposalDepositLinkControl({ travelFileId }: { travelFileId: str
       if(!recipient.trim())throw new Error("Enter the recipient email address.");
       const response=await fetch("/api/travel-files/"+encodeURIComponent(travelFileId)+"/send-client-email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({emailType:"proposal_acceptance",recipientEmail:recipient,recipientName,subject,htmlBody:html})});
       const result=await response.json();if(!response.ok)throw new Error(result.error||"Could not send email.");
-      setLink("");setOpen(false);
+      setLink("");setOpen(false);router.refresh();
     }catch(e){setError(e instanceof Error?e.message:"Could not send email.")}finally{setBusy(false)}
   }
   function format(command:string,value?:string){document.execCommand(command,false,value);const editor=document.getElementById("proposal-email-editor");if(editor)setHtml(editor.innerHTML)}
   return (
     <>
-      <Button size="sm" disabled={busy} onClick={prepare}>{busy ? "Preparing…" : "Prepare Deposit Agreement Email"}</Button>
+      <Button size="sm" disabled={busy} onClick={prepare}>{busy ? "Preparing…" : resend ? "Resend Forms" : "Prepare Deposit Agreement Email"}</Button>
       {open&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
         <div role="dialog" aria-modal="true" aria-label="Prepare proposal acceptance email" className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-xl">
           <div className="flex items-center justify-between border-b p-5"><div><h2 className="text-lg font-semibold">Proposal Acceptance & Deposit Agreement</h2><p className="text-sm text-muted-foreground">Review the email and secure form link before sending.</p></div><button type="button" aria-label="Close" className="rounded p-2 hover:bg-muted" disabled={busy} onClick={()=>setOpen(false)}><X size={18}/></button></div>
