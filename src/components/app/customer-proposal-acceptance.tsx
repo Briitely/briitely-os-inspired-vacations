@@ -25,6 +25,23 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   const [signed, setSigned] = useState(false);
   const [travelInfo, setTravelInfo] = useState<{ preferences: string; loyaltyPrograms: string; completed: boolean } | null>(null);
   const [infoSaving, setInfoSaving] = useState(false);
+  async function loadTravelInfo() {
+    const response = await fetch("/api/proposal-acceptance/" + encodeURIComponent(token) + "/travel-information", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Unable to load travel information.");
+    setTravelInfo(result);
+  }
+  async function submitTravelInfo() {
+    if (!travelInfo) return;
+    setInfoSaving(true); setError("");
+    try {
+      const response = await fetch("/api/proposal-acceptance/" + encodeURIComponent(token) + "/travel-information", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferences: travelInfo.preferences, loyaltyPrograms: travelInfo.loyaltyPrograms }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to save travel information.");
+      setTravelInfo({ ...travelInfo, completed: true });
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save travel information."); }
+    finally { setInfoSaving(false); }
+  }
   async function sign() {
     if (!details?.agreementVersion || !checked || !acceptedName.trim()) return;
     setSaving(true); setError("");
@@ -33,6 +50,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not record your acceptance.");
       setSigned(true);
+      await loadTravelInfo();
     } catch (e) { setError(e instanceof Error ? e.message : "Could not record your acceptance."); }
     finally { setSaving(false); }
   }
@@ -44,7 +62,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
         if (!response.ok) throw new Error(payload.error || "Unable to load agreement.");
         return payload as AgreementPreview;
       })
-      .then(data => { if (active) setDetails(data); })
+      .then(data => { if (active) { setDetails(data); if (data.accepted) void loadTravelInfo().catch(e => setError(e instanceof Error ? e.message : "Unable to load travel information.")); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load agreement."); });
     return () => { active = false; };
   }, [token]);
