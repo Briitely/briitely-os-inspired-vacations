@@ -18,11 +18,35 @@ type AgreementPreview = {
 function date(value: string | null) {
   return value ? new Date(value + "T00:00:00").toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }) : "To be confirmed";
 }
+const agreementSections = [
+  {title:"Your Travel Proposal",key:"proposal"},
+  {title:"Deposit Agreement",key:"deposit"},
+  {title:"Supplier Terms & Cancellation Policies",key:"supplier"},
+  {title:"Traveller Responsibilities",key:"responsibilities"},
+  {title:"Acceptance on Behalf of Travellers",key:"travellers"},
+  {title:"Electronic Acceptance",key:"electronic"}
+] as const;
+function AgreementSections({text}:{text:string}){
+  const lines=text.split("\n");
+  const starts=agreementSections.map(section=>({title:section.title,index:lines.findIndex(line=>line.trim()===section.title)})).filter(section=>section.index>=0);
+  if(!starts.length)return <div className="whitespace-pre-wrap rounded-lg border p-4 text-sm leading-7">{text}</div>;
+  return <div className="space-y-4">{starts.map((section,i)=>{
+    const content=lines.slice(section.index+1,starts[i+1]?.index??lines.length).join("\n").trim();
+    return <section key={section.title} className="rounded-lg border bg-[#faf9f7] p-4 sm:p-5">
+      <h4 className="mb-3 text-base font-semibold text-foreground">{section.title}</h4>
+      <div className="space-y-3">{content.split(/\n\s*\n/).filter(Boolean).map((paragraph,j)=>{
+        const rows=paragraph.split("\n").filter(Boolean);
+        return rows.some(row=>row.trim().startsWith("•"))?<ul key={j} className="list-disc space-y-2 pl-5 text-sm leading-6 text-muted-foreground">{rows.map((row,k)=><li key={k}>{row.replace(/^\s*•\s*/,"")}</li>)}</ul>:<p key={j} className="whitespace-pre-line text-sm leading-6 text-muted-foreground">{paragraph}</p>;
+      })}</div>
+    </section>;
+  })}</div>;
+}
 export function CustomerProposalAcceptance({ token }: { token: string }) {
   const [details, setDetails] = useState<AgreementPreview | null>(null);
   const [error, setError] = useState("");
   const [acceptedName, setAcceptedName] = useState("");
   const [checked, setChecked] = useState(false);
+  const [reviewed,setReviewed]=useState<string[]>([]);
   const [paymentChoice,setPaymentChoice]=useState("");
   const [savedCardId,setSavedCardId]=useState("");
   const [saving, setSaving] = useState(false);
@@ -47,7 +71,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
     finally { setInfoSaving(false); }
   }
   async function sign() {
-    if (!details?.agreementVersion || !checked || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)) return;
+    if (!details?.agreementVersion || !checked || reviewed.length!==3 || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)) return;
     setSaving(true); setError("");
     try {
       const response = await fetch("/api/proposal-acceptance/" + encodeURIComponent(token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accepted: true, acceptedName, agreementVersion: details.agreementVersion, paymentChoice, savedCardId }) });
@@ -74,14 +98,13 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   if (!details) return <div className="rounded-xl border bg-white p-6 text-sm">Loading your trip details…</div>;
   return (
     <section className="rounded-xl border bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold">Your trip details</h2>
-      <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-        <div><dt className="text-xs text-muted-foreground">Client</dt><dd className="font-medium">{details.clientName}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Destination</dt><dd className="font-medium">{details.destination || "To be confirmed"}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Departure</dt><dd className="font-medium">{date(details.departureDate)}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Return</dt><dd className="font-medium">{date(details.returnDate)}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Negotiated deposit</dt><dd className="text-lg font-semibold">{details.depositAmount == null ? "Contact your advisor" : new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(details.depositAmount)}</dd></div>
-      </dl>
+      <div className="mb-6 flex items-center gap-3 text-xs font-medium"><span className="text-primary">1. Proposal & Deposit Agreement</span><span className="text-muted-foreground">›</span><span className="text-muted-foreground">2. Travel Preferences</span></div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border bg-[#faf9f7] p-3"><p className="text-xs uppercase text-muted-foreground">Destination</p><p className="mt-1 font-semibold">{details.destination||"To be confirmed"}</p></div>
+        <div className="rounded-lg border bg-[#faf9f7] p-3"><p className="text-xs uppercase text-muted-foreground">Travel dates</p><p className="mt-1 text-sm font-semibold">{date(details.departureDate)} – {date(details.returnDate)}</p></div>
+        <div className="rounded-lg border bg-[#faf9f7] p-3"><p className="text-xs uppercase text-muted-foreground">Deposit amount</p><p className="mt-1 text-lg font-semibold">{details.depositAmount==null?"Contact your advisor":new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount)}</p></div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">Prepared for {details.clientName}</p>
       <div className="mt-6 rounded-lg bg-[#f5f2ff] p-4 text-sm">
         {details.accepted || signed ? "Your acceptance has been recorded. No deposit has been charged." : !details.agreementText ? "Agreement signing is not yet available. Please contact your Inspired Vacations advisor before making a deposit." : "Review the agreement below before signing. Signing does not process a payment."}
       </div>
@@ -97,8 +120,9 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
       </div>}
       {details.agreementText && !details.accepted && !signed && <div className="mt-6 space-y-4">
         <h3 className="font-semibold">Proposal Acceptance & Deposit Agreement</h3>
-        <div className="whitespace-pre-wrap rounded-lg border p-4 text-sm leading-6">{details.agreementText}</div>
+        <AgreementSections text={details.agreementText} />
         <div className="space-y-3 rounded-lg border p-4"><h4 className="font-semibold">Deposit Payment Authorization</h4><p className="text-sm">Deposit to be arranged: <strong>{new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD"}).format(details.depositAmount??0)}</strong>. No payment will be processed when you sign.</p>{details.savedCards?.length ? <><label className="flex gap-2 text-sm"><input type="radio" name="deposit-card" checked={paymentChoice==="saved_card"} onChange={()=>setPaymentChoice("saved_card")}/>Use a card already on file</label>{paymentChoice==="saved_card"&&<select className="w-full rounded border p-2 text-sm" value={savedCardId} onChange={e=>setSavedCardId(e.target.value)}>{details.savedCards.map(c=><option key={c.id} value={c.id}>{c.card_brand} ending {c.last_four}{c.is_preferred?" (Preferred)":""}</option>)}</select>}<label className="flex gap-2 text-sm"><input type="radio" name="deposit-card" checked={paymentChoice==="different_card"} onChange={()=>setPaymentChoice("different_card")}/>I'd like to use a different card — my travel advisor will follow up.</label></> : <p className="text-sm">No saved card is available. Your travel advisor will contact you to arrange payment securely.</p>}</div>
+        <div className="space-y-3 rounded-lg border p-4"><h4 className="font-semibold">Review & confirm</h4><p className="text-sm text-muted-foreground">Please confirm each section before signing.</p>{[["proposal","I have reviewed the proposal and travel arrangements."],["terms","I understand the supplier terms, cancellation policies and traveller responsibilities."],["payment","I confirm my deposit amount and payment instructions."]].map(([id,label])=><label key={id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={reviewed.includes(id)} onChange={e=>setReviewed(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{label}</label>)}</div>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} className="mt-1" />I have read and agree to the terms above.</label>
         <label className="block text-sm font-medium">Full name <input className="mt-1 block w-full rounded border px-3 py-2" value={acceptedName} onChange={e => setAcceptedName(e.target.value)} maxLength={200} /></label>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
