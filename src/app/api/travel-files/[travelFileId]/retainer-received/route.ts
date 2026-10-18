@@ -5,6 +5,7 @@ import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
 import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { addBusinessDays } from "@/lib/travel/due-date";
 
 export async function POST(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
@@ -31,7 +32,7 @@ export async function POST(request: Request,{params}:{params:Promise<{travelFile
 
   const now=new Date().toISOString();
   const today=now.slice(0,10);
-  const tracyId=file.assigned_advisor_id||null;
+  const {data:tracyProfile,error:tracyError}=await supabase.from("profiles").select("id").eq("is_active",true).ilike("full_name","Tracy Hamilton").maybeSingle();if(tracyError||!tracyProfile?.id)return NextResponse.json({error:"Active Tracy Hamilton profile not found."},{status:500});const tracyId=tracyProfile.id;
   const service=createServiceClient();
   if(!service)return NextResponse.json({error:"Retainer payment service unavailable."},{status:500});
   const {data:terms,error:termsError}=await service.from("travel_group_retainers").select("recipient_party_member_id").eq("travel_file_id",travelFileId);
@@ -69,7 +70,7 @@ export async function POST(request: Request,{params}:{params:Promise<{travelFile
     responsible_type:"internal",
     responsible_user_id:tracyId,
     status:"active",
-    waiting_since:now,
+    due_at:addBusinessDays(2),
     activated_at:now,
     metadata:{trigger:"retainer_received"},
   }).select("id").single();
