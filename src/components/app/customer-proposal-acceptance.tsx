@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+type SavedCard = {id:string;card_brand:string;last_four:string;label:string|null;is_preferred:boolean};
 type AgreementPreview = {
+  savedCards:SavedCard[];
   clientName: string;
   destination: string | null;
   departureDate: string | null;
@@ -21,6 +23,8 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [acceptedName, setAcceptedName] = useState("");
   const [checked, setChecked] = useState(false);
+  const [paymentChoice,setPaymentChoice]=useState("");
+  const [savedCardId,setSavedCardId]=useState("");
   const [saving, setSaving] = useState(false);
   const [signed, setSigned] = useState(false);
   const [travelInfo, setTravelInfo] = useState<{ preferences: string; loyaltyPrograms: string; completed: boolean } | null>(null);
@@ -43,10 +47,10 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
     finally { setInfoSaving(false); }
   }
   async function sign() {
-    if (!details?.agreementVersion || !checked || !acceptedName.trim()) return;
+    if (!details?.agreementVersion || !checked || !acceptedName.trim() || !paymentChoice || (paymentChoice==="saved_card"&&!savedCardId)) return;
     setSaving(true); setError("");
     try {
-      const response = await fetch("/api/proposal-acceptance/" + encodeURIComponent(token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accepted: true, acceptedName, agreementVersion: details.agreementVersion }) });
+      const response = await fetch("/api/proposal-acceptance/" + encodeURIComponent(token), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accepted: true, acceptedName, agreementVersion: details.agreementVersion, paymentChoice, savedCardId }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not record your acceptance.");
       setSigned(true);
@@ -62,7 +66,7 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
         if (!response.ok) throw new Error(payload.error || "Unable to load agreement.");
         return payload as AgreementPreview;
       })
-      .then(data => { if (active) { setDetails(data); if (data.accepted) void loadTravelInfo().catch(e => setError(e instanceof Error ? e.message : "Unable to load travel information.")); } })
+      .then(data => { if (active) { setDetails(data);setPaymentChoice(data.savedCards?.length?"saved_card":"arrange_payment");setSavedCardId(data.savedCards?.find(c=>c.is_preferred)?.id??data.savedCards?.[0]?.id??""); if (data.accepted) void loadTravelInfo().catch(e => setError(e instanceof Error ? e.message : "Unable to load travel information.")); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load agreement."); });
     return () => { active = false; };
   }, [token]);
