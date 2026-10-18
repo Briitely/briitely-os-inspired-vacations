@@ -5,6 +5,7 @@ import { Button } from "@/components/core/ui/button";
 
 export function ProposalDepositLinkControl({ travelFileId }: { travelFileId: string }) {
   const [busy, setBusy] = useState(false);
+  const [open,setOpen]=useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
   const [template,setTemplate]=useState<{subject:string;body_html:string}|null>(null);
@@ -13,6 +14,7 @@ export function ProposalDepositLinkControl({ travelFileId }: { travelFileId: str
   const [recipient,setRecipient]=useState("");
   const [recipientName,setRecipientName]=useState("");
   async function prepare() {
+    setOpen(true);
     setBusy(true);
     setError("");
     try {
@@ -45,16 +47,25 @@ export function ProposalDepositLinkControl({ travelFileId }: { travelFileId: str
       setLink("");setError("Email sent through Briitely.");
     }catch(e){setError(e instanceof Error?e.message:"Could not send email.")}finally{setBusy(false)}
   }
+  function format(command:string,value?:string){document.execCommand(command,false,value);const editor=document.getElementById("proposal-email-editor");if(editor)setHtml(editor.innerHTML)}
   return (
-    <div className="flex flex-col items-start gap-2">
-      <Button size="sm" disabled={busy} onClick={prepare}>{busy ? "Preparing…" : "Prepare Deposit Agreement Link"}</Button>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      {link && <div className="max-w-full space-y-2 text-sm">
-        <p className="font-medium">Review the email before sending. Only send after the approved agreement is configured.</p>
-        <input className="w-full rounded border px-2 py-1" value={link} readOnly aria-label="Prepared agreement link" />
-        <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(link)}>Copy Link</Button>
-        {template&&<div className="space-y-2"><label className="block text-xs">To<input className="w-full rounded border p-2 text-sm" value={recipient} onChange={e=>setRecipient(e.target.value)}/></label><label className="block text-xs">Subject<input className="w-full rounded border p-2 text-sm" value={subject} onChange={e=>setSubject(e.target.value)}/></label><label className="block text-xs">Email body<textarea className="min-h-48 w-full rounded border p-2 text-sm" value={html} onChange={e=>setHtml(e.target.value)}/></label><Button size="sm" disabled={busy} onClick={send}>Send via Briitely</Button></div>}
+    <>
+      <Button size="sm" disabled={busy} onClick={prepare}>{busy ? "Preparing…" : "Prepare Deposit Agreement Email"}</Button>
+      {open&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
+        <div role="dialog" aria-modal="true" aria-label="Prepare proposal acceptance email" className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-xl">
+          <div className="flex items-center justify-between border-b p-5"><div><h2 className="text-lg font-semibold">Proposal Acceptance & Deposit Agreement</h2><p className="text-sm text-muted-foreground">Review the email and secure form link before sending.</p></div><Button variant="outline" size="sm" disabled={busy} onClick={()=>setOpen(false)}>Close</Button></div>
+          <div className="space-y-4 overflow-y-auto p-5">
+            {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}
+            {busy&&!link&&<p className="text-sm">Preparing secure link…</p>}
+            {link&&<><div className="flex gap-2"><input className="min-w-0 flex-1 rounded border p-2 text-sm" value={link} readOnly aria-label="Secure proposal link"/><Button variant="outline" size="sm" onClick={()=>navigator.clipboard.writeText(link)}>Copy Link</Button></div>
+              <label className="block text-sm font-medium">To<input className="mt-1 w-full rounded border p-2 font-normal" value={recipient} onChange={e=>setRecipient(e.target.value)}/></label>
+              <label className="block text-sm font-medium">Subject<input className="mt-1 w-full rounded border p-2 font-normal" value={subject} onChange={e=>setSubject(e.target.value)}/></label>
+              <div className="space-y-2"><span className="text-sm font-medium">Email message</span><div className="flex gap-2 border-b pb-2"><Button size="sm" variant="outline" onMouseDown={e=>e.preventDefault()} onClick={()=>format("bold")}>Bold</Button><Button size="sm" variant="outline" onMouseDown={e=>e.preventDefault()} onClick={()=>format("italic")}>Italic</Button><Button size="sm" variant="outline" onClick={()=>{const url=window.prompt("Link URL");if(url)format("createLink",url)}}>Link</Button></div><div id="proposal-email-editor" contentEditable suppressContentEditableWarning onInput={e=>setHtml(e.currentTarget.innerHTML)} dangerouslySetInnerHTML={{__html:html}} className="min-h-48 rounded border p-3 text-sm focus:outline-primary"/></div>
+            </>}
+          </div>
+          <div className="flex justify-end gap-2 border-t p-4"><Button variant="outline" disabled={busy} onClick={()=>setOpen(false)}>Cancel</Button><Button disabled={busy||!link||!recipient||!subject} onClick={send}>{busy?"Sending…":"Send via Briitely"}</Button></div>
+        </div>
       </div>}
-    </div>
+    </>
   );
 }
