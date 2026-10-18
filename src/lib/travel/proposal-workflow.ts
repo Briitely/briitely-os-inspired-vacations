@@ -37,7 +37,7 @@ function nextBusinessDay(value:string){const d=new Date(value);const date=new In
 export async function advanceProposalWorkflow(travelFileId:string){
  const status=await proposalWorkflowStatus(travelFileId);
  const {db,file,action}=status;
- if(!action||action.action_code!=="await_proposal_acceptance"||action.status!=="active"||!status.agreementComplete||!status.preferencesComplete)return false;
+ if(!action||action.action_code!=="await_proposal_acceptance"||!["active","completed"].includes(action.status)||!status.agreementComplete||!status.preferencesComplete)return false;
  // The signed agreement and submitted travel preferences are the authoritative
  // completion evidence. Reconcile the persisted checklist before advancing;
  // otherwise both items can display Complete while the action stays waiting.
@@ -62,15 +62,19 @@ export async function advanceProposalWorkflow(travelFileId:string){
  const {data:dana,error:danaError}=await db.from("profiles").select("id").eq("id","57c99ca4-6128-4920-9d69-744f85cc514b").eq("is_active",true).maybeSingle();
  if(danaError||!dana)throw new Error("Deposit processing assignee is not active.");
  const now=new Date().toISOString();
- const {error:completeError}=await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"proposal_agreement_and_preferences_completed"}).eq("id",action.id).eq("status","active");
- if(completeError)throw new Error(completeError.message);
- const {data:next,error:insertError}=await db.from("travel_actions").insert({
+ if(action.status==="active"){
+  const {error:completeError}=await db.from("travel_actions").update({status:"completed",completed_at:now,completion_source:"system",completion_event:"proposal_agreement_and_preferences_completed"}).eq("id",action.id).eq("status","active");
+  if(completeError)throw new Error(completeError.message);
+ }
+ const {data:existingDeposit,error:existingDepositError}=await db.from("travel_actions").select("id").eq("travel_file_id",travelFileId).eq("action_code","collect_deposit").eq("status","active").order("created_at",{ascending:false}).limit(1).maybeSingle();
+ if(existingDepositError)throw new Error(existingDepositError.message);
+ const {data:next,error:insertError}=existingDeposit?{data:existingDeposit,error:null}:await db.from("travel_actions").insert({
   travel_file_id:travelFileId,action_code:"collect_deposit",title:"Process Deposit",description:"Arrange and record the deposit manually in ClientBase and the Travel File. Do not mark paid until confirmed.",action_role:"blocking",responsible_type:"internal",responsible_user_id:dana.id,status:"active",waiting_since:null,activated_at:now,due_at:nextBusinessDay(now),
   metadata:{trigger:"proposal_agreement_and_preferences_completed",deposit_amount:(action.metadata as {deposit_amount?:number}|null)?.deposit_amount??null,deposit_payment_id:paymentId}
  }).select("id").single();
  if(insertError||!next){console.error("PROCESS_DEPOSIT_ACTION_INSERT_FAILED",{code:insertError?.code,message:insertError?.message,details:insertError?.details,hint:insertError?.hint});throw new Error(insertError?.message??"Could not create deposit processing action.");}
  const {data:updated,error:updateError}=await db.from("travel_files").update({stage_changed_at:now,current_action_id:next.id}).eq("id",travelFileId).eq("current_action_id",action.id).select("id").maybeSingle();
- if(updateError||!updated){await db.from("travel_actions").delete().eq("id",next.id);return false}
+ if(updateError||!updated){if(!existingDeposit)await db.from("travel_actions").delete().eq("id",next.id);if(updateError)throw new Error(updateError.message);return false}
  await db.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"proposal_agreement_and_preferences_completed",summary:"Proposal agreement and travel preferences received. Deposit requires manual processing.",actor_type:"client",action_id:action.id,previous_stage:file.stage,new_stage:file.stage});
  return true;
 }
