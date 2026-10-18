@@ -23,3 +23,14 @@ export async function getProposalDepositAgreementSession(token: string) {
   if (!data || data.revoked_at || new Date(data.expires_at).getTime() <= Date.now()) return null;
   return data;
 }
+
+/**
+ * Do not enable signature capture until Inspired Vacations approves the legal text.
+ * Configuring a version and text explicitly unlocks the agreement display.
+ */
+export function getApprovedProposalAgreement() {
+  const version = process.env.PROPOSAL_DEPOSIT_AGREEMENT_VERSION?.trim();
+  const text = process.env.PROPOSAL_DEPOSIT_AGREEMENT_TEXT?.trim();
+  if (!version || !text) return null;
+  return { version, text };
+}
