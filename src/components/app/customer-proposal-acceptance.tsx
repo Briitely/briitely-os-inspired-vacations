@@ -23,6 +23,8 @@ export function CustomerProposalAcceptance({ token }: { token: string }) {
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [travelInfo, setTravelInfo] = useState<{ preferences: string; loyaltyPrograms: string; completed: boolean } | null>(null);
+  const [infoSaving, setInfoSaving] = useState(false);
   async function sign() {
     if (!details?.agreementVersion || !checked || !acceptedName.trim()) return;
     setSaving(true); setError("");
