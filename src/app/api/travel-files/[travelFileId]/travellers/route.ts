@@ -76,7 +76,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ travelF
   if (error || !file) return NextResponse.json({ error: "Travel File not found." }, { status: 404 });
 
   try {
-    if (file.briitely_contact_id && file.briitely_contact_id !== "pending") await ensurePrimaryTraveller(s, travelFileId, file.briitely_contact_id);
+    // Split files already carry their primary traveller. Do not re-fetch/recreate that
+    // person from Briitely on every read: linked files may retain a legacy contact ID.
+    const { data: existingPrimary, error: primaryError } = await s.from("travel_file_travellers")
+      .select("id").eq("travel_file_id", travelFileId).eq("traveller_role", "primary").limit(1).maybeSingle();
+    if (primaryError) throw new Error(primaryError.message);
+    if (!existingPrimary && file.briitely_contact_id && file.briitely_contact_id !== "pending") {
+      await ensurePrimaryTraveller(s, travelFileId, file.briitely_contact_id);
+    }
     const [{ data: party, error: pe }, { data: submission }] = await Promise.all([
       s.from("travel_file_travellers").select(partySelect).eq("travel_file_id", travelFileId).order("created_at", { ascending: true }),
       s.from("booking_form_submissions").select("id, submitted_at, change_count").eq("travel_file_id", travelFileId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
