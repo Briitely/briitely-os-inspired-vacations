@@ -70,8 +70,6 @@ type Props = {
 
 export function CurrentActionControl(props: Props) {
   const router = useRouter();
-  const [repairBusy,setRepairBusy]=useState(false);
-  const [repairError,setRepairError]=useState<string|null>(null);
   const [reconcileBusy,setReconcileBusy]=useState(false);
   const [reconcileError,setReconcileError]=useState<string|null>(null);
   const [consultOpen, setConsultOpen] = useState(false);
@@ -186,16 +184,6 @@ export function CurrentActionControl(props: Props) {
   return (
     <>
       {control}
-      {showDepositReceived&&<div className="mt-2 flex flex-col items-start gap-1"><Button size="sm" variant="outline" disabled={repairBusy} onClick={async()=>{
-        setRepairBusy(true);setRepairError(null);
-        try{
-          const r=await fetch(`/api/travel-files/${encodeURIComponent(props.travelFileId)}/repair-deposit-action`,{method:"POST"});
-          const data=await r.json();
-          if(!r.ok)throw new Error(data.error??"Could not update deposit assignment.");
-          router.refresh();
-        }catch(e){setRepairError(e instanceof Error?e.message:"Could not update deposit assignment.");}
-        finally{setRepairBusy(false)}
-      }}>{repairBusy?"Updating…":"Correct Deposit Assignment & Due Date"}</Button>{repairError&&<p role="alert" className="text-sm text-red-600">{repairError}</p>}</div>}
       {showResendProposal && <div className="mt-2 flex flex-col items-start gap-2"><Button size="sm" variant="outline" disabled={reconcileBusy} onClick={async()=>{
         setReconcileBusy(true);setReconcileError(null);
         try{
