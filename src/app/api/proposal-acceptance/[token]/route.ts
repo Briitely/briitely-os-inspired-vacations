@@ -1,3 +1,4 @@
+import {advanceProposalWorkflow} from "@/lib/travel/proposal-workflow";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getApprovedProposalAgreement, getProposalDepositAgreementSession } from "@/lib/travel/proposal-deposit-agreement";
@@ -52,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const { data: file } = await db.from("travel_files").select("id,current_action_id").eq("id", session.travel_file_id).maybeSingle();
   if (!file?.current_action_id) return NextResponse.json({ error: "Agreement is no longer available." }, { status: 409 });
   const { data: action } = await db.from("travel_actions").select("action_code,status,metadata").eq("id", file.current_action_id).maybeSingle();
-  if (action?.action_code !== "proposal_acceptance_deposit_agreement" || action.status !== "active") {
+  if (!["proposal_acceptance_deposit_agreement","await_proposal_acceptance"].includes(action?.action_code??"") || action?.status !== "active") {
     return NextResponse.json({ error: "Agreement is no longer awaiting acceptance." }, { status: 409 });
   }
   const amount = Number((action.metadata as { deposit_amount?: unknown } | null)?.deposit_amount);
@@ -72,5 +73,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     user_agent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
   });
   if (error) return NextResponse.json({ error: error.code === "23505" ? "This agreement has already been accepted." : "Could not record acceptance." }, { status: error.code === "23505" ? 409 : 500 });
+  try{await advanceProposalWorkflow(session.travel_file_id)}catch(error){console.error("PROPOSAL_WORKFLOW_ADVANCE_FAILED",error)}
   return NextResponse.json({ success: true });
 }
