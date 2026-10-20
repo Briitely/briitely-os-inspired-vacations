@@ -22,7 +22,7 @@ export default async function IntakeNewPage({ searchParams }: { searchParams: Pr
         email={user.email}
         role={user.role}
       />
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="workspace-shell space-y-6">
         <div className="flex items-center gap-4">
           <Link href={customerId ? `/customers/${encodeURIComponent(customerId)}` : "/dashboard"} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />

@@ -22,7 +22,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
-      <main className="mx-auto max-w-4xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="workspace-shell space-y-8">
         <div className="space-y-5">
           <Button variant="ghost" asChild className="-ml-3">
             <Link href="/dashboard"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
@@ -37,7 +37,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         </div>
         <PaymentFlow initialCustomer={parseJsonParam(params.customer)} initialInvoice={parseJsonParam(params.invoice)} />
       </main>
-      <SharedFooter maxWidth="max-w-4xl" />
+      <SharedFooter />
     </div>
   );
 }

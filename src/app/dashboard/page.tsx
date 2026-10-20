@@ -78,7 +78,7 @@ export default async function DashboardPage() {
         role={user.role}
       />
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+      <main className="workspace-shell space-y-10">
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-foreground">
             Client Journey

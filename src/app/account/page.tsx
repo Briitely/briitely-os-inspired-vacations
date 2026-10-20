@@ -25,7 +25,7 @@ export default async function MyProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
-      <main className="mx-auto max-w-2xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="workspace-shell space-y-8">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground"><UserRound className="h-6 w-6" /></div>
@@ -34,7 +34,7 @@ export default async function MyProfilePage() {
         <ProfileDetailsForm firstName={user.firstName} lastName={user.lastName} phone={phone} email={user.email} />
         <ChangePasswordForm />
       </main>
-      <footer className="mt-16 border-t border-border"><div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8"><Building2 className="h-4 w-4" />Inspired Vacations — Business Dashboard</div></footer>
+      <footer className="mt-16 border-t border-border"><div className="workspace-footer"><Building2 className="h-4 w-4" />Inspired Vacations — Business Dashboard</div></footer>
     </div>
   );
 }

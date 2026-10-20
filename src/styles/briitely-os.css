@@ -3,6 +3,9 @@
  * Loaded once from app/layout.tsx, so every page gets it.
  *
  * Page:    .workspace-shell wraps a page's content: eyebrow, page title, then sections.
+ *          Every dashboard page uses this one width (max-w-6xl, 1152px), the
+ *          same as the header, so pages never change width as you move around.
+ *          .workspace-footer is the footer row at that same width.
  * Section: .os-section is a card split in two. The left column (.os-section-intro)
  *          has an eyebrow, a section heading, a short description and the section's
  *          action (usually an Edit button). The right column (.os-section-body)
@@ -22,6 +25,7 @@
 :where(.section-heading) { font-family: var(--font-display), Georgia, serif; @apply text-2xl font-medium tracking-tight text-foreground; }
 :where(.detail-label) { @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground; }
 :where(.workspace-shell) { @apply mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10; }
+:where(.workspace-footer) { @apply mx-auto flex w-full max-w-6xl items-center gap-2 px-4 py-6 text-sm text-muted-foreground sm:px-6 lg:px-8; }
 
 :where(.os-section) { @apply rounded-2xl border bg-card p-5 text-card-foreground shadow-none sm:p-6; }
 :where(.os-section-grid) { @apply grid gap-7 lg:grid-cols-[210px_minmax(0,1fr)]; }
