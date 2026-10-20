@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Clock3, Loader2 } from "lucide-react";
+import { TravelPartyResendBookingFormsModal } from "@/components/app/travel-party-resend-booking-forms-modal";
 
 type Task = {
   id: string;
@@ -27,6 +28,7 @@ export function CurrentActionTasks({
   const [waitingItems, setWaitingItems] = useState<WaitingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendOpen, setResendOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -123,7 +125,7 @@ export function CurrentActionTasks({
                 <label key={task.id} className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2">
                   <input type="checkbox" className="mt-1" checked={task.status === "complete"} onChange={() => void toggle(task)} disabled={saving || task.requirement_label === "Review booking form changes"} />
                   <span className="min-w-0">
-                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>{task.requirement_label === "Review booking form changes" && task.status !== "complete" && <span className="block text-xs text-muted-foreground">Open View Forms and mark each changed submission reviewed.</span>}
+                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>{task.requirement_label === "Review booking form changes" && task.status !== "complete" && <span className="block text-xs text-muted-foreground">Open View Forms and mark each changed submission reviewed.</span>}{task.requirement_label === "Resend booking form for additional traveller information" && task.status !== "complete" && <span className="mt-2 block"><button type="button" className="text-xs font-medium text-primary underline underline-offset-2" onClick={event=>{event.preventDefault();event.stopPropagation();setResendOpen(true)}}>Resend Booking Form</button></span>}
                     {task.status === "complete" && (
                       <span className="block text-xs text-muted-foreground">
                         Completed{task.completed_by_profile?.full_name ? ` by ${task.completed_by_profile.full_name}` : ""}{task.completed_at ? ` · ${new Date(task.completed_at).toLocaleString()}` : ""}
@@ -137,6 +139,7 @@ export function CurrentActionTasks({
         </>
       )}
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      <TravelPartyResendBookingFormsModal travelFileId={travelFileId} isOpen={resendOpen} onClose={()=>setResendOpen(false)}/>
     </div>
   );
 }
