@@ -122,15 +122,15 @@ export function CurrentActionTasks({
           {tasks.length > 0 && (
             <div className="space-y-2">
               {tasks.map((task) => (
-                <label key={task.id} className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2">
+                <label key={task.id} className="flex w-full cursor-pointer items-start gap-3 rounded-md border px-3 py-2">
                   <input type="checkbox" className="mt-1" checked={task.status === "complete"} onChange={() => void toggle(task)} disabled={saving || task.requirement_label === "Review booking form changes"} />
-                  <span className="min-w-0">
-                    <span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>{task.requirement_label === "Review booking form changes" && task.status !== "complete" && <span className="block text-xs text-muted-foreground">Open View Forms and mark each changed submission reviewed.</span>}{task.requirement_label === "Resend booking form for additional traveller information" && task.status !== "complete" && <span className="mt-2 flex justify-end"><button type="button" className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground" onClick={event=>{event.preventDefault();event.stopPropagation();setResendOpen(true)}}>Resend Booking Form</button></span>}
+                  <span className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                    <span className="min-w-0"><span className={task.status === "complete" ? "text-sm line-through text-muted-foreground" : "text-sm"}>{task.requirement_label}</span>{task.requirement_label === "Review booking form changes" && task.status !== "complete" && <span className="block text-xs text-muted-foreground">Open View Forms and mark each changed submission reviewed.</span>}{task.requirement_label === "Resend booking form for additional traveller information" && task.status !== "complete" && <span className="ml-auto shrink-0"><button type="button" className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground" onClick={event=>{event.preventDefault();event.stopPropagation();setResendOpen(true)}}>Resend Booking Form</button></span>}
                     {task.status === "complete" && (
                       <span className="block text-xs text-muted-foreground">
                         Completed{task.completed_by_profile?.full_name ? ` by ${task.completed_by_profile.full_name}` : ""}{task.completed_at ? ` · ${new Date(task.completed_at).toLocaleString()}` : ""}
                       </span>
-                    )}
+                    )}</span>
                   </span>
                 </label>
               ))}
