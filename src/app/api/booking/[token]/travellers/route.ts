@@ -6,6 +6,8 @@ const PERMANENT_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child
 const VALID_RELATIONSHIPS = new Set(["spouse_partner", "child", "adult_child", "parent", "other_family", "travel_companion"]);
 const DUPLICATE_REVIEW_CODE = "check_client_added_traveller_duplicates";
 const DUPLICATE_REVIEW_TITLE = "Check for duplicate traveller files";
+const ADDITIONAL_FORM_CODE = "resend_booking_form_for_added_traveller";
+const ADDITIONAL_FORM_TITLE = "Resend booking form for additional traveller information";
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -56,6 +58,17 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
     else {
       const { error: assignError } = await db.from("travel_actions").update({ responsible_type: "internal", responsible_user_id: dana.id }).eq("id", action.id);
       if (assignError) console.error("DANA_ACTION_ASSIGNMENT_FAILED", assignError);
+    }
+
+    // An added traveller needs their full booking details collected after duplicate review.
+    const { data: additionalFormRequirement } = await db.from("travel_action_requirements")
+      .select("id,status").eq("travel_action_id",action.id).eq("requirement_code",ADDITIONAL_FORM_CODE).maybeSingle();
+    if (!additionalFormRequirement) {
+      const { error: additionalError } = await db.from("travel_action_requirements").insert({travel_action_id:action.id,requirement_code:ADDITIONAL_FORM_CODE,label:ADDITIONAL_FORM_TITLE,requirement_label:ADDITIONAL_FORM_TITLE,status:"pending"});
+      if (additionalError) console.error("ADDITIONAL_TRAVELLER_FORM_TASK_FAILED",additionalError);
+    } else if (additionalFormRequirement.status==="complete") {
+      const { error: reopenError } = await db.from("travel_action_requirements").update({status:"pending",completed_at:null,completed_by:null}).eq("id",additionalFormRequirement.id);
+      if (reopenError) console.error("ADDITIONAL_TRAVELLER_FORM_REOPEN_FAILED",reopenError);
     }
 
     const { data: existingRequirement } = await db
