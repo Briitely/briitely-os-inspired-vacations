@@ -53,13 +53,6 @@ async function ensureDuplicateTravellerReviewTask(db: any, travelFileId: string)
       return;
     }
 
-    const { data: dana } = await db.from("profiles").select("id").eq("is_active",true).ilike("full_name","Dana Pasquotti").maybeSingle();
-    if (!dana?.id) console.error("DANA_PROFILE_NOT_FOUND");
-    else {
-      const { error: assignError } = await db.from("travel_actions").update({ responsible_type: "internal", responsible_user_id: dana.id }).eq("id", action.id);
-      if (assignError) console.error("DANA_ACTION_ASSIGNMENT_FAILED", assignError);
-    }
-
     // An added traveller needs their full booking details collected after duplicate review.
     const { data: additionalFormRequirement } = await db.from("travel_action_requirements")
       .select("id,status").eq("travel_action_id",action.id).eq("requirement_code",ADDITIONAL_FORM_CODE).maybeSingle();
