@@ -93,7 +93,7 @@ export function CurrentActionSection({
               {currentAction.notes && (
                 <div className="mt-5">
                   <SectionTitle>Operational note</SectionTitle>
-                  <p className="text-sm">{currentAction.notes}</p>
+                  <div className="space-y-1 text-sm">{currentAction.notes.split(/\n|(?=\b(?:Lana Walsh|Ranae Walsh|Renee Walsh)\s*[—–-]\s*Revision\s+\d+:)/g).map(line=>line.trim()).filter(Boolean).map((line,index)=><div key={index} className="flex items-start gap-2"><span className="mt-1 text-muted-foreground">•</span><span className="min-w-0 flex-1">{line}</span></div>)}</div>
                 </div>
               )}
               {currentAction.status === "active" && (
