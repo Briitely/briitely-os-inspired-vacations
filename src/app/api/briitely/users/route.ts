@@ -3,9 +3,9 @@ import { requireAdmin } from "@/lib/supabase/auth";
 import { getBriitelyUsersWithFallback } from "@/lib/briitely/users";
 
 export async function GET() {
-  const { user, error: authError } = await requireAdmin();
+  const adminResult = await requireAdmin();
 
-  if (authError || !user) {
+  if (!adminResult) {
     return NextResponse.json({ error: "You do not have permission to perform this action." }, { status: 403 });
   }
 

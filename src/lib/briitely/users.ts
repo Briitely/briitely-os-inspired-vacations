@@ -7,6 +7,7 @@ import { clientConfig } from "@/config/client.config";
 export interface BriitelyUserOption {
   id: string;
   label: string;
+  email?: string;
 }
 
 interface HighLevelUserRecord {
@@ -33,42 +34,58 @@ function buildLabel(user: HighLevelUserRecord): string {
   return user.email?.trim() || user.id;
 }
 
+function toUserOptions(users: HighLevelUserRecord[]): BriitelyUserOption[] {
+  return users
+    .filter((u) => u.id)
+    .map((u) => ({ id: u.id, label: buildLabel(u), email: u.email?.trim().toLowerCase() ?? "" }));
+}
+
+const DIRECTORY_CACHE_MS = 60_000;
+let cachedDirectory: { users: BriitelyUserOption[]; expiresAt: number } | null = null;
+
+/**
+ * Lists the sub-account's Briitely users, including email so dashboard
+ * profiles can be linked automatically.
+ *
+ * /users/search needs a company ID, which a location-level private integration
+ * token often cannot resolve. In that case we fall back to /users/ (Get Users
+ * by Location), which HighLevel documents as deprecated but which location
+ * tokens can call.
+ */
 export async function getBriitelyUsers(): Promise<BriitelyUserOption[]> {
+  if (cachedDirectory && Date.now() < cachedDirectory.expiresAt) return cachedDirectory.users;
+
   const locationId = getLocationId();
   const companyId = await getCompanyId();
 
-  const query: Record<string, string | number | boolean | undefined> = {
-    locationId,
-  };
+  let users: BriitelyUserOption[] | null = null;
   if (companyId) {
-    query.companyId = companyId;
+    try {
+      const response = await briitelyRequest<HighLevelUserSearchResponse>({
+        method: "GET",
+        path: "/users/search",
+        query: { locationId, companyId },
+      });
+      users = toUserOptions(response.users ?? []);
+    } catch (err) {
+      console.warn("BRIITELY_USERS_SEARCH_FAILED", {
+        status: err instanceof BriitelyApiError ? err.status : null,
+        message: err instanceof Error ? err.message : "unknown",
+      });
+    }
   }
 
-  try {
+  if (!users) {
     const response = await briitelyRequest<HighLevelUserSearchResponse>({
       method: "GET",
-      path: "/users/search",
-      query,
+      path: "/users/",
+      query: { locationId },
     });
-
-    const users = response.users ?? [];
-    return users.map((u) => ({
-      id: u.id,
-      label: buildLabel(u),
-    }));
-  } catch (err) {
-    if (err instanceof BriitelyApiError && err.status === 422) {
-      console.error("BRIITELY_USERS_SEARCH_FAILED_JSON", JSON.stringify({
-        status: err.status,
-        rawResponseBody: err.responseBody ?? null,
-        queryParameterNames: Object.keys(query),
-        locationIdPresent: !!locationId,
-        companyIdPresent: !!companyId,
-        versionHeader: err.requestVersion ?? "2021-07-28",
-      }));
-    }
-    throw err;
+    users = toUserOptions(response.users ?? []);
   }
+
+  cachedDirectory = { users, expiresAt: Date.now() + DIRECTORY_CACHE_MS };
+  return users;
 }
 
 export function getFallbackBriitelyUsers(): BriitelyUserOption[] {

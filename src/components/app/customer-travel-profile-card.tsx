@@ -6,6 +6,7 @@ import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import { travelInterestOptions, travelSeasonOptions } from "@/lib/travel/tag-mappings";
+import { orDash } from "@/lib/format/empty";
 
 interface TravelProfile { travel_interests:string[]; travel_seasons:string[]; last_travel_destination:string|null; last_travel_date:string|null; number_of_trips:number; lifetime_value:number }
 const EMPTY_PROFILE:TravelProfile={travel_interests:[],travel_seasons:[],last_travel_destination:null,last_travel_date:null,number_of_trips:0,lifetime_value:0};
@@ -22,4 +23,4 @@ export function CustomerTravelProfileCard({customerId}:{customerId:string}){
 }
 function OptionGroup({title,options,selected,onToggle,compact=false}:{title:string;options:string[];selected:string[];onToggle:(v:string)=>void;compact?:boolean}){return <div className="space-y-2"><Label>{title}</Label><div className={`grid gap-2 ${compact?"sm:grid-cols-5":"sm:grid-cols-3"}`}>{options.map(o=><label key={o} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" checked={selected.includes(o)} onChange={()=>onToggle(o)}/>{o}</label>)}</div></div>}
 function ProfileList({label,values}:{label:string;values:string[]}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>{values.length?<div className="mt-2 flex flex-wrap gap-2">{values.map(v=><span key={v} className="rounded-full bg-muted px-3 py-1 text-sm">{v}</span>)}</div>:<p className="mt-1 text-sm text-muted-foreground">Not provided</p>}</div>}
-function ProfileValue({label,value}:{label:string;value:string|null}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value||"Not provided"}</p></div>}
+function ProfileValue({label,value}:{label:string;value:string|null}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{orDash(value)}</p></div>}

@@ -160,7 +160,7 @@ export function BusinessSettingsForm({ business, regional, goLiveDate: initialGo
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="biz-phone">Phone</Label>
-                <Input id="biz-phone" value={biz.phone} onChange={(e) => setBiz({ ...biz, phone: e.target.value })} disabled={loading} />
+                <Input type="tel" id="biz-phone" value={biz.phone} onChange={(e) => setBiz({ ...biz, phone: e.target.value })} disabled={loading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="biz-website">Website</Label>
@@ -209,6 +209,14 @@ export function BusinessSettingsForm({ business, regional, goLiveDate: initialGo
               <Label htmlFor="brand-logo">Logo URL</Label>
               <Input id="brand-logo" value={branding.logoUrl} onChange={(e) => setBranding({ ...branding, logoUrl: e.target.value })} disabled={loading} placeholder="https://..." />
               <p className="text-xs text-muted-foreground">This logo appears in the application header and invoice print view.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="brand-favicon">Favicon URL</Label>
+              <div className="flex items-center gap-3">
+                {branding.faviconUrl ? <img src={branding.faviconUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm object-contain" /> : null}
+                <Input id="brand-favicon" value={branding.faviconUrl} onChange={(e) => setBranding({ ...branding, faviconUrl: e.target.value })} disabled={loading} placeholder="https://..." />
+              </div>
+              <p className="text-xs text-muted-foreground">The small icon in the browser tab, so the team can spot the dashboard among their tabs. Use a square PNG, ICO or SVG, at least 32 × 32 pixels.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <ColorField id="brand-primary" label="Primary Colour" value={branding.primaryColor} onChange={(v) => setBranding({ ...branding, primaryColor: v })} disabled={loading} />

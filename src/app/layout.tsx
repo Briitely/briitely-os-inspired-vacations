@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { BrandingStyles } from "@/components/core/branding-styles";
+import { getBrandingSettings } from "@/lib/briitely/client-settings";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -10,10 +11,20 @@ const inter = Inter({ subsets: ["latin"] });
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const metadata: Metadata = {
-  title: "Briitely OS — Business Dashboard",
-  description: "Internal business dashboard",
-};
+// The browser-tab icon comes from Admin → Business → Branding.
+export async function generateMetadata(): Promise<Metadata> {
+  const metadata: Metadata = {
+    title: "Briitely OS — Business Dashboard",
+    description: "Internal business dashboard",
+  };
+  try {
+    const { faviconUrl } = await getBrandingSettings();
+    if (faviconUrl) metadata.icons = { icon: faviconUrl, shortcut: faviconUrl, apple: faviconUrl };
+  } catch {
+    // Branding unavailable: keep the default icon.
+  }
+  return metadata;
+}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

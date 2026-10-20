@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { logActivity } from "@/lib/logging/activity";
 import { generateAuthActionLink, sendAuthEmail } from "@/lib/auth/auth-email";
 import { getPublicAppOrigin } from "@/lib/auth/public-origin";
+import { linkProfilesByEmail } from "@/lib/staff/briitely-user-links";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -160,6 +161,13 @@ export async function POST(request: Request) {
     }
 
     profileUpsertSucceeded = true;
+
+    // Link them to the Briitely user with the same email, for customer assignments.
+    try {
+      await linkProfilesByEmail([{ id: invitedUser.id, email, ghl_user_id: null }]);
+    } catch (linkError) {
+      console.warn("ADMIN_INVITE_BRIITELY_LINK_FAILED", { email, message: linkError instanceof Error ? linkError.message : "unknown" });
+    }
 
     await sendAuthEmail({
       kind: "invite",

@@ -7,6 +7,7 @@ import { CustomerEditModal } from "@/components/core/customer-edit-modal";
 import { getProvinceName } from "@/lib/briitely/provinces";
 import { formatPhoneNumber } from "@/lib/format/phone";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
+import { orDash } from "@/lib/format/empty";
 
 interface CustomerDetailsCardProps {
   customer: BriitelyCustomer;
@@ -20,7 +21,7 @@ interface CustomerDetailsCardProps {
   showChangeCustomer?: boolean;
 }
 
-function Item({label,value}:{label:string;value:string|null|undefined}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium break-words">{value||"Not provided"}</p></div>}
+function Item({label,value}:{label:string;value:string|null|undefined}){return <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium break-words">{orDash(value)}</p></div>}
 
 export function CustomerDetailsCard({ customer, isDeceased, onDeceasedChange, onCustomerUpdated, onChangeCustomer, onBackToSearch, onCreateInvoice, onReceivePayment, showChangeCustomer = false }: CustomerDetailsCardProps) {
   const [editing, setEditing] = useState(false);
