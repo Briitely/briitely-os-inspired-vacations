@@ -175,10 +175,10 @@ export async function getGoLiveDate(): Promise<string> {
   return getDefaultGoLiveDate();
 }
 
-export interface BrandingSettings { logoUrl: string; primaryColor: string; secondaryColor: string; accentColor: string }
+export interface BrandingSettings { logoUrl: string; faviconUrl: string; primaryColor: string; secondaryColor: string; accentColor: string }
 
 export function getDefaultBrandingSettings(): BrandingSettings {
-  return { logoUrl: "", primaryColor: "#334155", secondaryColor: "#64748b", accentColor: "#0ea5e9" };
+  return { logoUrl: "", faviconUrl: "", primaryColor: "#334155", secondaryColor: "#64748b", accentColor: "#0ea5e9" };
 }
 
 function isHexColor(value: unknown): value is string {
@@ -191,6 +191,7 @@ export async function getBrandingSettings(): Promise<BrandingSettings> {
   if (!isObject(raw)) return defaults;
   return {
     logoUrl: typeof raw.logoUrl === "string" ? raw.logoUrl : defaults.logoUrl,
+    faviconUrl: typeof raw.faviconUrl === "string" ? raw.faviconUrl.trim() : defaults.faviconUrl,
     primaryColor: isHexColor(raw.primaryColor) ? raw.primaryColor : defaults.primaryColor,
     secondaryColor: isHexColor(raw.secondaryColor) ? raw.secondaryColor : defaults.secondaryColor,
     accentColor: isHexColor(raw.accentColor) ? raw.accentColor : defaults.accentColor,

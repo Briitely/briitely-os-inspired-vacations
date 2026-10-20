@@ -1,3 +1,5 @@
+export type UserStatus = "pending" | "active" | "inactive";
+
 export interface DisplayProfile {
   id: string;
   email: string;
@@ -6,11 +8,14 @@ export interface DisplayProfile {
   fullName: string;
   role: "super_admin" | "admin" | "staff";
   isActive: boolean;
+  status: UserStatus;
+  ghlUserId: string;
   ghlLabel: string;
   isSelf: boolean;
   canEdit: boolean;
   canToggleActive: boolean;
   canChangeRole: boolean;
+  canResendInvite: boolean;
 }
 
 export interface UsersTableProps {
