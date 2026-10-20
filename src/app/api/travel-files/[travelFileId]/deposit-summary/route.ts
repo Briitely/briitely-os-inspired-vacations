@@ -4,6 +4,8 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import {createServiceClient} from "@/lib/supabase/service";
 
+function paymentInstruction(details:unknown){let data:Record<string,unknown>={};try{data=typeof details==="string"?JSON.parse(details):details&&typeof details==="object"?details as Record<string,unknown>:{};}catch{}const choice=data.paymentChoice;const lastFour=typeof data.cardLastFour==="string"&&/^\\d{4}$/.test(data.cardLastFour)?data.cardLastFour:null;const brand=typeof data.cardBrand==="string"?data.cardBrand:null;if(choice==="saved_card")return lastFour?`Per signed agreement — ${brand?brand+" ":""}card ending ${lastFour}`:"Per signed agreement — verify authorized card with client";if(choice==="different_card")return "Client requested a different card — follow up securely before processing.";if(choice==="no_card"||choice==="no_card_on_file")return "No card on file — follow up with client to arrange payment securely.";return lastFour?`Per signed agreement — card ending ${lastFour}`:"Check signed agreement and confirm payment card with client before processing.";}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ travelFileId: string }> }
@@ -38,7 +40,7 @@ export async function GET(
 
   let paymentLookup = db
     .from("travel_payments")
-    .select("id,amount,status,due_date,processed_at")
+    .select("id,amount,status,due_date,processed_at,details")
     .eq("travel_file_id", travelFileId)
     .eq("payment_type", "deposit");
 
@@ -65,7 +67,7 @@ export async function GET(
       const {data:created,error:createdError}=await service.from("travel_payments").select("id,amount,status,due_date,processed_at").eq("id",createdId).single();
       if(createdError||!created)return NextResponse.json({error:"Deposit created but could not be loaded."},{status:500});
       await service.from("travel_actions").update({metadata:{...metadata,deposit_payment_id:createdId}}).eq("id",current.id);
-      return NextResponse.json({paymentId:created.id,amount:Number(created.amount??0),status:created.status,dueDate:created.due_date,processedAt:created.processed_at});
+      return NextResponse.json({paymentId:created.id,amount:Number(created.amount??0),status:created.status,dueDate:created.due_date,processedAt:created.processed_at,paymentInstruction:paymentInstruction(created.details)});
     }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not prepare deposit payment."},{status:500})}
   }
 
@@ -75,5 +77,6 @@ export async function GET(
     status: payment.status,
     dueDate: payment.due_date,
     processedAt: payment.processed_at,
+    paymentInstruction: paymentInstruction(payment.details),
   });
 }
