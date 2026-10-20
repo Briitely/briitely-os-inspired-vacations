@@ -97,8 +97,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (!db) return NextResponse.json({ error: "Booking form is unavailable." }, { status: 500 });
 
     if (session.include_retainer) {
-      const { data: acceptance } = await db.from("retainer_acceptances").select("id").eq("booking_form_session_id", session.id).maybeSingle();
-      if (!acceptance) return NextResponse.json({ error: "Please accept the Retainer Agreement before adding travellers." }, { status: 400 });
+      const { data: groupAcceptance, error: groupError } = await db.from("travel_group_retainer_acceptances").select("id").eq("booking_form_session_id", session.id).maybeSingle();
+      if (groupError) return NextResponse.json({ error: groupError.message }, { status: 500 });
+      let accepted = Boolean(groupAcceptance);
+      if (!accepted) {
+        const { data: legacyAcceptance, error: legacyError } = await db.from("retainer_acceptances").select("id").eq("booking_form_session_id", session.id).maybeSingle();
+        if (legacyError) return NextResponse.json({ error: legacyError.message }, { status: 500 });
+        accepted = Boolean(legacyAcceptance);
+      }
+      if (!accepted) return NextResponse.json({ error: "Please accept the Retainer Agreement before adding travellers." }, { status: 400 });
     }
 
     const body = await req.json().catch(() => null) as {
