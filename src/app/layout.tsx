@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "@/styles/briitely-os.css";
 import { BrandingStyles } from "@/components/core/branding-styles";
 import { getBrandingSettings } from "@/lib/briitely/client-settings";
 

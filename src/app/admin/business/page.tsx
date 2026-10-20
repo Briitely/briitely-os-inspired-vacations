@@ -48,7 +48,7 @@ export default async function AdminBusinessPage() {
     <div className="min-h-screen bg-background">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="workspace-shell space-y-6">
         <div className="flex items-center gap-4">
           <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
@@ -56,9 +56,10 @@ export default async function AdminBusinessPage() {
           </Link>
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">Business Settings</h2>
-          <p className="text-muted-foreground text-base">Update your business identity, address, and regional preferences.</p>
+        <div className="space-y-1">
+          <p className="eyebrow">Admin</p>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Business Settings</h1>
+          <p className="text-sm text-muted-foreground">Update your business identity, branding and regional preferences.</p>
         </div>
 
         <BusinessSettingsForm
@@ -69,7 +70,7 @@ export default async function AdminBusinessPage() {
         />
       </main>
 
-      <SharedFooter maxWidth="max-w-4xl" />
+      <SharedFooter maxWidth="max-w-6xl" />
     </div>
   );
 }

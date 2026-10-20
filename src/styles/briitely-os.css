@@ -1,0 +1,32 @@
+/*
+ * Briitely OS standard layout — the same file in Core and every client dashboard.
+ * Loaded once from app/layout.tsx, so every page gets it.
+ *
+ * Page:    .workspace-shell wraps a page's content: eyebrow, page title, then sections.
+ * Section: .os-section is a card split in two. The left column (.os-section-intro)
+ *          has an eyebrow, a section heading, a short description and the section's
+ *          action (usually an Edit button). The right column (.os-section-body)
+ *          shows the information, or the edit form while editing.
+ * Details: .os-detail-group-label is a labelled rule over a group of details,
+ *          .os-detail-grid lays them out in columns, and each detail is a
+ *          .detail-label above an .os-detail-value. Missing values show a dash.
+ *
+ * Build pages with the components in components/core/workspace-section.tsx,
+ * which use these classes. Change the look here, once, for every page.
+ *
+ * Every rule is wrapped in :where() so it has no specificity: a page can still
+ * adjust spacing or colour with ordinary Tailwind classes.
+ */
+:where(.font-display) { font-family: var(--font-display), Georgia, serif; }
+:where(.eyebrow) { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-primary; }
+:where(.section-heading) { font-family: var(--font-display), Georgia, serif; @apply text-2xl font-medium tracking-tight text-foreground; }
+:where(.detail-label) { @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground; }
+:where(.workspace-shell) { @apply mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10; }
+
+:where(.os-section) { @apply rounded-2xl border bg-card p-5 text-card-foreground shadow-none sm:p-6; }
+:where(.os-section-grid) { @apply grid gap-7 lg:grid-cols-[210px_minmax(0,1fr)]; }
+:where(.os-section-intro), :where(.os-section-body) { @apply min-w-0; }
+:where(.os-section-description) { @apply mt-2 text-sm leading-relaxed text-muted-foreground; }
+:where(.os-detail-group-label) { @apply border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground; }
+:where(.os-detail-grid) { @apply grid gap-x-8 gap-y-5 pt-3 sm:grid-cols-2 lg:grid-cols-3; }
+:where(.os-detail-value) { @apply mt-1 break-words text-sm font-medium text-foreground; }
