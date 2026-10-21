@@ -10,7 +10,7 @@ export function TravelFileAside({ eyebrow, title, text, action }: { eyebrow: str
   return <div><div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">{eyebrow}</div><div className="mt-1 font-serif text-xl leading-tight">{title}</div>{text && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{text}</p>}{action && <div className="mt-3 w-full">{action}</div>}</div>;
 }
 
-export function TravelFileInfo({ label, value }: { label: string; value: React.ReactNode }) {
+export function TravelFileInfo({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   return <div className="min-w-0"><div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div><div className="mt-1 break-words text-sm font-medium">{value || "—"}</div></div>;
 }
 
