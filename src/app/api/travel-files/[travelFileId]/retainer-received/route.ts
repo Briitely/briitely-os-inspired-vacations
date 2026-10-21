@@ -6,8 +6,13 @@ import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
 import { addBusinessDays } from "@/lib/travel/due-date";
+import { withIdempotency } from "@/lib/core/idempotent-route";
 
-export async function POST(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
+export async function POST(request: Request,context:{params:Promise<{travelFileId:string}>}){
+  return withIdempotency(request,"retainer-received",()=>markRetainerReceived(request,context));
+}
+
+async function markRetainerReceived(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
   if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});

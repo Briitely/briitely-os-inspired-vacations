@@ -4,6 +4,7 @@ import { logActivity } from "@/lib/logging/activity";
 import { recordInvoicePayment, type InvoicePaymentInput } from "@/lib/briitely/payments";
 import { BriitelyApiError } from "@/lib/briitely/errors";
 import { clientConfig } from "@/config/client.config";
+import { withIdempotency } from "@/lib/core/idempotent-route";
 
 interface PaymentRequestBody extends InvoicePaymentInput {
   customerId?: string;
@@ -12,7 +13,11 @@ interface PaymentRequestBody extends InvoicePaymentInput {
   total?: number;
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ invoiceId: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ invoiceId: string }> }) {
+  return withIdempotency(request, "invoice-record-payment", () => recordPayment(request, context));
+}
+
+async function recordPayment(request: Request, { params }: { params: Promise<{ invoiceId: string }> }) {
   if (!clientConfig.features.paymentRecording.enabled) {
     return NextResponse.json(
       { error: "This feature is not available." },

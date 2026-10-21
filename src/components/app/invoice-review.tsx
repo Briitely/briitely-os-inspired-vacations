@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
@@ -10,6 +10,7 @@ import { clientTaxConfig } from "@/config/client.config";
 import { calculateTaxes, getProvinceName } from "@/lib/tax/calculate";
 import type { BriitelyCustomer, BriitelyInvoiceLineInput } from "@/lib/briitely/types";
 import type { InvoiceLineData } from "@/components/core/invoice-line";
+import { IDEMPOTENCY_HEADER_NAME, newIdempotencyKey } from "@/lib/core/idempotency-client";
 
 interface InvoiceReviewProps {
   customer: BriitelyCustomer;
@@ -37,6 +38,7 @@ export interface CreatedInvoice {
 export function InvoiceReview({ customer, lines, mode = "create", invoiceId, invoiceNumber, commissionSale = false, onBackToEdit, onEditCustomer, onCustomerUpdated, onCreated, onUpdated }: InvoiceReviewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idempotencyKey = useRef(newIdempotencyKey());
   const validLines = lines.filter((line) => line.productId && line.priceId);
   const hasUnmappedLines = lines.some((line) => !line.productId || !line.priceId);
   const currency = validLines[0]?.currency || "CAD";
@@ -71,7 +73,7 @@ export function InvoiceReview({ customer, lines, mode = "create", invoiceId, inv
       const isEdit = mode === "edit";
       const response = await fetch(isEdit ? `/api/invoices/${encodeURIComponent(invoiceId ?? "")}` : "/api/invoices/create", {
         method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(!isEdit ? { [IDEMPOTENCY_HEADER_NAME]: idempotencyKey.current } : {}) },
         body: JSON.stringify(isEdit ? { customer, lines: lineInputs, invoiceNumber, commissionSale } : { customer, lines, commissionSale }),
       });
       const data = (await response.json()) as { error?: string; invoice?: CreatedInvoice; commissionWarning?: boolean };
@@ -86,7 +88,7 @@ export function InvoiceReview({ customer, lines, mode = "create", invoiceId, inv
 
       const invoice = { ...data.invoice, commissionWarning: data.commissionWarning };
       if (isEdit) onUpdated?.(invoice);
-      else onCreated?.(invoice);
+      else { idempotencyKey.current = newIdempotencyKey(); onCreated?.(invoice); }
     } catch {
       setError(`We couldn't ${mode === "edit" ? "update" : "create"} the invoice. Please try again.`);
     } finally {

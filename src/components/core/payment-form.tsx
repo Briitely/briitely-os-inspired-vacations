@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
@@ -9,6 +9,7 @@ import { Label } from "@/components/core/ui/label";
 import { formatCurrency } from "@/lib/briitely/pricing";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 import type { BriitelyInvoiceSummary, PaymentMethod } from "@/lib/briitely/payments";
+import { IDEMPOTENCY_HEADER_NAME, newIdempotencyKey } from "@/lib/core/idempotency-client";
 
 export function PaymentForm({ customer, invoice, onRecorded }: { customer: BriitelyCustomer; invoice: BriitelyInvoiceSummary; onRecorded: (payment: { amount: number; method: PaymentMethod; remainingBalance: number; status: string }) => void }) {
   const [amount, setAmount] = useState(String(invoice.amountDue));
@@ -17,16 +18,19 @@ export function PaymentForm({ customer, invoice, onRecorded }: { customer: Briit
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const idempotencyKey = useRef(newIdempotencyKey());
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > invoice.amountDue) { setError("Enter an amount greater than zero and no more than the amount due."); return; }
     setSaving(true); setError(null);
     try {
-      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.id)}/record-payment`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: numericAmount, method, paymentDate, reference, customerId: customer.id, customerName: customer.companyName || customer.name, invoiceNumber: invoice.number, total: invoice.total }) });
+      const response = await fetch(`/api/invoices/${encodeURIComponent(invoice.id)}/record-payment`, { method: "POST", headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER_NAME]: idempotencyKey.current }, body: JSON.stringify({ amount: numericAmount, method, paymentDate, reference, customerId: customer.id, customerName: customer.companyName || customer.name, invoiceNumber: invoice.number, total: invoice.total }) });
       const data = (await response.json()) as { error?: string; payment?: { amount: number; method: PaymentMethod; remainingBalance: number; status: string } };
       if (!response.ok || !data.payment) throw new Error(data.error);
+      idempotencyKey.current = newIdempotencyKey();
       onRecorded(data.payment);
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "We couldn't record the payment. Please try again."); } finally { setSaving(false); }
   }

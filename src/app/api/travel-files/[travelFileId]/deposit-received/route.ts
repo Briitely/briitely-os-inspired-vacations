@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
+import { withIdempotency } from "@/lib/core/idempotent-route";
 
 export async function POST(
-  _request: Request,
+  request: Request,
+  context: { params: Promise<{ travelFileId: string }> }
+) {
+  return withIdempotency(request, "deposit-received", () => markDepositReceived(context));
+}
+
+async function markDepositReceived(
   { params }: { params: Promise<{ travelFileId: string }> }
 ) {
   const { user } = await getAuthenticatedUser();
