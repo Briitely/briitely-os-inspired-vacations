@@ -26,14 +26,21 @@ export function formatDateOnly(value: string | null): string {
 }
 
 /**
- * What the Due / Waiting column shows: the due date, how long it has been
- * waiting, or, for an action with neither (such as an internal step moved
- * to by hand), when it started.
+ * When an action started waiting to be completed. Internal steps moved to by
+ * hand have no waiting_since, so fall back to when the action became active.
+ */
+export function actionWaitingSince(action: { waiting_since: string | null; activated_at?: string | null; created_at?: string | null } | null | undefined): string | null {
+  if (!action) return null;
+  return action.waiting_since ?? action.activated_at ?? action.created_at ?? null;
+}
+
+/**
+ * What the Due / Waiting column shows: the due date when one is set,
+ * otherwise how long the action has been waiting.
  */
 export function formatDueOrWaiting(
   dueAt: string | null,
-  waitingSince: string | null,
-  startedAt?: string | null
+  waitingSince: string | null
 ): string {
   if (dueAt) {
     return new Date(dueAt).toLocaleDateString("en-CA", {
@@ -52,8 +59,6 @@ export function formatDueOrWaiting(
     if (diffDays <= 0) return "Waiting < 1 day";
     return `Waiting ${diffDays} day${diffDays === 1 ? "" : "s"}`;
   }
-
-  if (startedAt) return `Started ${formatReadableDate(startedAt)}`;
 
   return "—";
 }
