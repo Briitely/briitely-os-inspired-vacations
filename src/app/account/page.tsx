@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Building2, UserRound } from "lucide-react";
+import { ArrowLeft, Building2 } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
@@ -25,11 +25,12 @@ export default async function MyProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
-      <main className="workspace-shell space-y-8">
+      <main className="workspace-shell space-y-6">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground"><UserRound className="h-6 w-6" /></div>
-          <div><h1 className="text-3xl font-bold tracking-tight">My Profile</h1><p className="mt-2 text-muted-foreground">Update your name, phone number and password.</p></div>
+        <div>
+          <p className="eyebrow">Account</p>
+          <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">My Profile</h1>
+          <p className="mt-1 text-muted-foreground">Update your name, phone number and password.</p>
         </div>
         <ProfileDetailsForm firstName={user.firstName} lastName={user.lastName} phone={phone} email={user.email} />
         <ChangePasswordForm />
