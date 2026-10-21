@@ -100,3 +100,10 @@ export function formatBoolean(value: boolean | null): string {
   if (value === null) return "—";
   return value ? "Yes" : "No";
 }
+
+/** Turns a stored option value such as "website-survey" into a label: "Website survey". */
+export function formatOptionLabel(value: string | null | undefined): string {
+  const text = (value ?? "").trim().replace(/[-_]+/g, " ");
+  if (!text) return "—";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

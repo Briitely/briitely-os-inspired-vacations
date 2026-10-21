@@ -1,7 +1,7 @@
 import { ActiveBookingSummary, InquiryPlanningSummary, RetainerRevisionSummary } from "@/components/app/active-booking-summary";
 import { ResendProposalEmailButton } from "@/components/app/resend-proposal-email-button";
 import { TravelFileAside as Aside, TravelFileInfo as Info, TravelFilePanel as Panel, TravelFileSectionTitle as SectionTitle } from "@/components/app/travel-file-display";
-import { formatBoolean, formatCurrency, formatDateOnly, formatReadableDate, formatReadableDateTime } from "@/lib/travel/format";
+import { formatBoolean, formatCurrency, formatDateOnly, formatReadableDate, formatReadableDateTime, formatOptionLabel } from "@/lib/travel/format";
 import type { TravelFile } from "@/lib/travel/types";
 
 type FileWithAdvisor = TravelFile & { assigned_advisor: { id: string; full_name: string } | null };
@@ -21,5 +21,5 @@ export function RetainerDetailsSection({ file }: { file: FileWithAdvisor }) {
 }
 
 export function InquiryDetailsSection({ file, edit }: { file: FileWithAdvisor; edit: EditSection }) {
-  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="Inquiry" title="Inquiry details" text="Where the inquiry came from and intake notes." action={edit("inquiry", { inquirySource: file.inquiry_source, intakeMethod: file.intake_method, referralDetail: file.referral_detail, eventDetail: file.event_detail, staffNotes: file.staff_notes, internalNotes: file.internal_notes })}/><div><SectionTitle>Source & intake</SectionTitle><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Source" value={file.inquiry_source}/><Info label="Received" value={formatReadableDate(file.inquiry_received_at)}/><Info label="Intake method" value={file.intake_method}/><Info label="Referral" value={file.referral_detail}/><Info label="Event" value={file.event_detail}/><InquiryPlanningSummary travelFileId={file.id}/></div>{file.staff_notes && <div className="mt-5"><SectionTitle>Staff notes</SectionTitle><p className="text-sm">{file.staff_notes}</p></div>}</div></div></Panel>;
+  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="Inquiry" title="Inquiry details" text="Where the inquiry came from and intake notes." action={edit("inquiry", { inquirySource: file.inquiry_source, intakeMethod: file.intake_method, referralDetail: file.referral_detail, eventDetail: file.event_detail, staffNotes: file.staff_notes, internalNotes: file.internal_notes })}/><div><SectionTitle>Source & intake</SectionTitle><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Source" value={file.inquiry_source}/><Info label="Received" value={formatReadableDate(file.inquiry_received_at)}/><Info label="Intake method" value={formatOptionLabel(file.intake_method)}/><Info label="Referral" value={file.referral_detail}/><Info label="Event" value={file.event_detail}/><InquiryPlanningSummary travelFileId={file.id}/></div>{file.staff_notes && <div className="mt-5"><SectionTitle>Staff notes</SectionTitle><p className="text-sm">{file.staff_notes}</p></div>}</div></div></Panel>;
 }
