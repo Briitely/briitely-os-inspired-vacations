@@ -69,10 +69,9 @@ export default async function AdminHomePage() {
   if (isSuperAdmin) {
     cards.push({
       icon: <Activity className="h-7 w-7" />,
-      title: "System Diagnostics",
-      description: "View system health and integration status.",
-      href: null,
-      comingSoon: true,
+      title: "System Status",
+      description: "Check deployment configuration and integration readiness.",
+      href: "/admin/system-status",
     } as typeof cards[number]);
   }
 

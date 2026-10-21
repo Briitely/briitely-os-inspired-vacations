@@ -9,6 +9,7 @@ import { clientTaxConfig, clientHighLevelTaxes, clientConfig } from "@/config/cl
 import { getBusinessSettings } from "@/lib/briitely/client-settings";
 import { calculateTaxes } from "@/lib/tax/calculate";
 import { upsertInvoiceCommission } from "@/lib/commissions/server";
+import { withIdempotency } from "@/lib/core/idempotent-route";
 
 interface InvoiceCreateRequestBody {
   customer?: BriitelyCustomer;
@@ -19,6 +20,10 @@ interface InvoiceCreateRequestBody {
 const USER_FACING_ERROR = "We couldn't create the invoice. Please try again.";
 
 export async function POST(request: Request) {
+  return withIdempotency(request, "invoice-create", () => createInvoiceFromRequest(request));
+}
+
+async function createInvoiceFromRequest(request: Request) {
   if (!clientConfig.features.invoiceCreation.enabled) {
     return NextResponse.json(
       { error: "This feature is not available." },

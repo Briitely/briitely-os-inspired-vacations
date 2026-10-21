@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { withIdempotency } from "@/lib/core/idempotent-route";
 
 interface CreateRequestBody {
   briitelyContactId: string;
@@ -19,6 +20,10 @@ interface CreateRequestBody {
 const VALID_SOURCES = ["web", "email", "phone", "referral", "repeat_client", "other"];
 
 export async function POST(request: Request) {
+  return withIdempotency(request, "travel-file-create", () => createTravelFile(request));
+}
+
+async function createTravelFile(request: Request) {
   const { user } = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });

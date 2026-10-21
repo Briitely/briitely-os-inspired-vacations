@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
+import { withIdempotency } from "@/lib/core/idempotent-route";
+import { ActionGuardError, withActionGuards } from "@/lib/core/action-guards";
 
 export async function POST(
-  _request: Request,
+  request: Request,
+  context: { params: Promise<{ travelFileId: string }> }
+) {
+  return withIdempotency(request, "deposit-received", () => withActionGuards(() => markDepositReceived(context)));
+}
+
+async function markDepositReceived(
   { params }: { params: Promise<{ travelFileId: string }> }
 ) {
   const { user } = await getAuthenticatedUser();
@@ -104,7 +112,7 @@ export async function POST(
     );
   }
 
-  const { error: fileError } = await db
+  const { data: advancedFile, error: fileError } = await db
     .from("travel_files")
     .update({
       stage: "deposit_received",
@@ -112,7 +120,15 @@ export async function POST(
       current_action_id: nextAction.id,
     })
     .eq("id", travelFileId)
-    .eq("current_action_id", current.id);
+    .eq("current_action_id", current.id)
+    .select("id");
+
+  // Guard: only advance if Collect Deposit is still the current action. If another
+  // request moved the file on first, undo the action we just created.
+  if (!fileError && !advancedFile?.length) {
+    await db.from("travel_actions").delete().eq("id", nextAction.id);
+    throw new ActionGuardError("This step was already completed in another window. Refresh the page to see the latest status.");
+  }
 
   if (fileError) {
     await db.from("travel_actions").delete().eq("id", nextAction.id);

@@ -6,8 +6,14 @@ import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
 import { addBusinessDays } from "@/lib/travel/due-date";
+import { withIdempotency } from "@/lib/core/idempotent-route";
+import { ActionGuardError, withActionGuards } from "@/lib/core/action-guards";
 
-export async function POST(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
+export async function POST(request: Request,context:{params:Promise<{travelFileId:string}>}){
+  return withIdempotency(request,"retainer-received",()=>withActionGuards(()=>markRetainerReceived(request,context)));
+}
+
+async function markRetainerReceived(request: Request,{params}:{params:Promise<{travelFileId:string}>}){
   const{user}=await getAuthenticatedUser();
   if(!user||!user.isActive)return NextResponse.json({error:"Authentication required."},{status:401});
   if(!["staff","admin","super_admin"].includes(user.role))return NextResponse.json({error:"Staff access required."},{status:403});
@@ -76,11 +82,16 @@ export async function POST(request: Request,{params}:{params:Promise<{travelFile
   }).select("id").single();
   if(nextError||!nextAction)return NextResponse.json({error:"Could not create the proposal assignment action."},{status:500});
 
-  const{error:updateError}=await supabase.from("travel_files").update({
+  const{data:advancedFile,error:updateError}=await supabase.from("travel_files").update({
     stage:"planning_proposal",
     stage_changed_at:now,
     current_action_id:nextAction.id,
-  }).eq("id",travelFileId);
+  }).eq("id",travelFileId).eq("current_action_id",action.id).select("id");
+  // Guard: only advance if Collect Retainer Payment is still the current action.
+  if(!updateError&&!advancedFile?.length){
+    await supabase.from("travel_actions").delete().eq("id",nextAction.id);
+    throw new ActionGuardError("This step was already completed in another window. Refresh the page to see the latest status.");
+  }
   if(updateError){
     await supabase.from("travel_actions").delete().eq("id",nextAction.id);
     return NextResponse.json({error:"Could not advance the Travel File."},{status:500});
