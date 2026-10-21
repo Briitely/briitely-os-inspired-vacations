@@ -1,5 +1,5 @@
 import type { DashboardTravelFile } from "./queries";
-import { isOverdue, isDueToday } from "./format";
+import { actionWaitingSince, isOverdue, isDueToday } from "./format";
 
 export type SortKey = "overdue" | "today" | "upcoming" | "waiting_client" | "waiting_system" | "no_action";
 
@@ -13,7 +13,7 @@ export function getSortKey(file: DashboardTravelFile): SortKey {
     return "upcoming";
   }
 
-  if (action.waiting_since) {
+  if (actionWaitingSince(action)) {
     if (action.responsible_type === "client") return "waiting_client";
     return "waiting_system";
   }
@@ -37,8 +37,8 @@ export function sortDashboardFiles(files: DashboardTravelFile[]): DashboardTrave
     if (pa !== pb) return pa - pb;
 
     // Within equal priority, sort by oldest relevant due/waiting date
-    const aDate = a.current_action?.due_at ?? a.current_action?.waiting_since ?? a.created_at;
-    const bDate = b.current_action?.due_at ?? b.current_action?.waiting_since ?? b.created_at;
+    const aDate = a.current_action?.due_at ?? actionWaitingSince(a.current_action) ?? a.created_at;
+    const bDate = b.current_action?.due_at ?? actionWaitingSince(b.current_action) ?? b.created_at;
     return new Date(aDate).getTime() - new Date(bDate).getTime();
   });
 }

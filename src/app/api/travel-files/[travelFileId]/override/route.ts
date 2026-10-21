@@ -44,7 +44,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  const{data:newAction,error:actionError}=await supabase.from("travel_actions").insert({
   travel_file_id:travelFileId,action_code:option.actionCode,title:option.title,action_role:option.actionCode==="waiting_for_travel"?"supporting":"blocking",
   responsible_type:option.responsibleType,responsible_user_id:option.responsibleType==="internal"?body.responsibleUserId:null,status:"active",
-  waiting_since:option.responsibleType==="client"||option.responsibleType==="system"?now:null,activated_at:now,due_at:body.dueAt||(option.actionCode==="waiting_for_travel"&&rawFile.departure_date?`${rawFile.departure_date}T12:00:00Z`:option.actionCode==="travelling"&&rawFile.return_date?`${rawFile.return_date}T12:00:00Z`:null),metadata
+  waiting_since:now,activated_at:now,due_at:body.dueAt||(option.actionCode==="waiting_for_travel"&&rawFile.departure_date?`${rawFile.departure_date}T12:00:00Z`:option.actionCode==="travelling"&&rawFile.return_date?`${rawFile.return_date}T12:00:00Z`:null),metadata
  }).select("id").single();
  if(actionError||!newAction)return NextResponse.json({error:"Failed to create new action."},{status:500});
  const{error:fileUpdateError}=await supabase.from("travel_files").update({stage:option.stage,stage_changed_at:now,current_action_id:newAction.id}).eq("id",travelFileId);

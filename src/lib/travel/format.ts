@@ -25,6 +25,19 @@ export function formatDateOnly(value: string | null): string {
   });
 }
 
+/**
+ * When an action started waiting to be completed. Internal steps moved to by
+ * hand have no waiting_since, so fall back to when the action became active.
+ */
+export function actionWaitingSince(action: { waiting_since: string | null; activated_at?: string | null; created_at?: string | null } | null | undefined): string | null {
+  if (!action) return null;
+  return action.waiting_since ?? action.activated_at ?? action.created_at ?? null;
+}
+
+/**
+ * What the Due / Waiting column shows: the due date when one is set,
+ * otherwise how long the action has been waiting.
+ */
 export function formatDueOrWaiting(
   dueAt: string | null,
   waitingSince: string | null
@@ -99,4 +112,11 @@ export function formatCurrency(value: number | null): string {
 export function formatBoolean(value: boolean | null): string {
   if (value === null) return "—";
   return value ? "Yes" : "No";
+}
+
+/** Turns a stored option value such as "website-survey" into a label: "Website survey". */
+export function formatOptionLabel(value: string | null | undefined): string {
+  const text = (value ?? "").trim().replace(/[-_]+/g, " ");
+  if (!text) return "—";
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

@@ -9,7 +9,7 @@ import {
   getResponsibleName,
 } from "@/components/app/travel-file-display";
 import { Badge } from "@/components/core/ui/badge";
-import { formatDueOrWaiting, isOverdue } from "@/lib/travel/format";
+import { actionWaitingSince, formatDueOrWaiting, isOverdue } from "@/lib/travel/format";
 import type { TravelAction, TravelFile } from "@/lib/travel/types";
 
 type FileWithAdvisor = TravelFile & {
@@ -71,7 +71,7 @@ export function CurrentActionSection({
                   <Info label="Responsible" value={getResponsibleName(currentAction, profileMap)} />
                   <Info
                     label="Due / Waiting"
-                    value={<span className={isOverdue(currentAction.due_at) ? "text-destructive" : ""}>{formatDueOrWaiting(currentAction.due_at, currentAction.waiting_since)}</span>}
+                    value={<span className={isOverdue(currentAction.due_at) ? "text-destructive" : ""}>{formatDueOrWaiting(currentAction.due_at, actionWaitingSince(currentAction))}</span>}
                   />
                 </div>
                 <div className="min-h-9">

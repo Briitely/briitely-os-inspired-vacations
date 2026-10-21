@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
+import { TravelFileAside, TravelFilePanel } from "@/components/app/travel-file-display";
+import { formatReadableDate } from "@/lib/travel/format";
 import { PaymentEditorModal } from "@/components/app/payment-editor-modal";
 
 type Profile = { id: string; full_name: string };
@@ -275,19 +276,19 @@ export function TravelFileTasks({
   const done = tasks.filter((task) => task.status === "complete");
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>Tasks</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">Operational to-dos for this Travel File</p>
-        </div>
-        {canEdit && (
-          <Button size="sm" onClick={() => setAdding((value) => !value)}>
-            <Plus className="h-4 w-4" /> Add Task
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <TravelFilePanel>
+      <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+        <TravelFileAside
+          eyebrow="Workflow"
+          title="Tasks"
+          text="Operational to-dos for this travel file."
+          action={canEdit && !adding ? (
+            <Button variant="outline" size="sm" className="justify-start" onClick={() => setAdding(true)}>
+              <Plus className="h-4 w-4" />Add Task
+            </Button>
+          ) : null}
+        />
+        <div className="min-w-0 space-y-4">
         {adding && (
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <Input placeholder="What needs to be done?" value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -315,7 +316,7 @@ export function TravelFileTasks({
             <Loader2 className="h-4 w-4 animate-spin" /> Loading tasks…
           </div>
         ) : open.length === 0 && done.length === 0 ? (
-          <p className="text-sm italic text-muted-foreground">No tasks for this Travel File.</p>
+          <p className="text-sm italic text-muted-foreground">No tasks yet. Add the first one using the button on the left.</p>
         ) : (
           <div className="space-y-2">
             {open.map((task) => {
@@ -418,7 +419,7 @@ export function TravelFileTasks({
                                     {payment.supplier && <span>{payment.supplier}</span>}
                                     {payment.confirmation_number && <span>#{payment.confirmation_number}</span>}
                                     {payment.card_last_four && <span>Card •••• {payment.card_last_four}</span>}
-                                    {paid && payment.processed_at && <span>Paid {new Date(payment.processed_at).toLocaleDateString("en-CA")}</span>}
+                                    {paid && payment.processed_at && <span>Paid {formatReadableDate(payment.processed_at)}</span>}
                                   </div>
                                 </div>
                                 <div className="text-sm font-semibold sm:text-right">{money(payment.amount, payment.currency)}</div>
@@ -448,7 +449,7 @@ export function TravelFileTasks({
                         <p className="line-through">{task.title}</p>
                         <p className="text-xs">
                           Completed{task.completed_profile?.full_name ? ` by ${task.completed_profile.full_name}` : ""}
-                          {task.completed_at ? ` · ${new Date(task.completed_at).toLocaleDateString()}` : ""}
+                          {task.completed_at ? ` · ${formatReadableDate(task.completed_at)}` : ""}
                         </p>
                       </div>
                       {canEdit && <Button size="sm" variant="ghost" onClick={() => isPaymentBatchTask(task) ? void reactivatePaymentBatch(task) : void patch(task.id, { status: "todo" })}>Reopen</Button>}
@@ -462,7 +463,8 @@ export function TravelFileTasks({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         <PaymentEditorModal travelFileId={travelFileId} payment={editingPayment} isOpen={Boolean(editingPayment)} onClose={() => setEditingPayment(null)} onSaved={async () => { setEditingPayment(null); await load(); router.refresh(); }} />
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </TravelFilePanel>
   );
 }
