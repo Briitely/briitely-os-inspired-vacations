@@ -25,7 +25,7 @@ export function getResponsibleName(action: TravelAction, profileMap: Record<stri
 }
 
 export function ActionHistoryItem({ action, profileMap }: { action: TravelAction; profileMap: Record<string, string> }) {
-  return <div className="py-2.5"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{action.title}</span><Badge variant="secondary" className="capitalize">{action.status}</Badge></div><div className="mt-1 flex flex-wrap gap-x-4 text-xs text-muted-foreground"><span>{getResponsibleName(action, profileMap)}</span><span>{formatDueOrWaiting(action.due_at, action.waiting_since)}</span>{action.completed_at && <span>Completed {formatReadableDateTime(action.completed_at)}</span>}</div>{action.notes && <p className="mt-2 text-sm text-muted-foreground">{action.notes}</p>}</div>;
+  return <div className="py-2.5"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{action.title}</span><Badge variant="secondary" className="capitalize">{action.status}</Badge></div><div className="mt-1 flex flex-wrap gap-x-4 text-xs text-muted-foreground"><span>{getResponsibleName(action, profileMap)}</span>{action.completed_at ? <span>{action.status === "skipped" ? "Skipped" : "Completed"} {formatReadableDateTime(action.completed_at)}</span> : <span>{formatDueOrWaiting(action.due_at, action.waiting_since, action.activated_at ?? action.created_at)}</span>}</div>{action.notes && <p className="mt-2 text-sm text-muted-foreground">{action.notes}</p>}</div>;
 }
 
 export function ActivityHistoryItem({ activity }: { activity: TravelActivity & { actor_user: { id: string; full_name: string } | null } }) {

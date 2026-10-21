@@ -25,9 +25,15 @@ export function formatDateOnly(value: string | null): string {
   });
 }
 
+/**
+ * What the Due / Waiting column shows: the due date, how long it has been
+ * waiting, or, for an action with neither (such as an internal step moved
+ * to by hand), when it started.
+ */
 export function formatDueOrWaiting(
   dueAt: string | null,
-  waitingSince: string | null
+  waitingSince: string | null,
+  startedAt?: string | null
 ): string {
   if (dueAt) {
     return new Date(dueAt).toLocaleDateString("en-CA", {
@@ -46,6 +52,8 @@ export function formatDueOrWaiting(
     if (diffDays <= 0) return "Waiting < 1 day";
     return `Waiting ${diffDays} day${diffDays === 1 ? "" : "s"}`;
   }
+
+  if (startedAt) return `Started ${formatReadableDate(startedAt)}`;
 
   return "—";
 }

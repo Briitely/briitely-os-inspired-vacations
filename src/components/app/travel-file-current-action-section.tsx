@@ -71,7 +71,7 @@ export function CurrentActionSection({
                   <Info label="Responsible" value={getResponsibleName(currentAction, profileMap)} />
                   <Info
                     label="Due / Waiting"
-                    value={<span className={isOverdue(currentAction.due_at) ? "text-destructive" : ""}>{formatDueOrWaiting(currentAction.due_at, currentAction.waiting_since)}</span>}
+                    value={<span className={isOverdue(currentAction.due_at) ? "text-destructive" : ""}>{formatDueOrWaiting(currentAction.due_at, currentAction.waiting_since, currentAction.activated_at ?? currentAction.created_at)}</span>}
                   />
                 </div>
                 <div className="min-h-9">

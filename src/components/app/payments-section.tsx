@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { PaymentEditorModal } from "@/components/app/payment-editor-modal";
 import { PaymentsTable } from "@/components/app/payments-table";
@@ -29,7 +30,7 @@ export function PaymentsSection({ travelFileId }: { travelFileId: string }) {
               className="justify-start"
               onClick={() => setEditorOpen(true)}
             >
-              + Add Payment
+              <Plus className="h-4 w-4" />Add Payment
             </Button>
             <Button
               variant="outline"

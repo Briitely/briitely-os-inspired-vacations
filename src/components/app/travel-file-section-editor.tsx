@@ -14,9 +14,10 @@ type Values = Record<string, string | number | boolean | null | undefined>;
 
 export function TravelFileSectionEditor({travelFileId,updatedAt,section,values}:{travelFileId:string;updatedAt:string;section:Section;values:Values}) {
   const [open,setOpen]=useState(false);
-  return <><Button variant="outline" size="sm" onClick={()=>setOpen(true)}><Pencil className="h-4 w-4"/>Edit</Button>{open&&<SectionModal travelFileId={travelFileId} updatedAt={updatedAt} section={section} values={values} onClose={()=>setOpen(false)}/>}</>;
+  return <><Button variant="outline" size="sm" onClick={()=>setOpen(true)}><Pencil className="h-4 w-4"/>{editLabels[section]}</Button>{open&&<SectionModal travelFileId={travelFileId} updatedAt={updatedAt} section={section} values={values} onClose={()=>setOpen(false)}/>}</>;
 }
 
+const editLabels:Record<Section,string>={trip:"Edit Trip Details",inquiry:"Edit Inquiry Details",booking:"Edit Booking & Planning",insurance:"Edit Insurance",assignment:"Edit Assignment"};
 const titles:Record<Section,string>={trip:"Trip Details",inquiry:"Inquiry Details",booking:"Booking & Planning",insurance:"Insurance & Pre-Trip",assignment:"Assignment"};
 const selectClass="h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 
