@@ -26,7 +26,7 @@ export async function POST(request:Request){
 
     const {data:profile}=await service
       .from("profiles")
-      .select("first_name,is_active")
+      .select("first_name,last_name,is_active")
       .eq("id",authUser.id)
       .maybeSingle();
 
@@ -40,7 +40,7 @@ export async function POST(request:Request){
       firstName:profile?.first_name??null,
     });
 
-    await sendAuthEmail({kind:"recovery",email,firstName:profile?.first_name??null,actionLink});
+    await sendAuthEmail({kind:"recovery",email,firstName:profile?.first_name??null,lastName:profile?.last_name??null,actionLink});
   }catch(error){
     console.error("AUTH_PASSWORD_RESET_SEND_FAILED",{email,message:error instanceof Error?error.message:"unknown"});
   }

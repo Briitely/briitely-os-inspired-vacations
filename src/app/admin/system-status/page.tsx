@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BriitelyEmailSample } from "@/components/app/briitely-email-sample";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, CircleAlert, CircleDashed } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/supabase/auth";
@@ -91,7 +92,11 @@ export default async function SystemStatusPage() {
 
   const integrations: StatusItem[] = [
     { label: "Briitely connection", state: briitelyToken && briitelyLocation ? "ready" : "attention", detail: briitelyToken && briitelyLocation ? "Token and location configured" : "Briitely token or location ID is missing" },
-    envItem("Sign-in emails", ["BRIITELY_AUTH_EMAIL_WEBHOOK_URL"], "Invitations and password resets are sent through the Briitely email workflow", "BRIITELY_AUTH_EMAIL_WEBHOOK_URL is missing, so invitations and password resets can't be sent"),
+    hasEnv("BRIITELY_EMAIL_WEBHOOK_URL")
+      ? { label: "Sign-in emails", state: "ready", detail: "Standard Briitely email workflow: the dashboard builds the branded email, including the Invitation Contact (BRIITELY_EMAIL_WEBHOOK_URL)" }
+      : hasEnv("BRIITELY_AUTH_EMAIL_WEBHOOK_URL")
+        ? { label: "Sign-in emails", state: "optional", detail: "Using the older IV sign-in workflow (email written in GHL). Add BRIITELY_EMAIL_WEBHOOK_URL to switch to the standard workflow." }
+        : { label: "Sign-in emails", state: "attention", detail: "No email webhook is set, so invitations and password resets can't be sent" },
     envItem("Client trip emails", ["BRIITELY_TRIP_EMAIL_WEBHOOK_URL"], "Client emails and pre-trip emails are sent through Briitely", "BRIITELY_TRIP_EMAIL_WEBHOOK_URL is missing, so client and pre-trip emails can't be sent"),
     envItem("Pre-trip email schedule sync", ["BRIITELY_PRETRIP_EMAIL_SCHEDULE_WEBHOOK_URL"], "Pre-trip email schedules are synced to Briitely", "BRIITELY_PRETRIP_EMAIL_SCHEDULE_WEBHOOK_URL is not set", true),
     envItem("Incoming Briitely webhooks", ["BRIITELY_PORTAL_WEBHOOK_SECRET"], "Inquiries and consultation bookings from Briitely are accepted", "BRIITELY_PORTAL_WEBHOOK_SECRET is missing, so new inquiries and consultation bookings from Briitely are rejected"),
@@ -156,6 +161,10 @@ export default async function SystemStatusPage() {
 
         <WorkspaceSection eyebrow="Briitely" title="Integrations" description="The Briitely connection and the email workflows and webhooks the dashboard relies on.">
           <StatusList items={integrations} />
+        </WorkspaceSection>
+
+        <WorkspaceSection eyebrow="Email" title="Briitely Email Workflow" description="Sends a sample invitation to the standard Briitely email workflow so its Inbound Webhook trigger can map the fields.">
+          <BriitelyEmailSample defaultEmail={superAdmin.user.email} enabled={hasEnv("BRIITELY_EMAIL_WEBHOOK_URL")} />
         </WorkspaceSection>
 
         <WorkspaceSection eyebrow="Automations" title="Scheduled Jobs" description="Daily jobs and the default owners used when no advisor is assigned yet.">
