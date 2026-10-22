@@ -5,9 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { logActivity } from "@/lib/logging/activity";
 
 export async function GET() {
-  const { user, error: authError } = await requireAdmin();
-
-  if (authError || !user) {
+  const admin = await requireAdmin();
+  if (!admin) {
     return NextResponse.json({ error: "You do not have permission to view settings." }, { status: 403 });
   }
 
@@ -37,11 +36,11 @@ interface PutRequestBody {
 }
 
 export async function PUT(request: Request) {
-  const { user, error: authError } = await requireAdmin();
-
-  if (authError || !user) {
+  const admin = await requireAdmin();
+  if (!admin) {
     return NextResponse.json({ error: "You do not have permission to update settings." }, { status: 403 });
   }
+  const { user } = admin;
 
   let body: PutRequestBody;
   try {
