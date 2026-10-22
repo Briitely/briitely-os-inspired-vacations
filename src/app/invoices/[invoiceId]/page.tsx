@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
@@ -33,12 +33,10 @@ export default async function InvoiceActionsPage({
           <Button variant="ghost" asChild className="-ml-3">
             <Link href="/dashboard"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
           </Button>
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><FileText className="h-6 w-6" /></div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Invoice Actions</h1>
-              <p className="mt-2 text-base text-muted-foreground">View, edit, send, or record payment for this invoice.</p>
-            </div>
+          <div>
+            <p className="eyebrow">Invoice</p>
+            <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">Invoice Actions</h1>
+            <p className="mt-1 text-muted-foreground">View, edit, send, or record payment for this invoice.</p>
           </div>
         </div>
         <InvoiceActionsFlow invoiceId={invoiceId} />
