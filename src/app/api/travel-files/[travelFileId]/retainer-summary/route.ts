@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { externalRetainerConfirmedAt } from "@/lib/travel/workflow-entry";
 
 export async function GET(
   _request: Request,
@@ -20,7 +21,7 @@ export async function GET(
   const db = await createClient();
   const { data: file, error } = await db
     .from("travel_files")
-    .select("id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status)")
+    .select("id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status,metadata)")
     .eq("id", travelFileId)
     .maybeSingle();
 
@@ -31,6 +32,10 @@ export async function GET(
   const current = Array.isArray(file.current_action) ? file.current_action[0] : file.current_action;
   if (!current || current.action_code !== "collect_tmf_payment" || current.status !== "active") {
     return NextResponse.json({ error: "Collect Retainer Payment is not the active action." }, { status: 409 });
+  }
+
+  if (externalRetainerConfirmedAt(current.metadata)) {
+    return NextResponse.json({ amount: Number(file.tmf_amount ?? 0), groups: [], confirmedExternally: true });
   }
 
   const service=createServiceClient();if(!service)return NextResponse.json({error:"Retainer service unavailable."},{status:500});
