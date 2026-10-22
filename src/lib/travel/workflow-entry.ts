@@ -14,7 +14,7 @@ export function phaseForStage(stage: string): TravelPhase {
  * Collect Retainer Payment normally requires each Travel Group to have signed the
  * Retainer Agreement online. A manual jump there must say the agreement was confirmed
  * outside the dashboard; that confirmation is stored on the action so Collect Retainer
- * Payment can create payment records for groups without an online signature.
+ * Payment becomes a single "retainer received" confirmation with no per-group amounts.
  */
 export function retainerConfirmationForEntry(
   actionCode: string,
@@ -25,6 +25,12 @@ export function retainerConfirmationForEntry(
   if (actionCode !== "collect_tmf_payment") return { error: null, metadata: {} };
   if (confirmed !== true) return { error: "Confirm the Retainer Agreement was completed outside the dashboard, or move to Prepare Retainer Email to send it.", metadata: {} };
   return { error: null, metadata: { retainer_agreement_confirmed_externally: { confirmed_at: now, confirmed_by: userId } } };
+}
+
+/** When the current action was entered by Override/Reopen with the agreement confirmed outside the dashboard. */
+export function externalRetainerConfirmedAt(metadata: unknown): string | null {
+  const value = (metadata as { retainer_agreement_confirmed_externally?: { confirmed_at?: unknown } } | null)?.retainer_agreement_confirmed_externally?.confirmed_at;
+  return typeof value === "string" ? value : null;
 }
 
 /**

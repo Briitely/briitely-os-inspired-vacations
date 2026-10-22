@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
 import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 import { createServiceClient } from "@/lib/supabase/service";
-import { externalRetainerConfirmedAt, reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
 import { addBusinessDays } from "@/lib/travel/due-date";
 import { withIdempotency } from "@/lib/core/idempotent-route";
 import { ActionGuardError, withActionGuards } from "@/lib/core/action-guards";
+import { externalRetainerConfirmedAt } from "@/lib/travel/workflow-entry";
 
 export async function POST(request: Request,context:{params:Promise<{travelFileId:string}>}){
   return withIdempotency(request,"retainer-received",()=>withActionGuards(()=>markRetainerReceived(request,context)));
@@ -43,8 +44,10 @@ async function markRetainerReceived(request: Request,{params}:{params:Promise<{t
   if(!service)return NextResponse.json({error:"Retainer payment service unavailable."},{status:500});
   const {data:terms,error:termsError}=await service.from("travel_group_retainers").select("recipient_party_member_id").eq("travel_file_id",travelFileId);
   if(termsError)return NextResponse.json({error:termsError.message},{status:500});
-  if(terms?.length){
-    try{await reconcileGroupRetainerPayments(travelFileId,{confirmedExternallyAt:externalRetainerConfirmedAt(action.metadata)})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
+  // Agreement confirmed outside the dashboard (Override/Reopen): one confirmation, no per-group signatures or amounts.
+  const confirmedExternally=Boolean(externalRetainerConfirmedAt(action.metadata));
+  if(terms?.length&&!confirmedExternally){
+    try{await reconcileGroupRetainerPayments(travelFileId)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
     const body=await request.json().catch(()=>({})) as {recipientIds?:string[]};
     const requested=Array.isArray(body.recipientIds)?body.recipientIds:[];
     const required=new Set(terms.map(t=>t.recipient_party_member_id));
@@ -61,7 +64,7 @@ async function markRetainerReceived(request: Request,{params}:{params:Promise<{t
     const primaryPaymentGroupId=await ensurePrimaryPaymentGroup(supabase,travelFileId);
     if(!primaryPaymentGroupId)return NextResponse.json({error:"Could not create the primary traveller booking group."},{status:500});
     const {data:existingPayment}=await supabase.from("travel_payments").select("id").eq("travel_file_id",travelFileId).eq("description","Retainer").eq("status","paid").limit(1).maybeSingle();
-    if(!existingPayment){const {error:paymentError}=await supabase.from("travel_payments").insert({travel_file_id:travelFileId,payment_group_id:primaryPaymentGroupId,payment_type:"other",description:"Retainer",amount:file.tmf_amount??null,currency:"CAD",due_date:today,status:"paid",details:"Collected externally through ClientBase.",processed_by:user.id,processed_at:now});if(paymentError)return NextResponse.json({error:paymentError.message},{status:500})}
+    if(!existingPayment){const {error:paymentError}=await supabase.from("travel_payments").insert({travel_file_id:travelFileId,payment_group_id:primaryPaymentGroupId,payment_type:"other",description:"Retainer",amount:file.tmf_amount??null,currency:"CAD",due_date:today,status:"paid",details:confirmedExternally?"Collected outside the dashboard. Retainer Agreement confirmed outside the dashboard.":"Collected externally through ClientBase.",processed_by:user.id,processed_at:now});if(paymentError)return NextResponse.json({error:paymentError.message},{status:500})}
   }
   await syncPaymentBatchTask(supabase,travelFileId,today);
 
