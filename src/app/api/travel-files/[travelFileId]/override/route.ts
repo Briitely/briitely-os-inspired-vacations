@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ensureInvoicingTasks } from "@/lib/travel/invoicing-tasks";
+import { phaseForStage, prepareManualWorkflowEntry } from "@/lib/travel/workflow-entry";
 
 interface OverrideBody {actionCode:string;responsibleUserId?:string|null;dueAt?:string|null;}
 const OPTIONS:{stage:string;actionCode:string;title:string;responsibleType:"client"|"internal"|"system"}[]=[
@@ -48,9 +48,9 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
   waiting_since:now,activated_at:now,due_at:body.dueAt||(option.actionCode==="waiting_for_travel"&&rawFile.departure_date?`${rawFile.departure_date}T12:00:00Z`:option.actionCode==="travelling"&&rawFile.return_date?`${rawFile.return_date}T12:00:00Z`:null),metadata
  }).select("id").single();
  if(actionError||!newAction)return NextResponse.json({error:"Failed to create new action."},{status:500});
- const{error:fileUpdateError}=await supabase.from("travel_files").update({stage:option.stage,stage_changed_at:now,current_action_id:newAction.id}).eq("id",travelFileId);
+ const{error:fileUpdateError}=await supabase.from("travel_files").update({stage:option.stage,phase:phaseForStage(option.stage),stage_changed_at:now,current_action_id:newAction.id}).eq("id",travelFileId);
  if(fileUpdateError){await supabase.from("travel_actions").delete().eq("id",newAction.id);return NextResponse.json({error:"Failed to update Travel File stage."},{status:500})}
- if(option.actionCode==="invoicing_itinerary"){const{error:taskError}=await ensureInvoicingTasks(supabase,travelFileId,{assignedTo:body.responsibleUserId??null,createdBy:user.id});if(taskError)console.error("override: could not create invoicing tasks",taskError)}
+ const{error:setupError}=await prepareManualWorkflowEntry(supabase,{travelFileId,actionCode:option.actionCode,responsibleUserId:body.responsibleUserId??null,userId:user.id});if(setupError)console.error("WORKFLOW_OVERRIDE_SETUP_FAILED",setupError);
  await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"workflow_override",summary:`Workflow manually moved to ${option.title}.`,actor_type:"internal",actor_user_id:user.id,action_id:newAction.id,previous_stage:previousStage as never,new_stage:option.stage as never,metadata:{previousStage,newStage:option.stage,previousActionCode,newActionCode:option.actionCode,createdByOverride:true,responsible_user_id:body.responsibleUserId??null}});
  return NextResponse.json({success:true,stage:option.stage,actionId:newAction.id});
 }
