@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Loader2, AlertTriangle, X } from "lucide-react";
+import { Trash2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 
 interface DeleteTravelFileDialogProps {
@@ -59,21 +59,21 @@ export function DeleteTravelFileDialog({
   const tripDescription = [destination, tripType].filter(Boolean).join(" · ") || "No trip details";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-background shadow-xl">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-24">
+      <div className="w-full max-w-md rounded-xl bg-background shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <h2 className="text-lg font-semibold text-foreground">Delete Travel File</h2>
+        <div className="flex items-start justify-between gap-4 px-6 pt-6">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-destructive">Permanent</p>
+            <h2 className="mt-1 text-xl font-semibold text-foreground">Delete Travel File</h2>
           </div>
-          <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors" disabled={deleting}>
-            <X className="h-5 w-5" />
+          <button onClick={handleClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" disabled={deleting} aria-label="Close">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="space-y-4 px-5 py-5">
+        <div className="space-y-4 px-6 py-5">
           <div className="rounded-md border border-border bg-muted/30 px-4 py-3 space-y-1">
             <p className="font-medium text-foreground">{clientName}</p>
             <p className="text-sm text-muted-foreground">{tripDescription}</p>
@@ -106,7 +106,7 @@ export function DeleteTravelFileDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 border-t border-border px-5 py-4">
+        <div className="flex justify-end gap-3 px-6 pb-6">
           <Button type="button" variant="outline" onClick={handleClose} disabled={deleting}>
             Cancel
           </Button>

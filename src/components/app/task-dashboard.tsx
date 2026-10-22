@@ -1,4 +1,5 @@
 "use client";
+import { osConfirm } from "@/components/core/ui/os-dialog";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -93,7 +94,7 @@ export function TaskDashboard() {
   }
 
   async function remove(taskId: string) {
-    if (!window.confirm("Delete this task?")) return;
+    if (!(await osConfirm({ eyebrow: "Tasks", title: "Delete Task", message: "Delete this task? This can't be undone.", confirmLabel: "Delete Task", tone: "danger" }))) return;
     setSaving(true);
     const response = await fetch("/api/tasks", {
       method: "DELETE",

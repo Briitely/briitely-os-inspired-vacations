@@ -1,4 +1,5 @@
 "use client";
+import { osConfirm } from "@/components/core/ui/os-dialog";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -151,7 +152,7 @@ export function TravelFileTasks({
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this task?")) return;
+    if (!(await osConfirm({ eyebrow: "Tasks", title: "Delete Task", message: "Delete this task? This can't be undone.", confirmLabel: "Delete Task", tone: "danger" }))) return;
     setSaving(true);
     await fetch(`/api/travel-files/${travelFileId}/tasks`, {
       method: "DELETE",
