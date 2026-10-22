@@ -79,7 +79,8 @@ async function postJson(webhook: string, payload: Record<string, unknown>) {
 /**
  * Sends an invitation or password reset.
  * Standard (BRIITELY_EMAIL_WEBHOOK_URL set): the dashboard builds the branded email and the
- * Briitely email workflow sends it (to, cc, first_name, last_name, subject, body_html).
+ * Briitely email workflow sends it (to, cc, first_name, last_name, subject, body_html), plus the names
+ * IV's templated-email workflow already reads (email, email_subject, email_html, contact_name).
  * Until that's set: the older IV auth workflow (BRIITELY_AUTH_EMAIL_WEBHOOK_URL), whose email is written in GHL.
  */
 export async function sendAuthEmail(input: { kind: "invite" | "recovery"; email: string; firstName?: string | null; lastName?: string | null; actionLink: string }) {
@@ -88,7 +89,7 @@ export async function sendAuthEmail(input: { kind: "invite" | "recovery"; email:
   const standard = process.env.BRIITELY_EMAIL_WEBHOOK_URL?.trim();
   if (standard) {
     const { subject, html } = await renderAuthEmail(input.kind, input.firstName ?? "", link);
-    await postJson(standard, { event: "dashboard_auth_email", email_type: emailType, to: input.email, cc: "", first_name: input.firstName ?? "", last_name: input.lastName ?? "", subject, body_html: html, email: input.email, email_subject: subject, email_html: html, action_link: link });
+    await postJson(standard, { event: "dashboard_auth_email", email_type: emailType, to: input.email, cc: "", first_name: input.firstName ?? "", last_name: input.lastName ?? "", subject, body_html: html, email: input.email, email_subject: subject, email_html: html, contact_name: input.firstName ?? "", action_link: link });
     return;
   }
   const legacy = process.env.BRIITELY_AUTH_EMAIL_WEBHOOK_URL?.trim();
@@ -102,5 +103,5 @@ export async function sendSampleAuthEmail(input: { email: string; firstName: str
   if (!webhook) throw new Error("Add BRIITELY_EMAIL_WEBHOOK_URL in Vercel first.");
   const link = new URL("/auth/continue?kind=invite&token_hash=sample-token", input.origin).toString();
   const { subject, html } = await renderAuthEmail("invite", input.firstName, link);
-  await postJson(webhook, { event: "dashboard_auth_email", email_type: "dashboard_invitation", to: input.email, cc: "", first_name: input.firstName, last_name: input.lastName, subject, body_html: html, email: input.email, email_subject: subject, email_html: html, action_link: link });
+  await postJson(webhook, { event: "dashboard_auth_email", email_type: "dashboard_invitation", to: input.email, cc: "", first_name: input.firstName, last_name: input.lastName, subject, body_html: html, email: input.email, email_subject: subject, email_html: html, contact_name: input.firstName, action_link: link });
 }
