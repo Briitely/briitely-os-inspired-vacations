@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import "@/styles/briitely-os.css";
 import { BrandingStyles } from "@/components/core/branding-styles";
+import { ConfirmHost } from "@/components/core/ui/os-dialog";
 import { getBrandingSettings } from "@/lib/briitely/client-settings";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
+        <ConfirmHost />
         <BrandingStyles />
         {children}
       </body>

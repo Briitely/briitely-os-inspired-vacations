@@ -221,3 +221,14 @@ export function hexToHsl(hex: string): string {
   }
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
+
+/** Who people contact if they need help signing in; sent with every sign-in email. Set on Users & Access. */
+export interface InvitationContactSettings { name: string; email: string; phone: string; }
+export function getDefaultInvitationContactSettings(): InvitationContactSettings { return { name: "", email: "", phone: "" }; }
+export async function getInvitationContactSettings(): Promise<InvitationContactSettings> {
+  const d = getDefaultInvitationContactSettings();
+  const raw = await getClientSetting("invitationContact");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return d;
+  const r = raw as Record<string, unknown>;
+  return { name: typeof r.name === "string" ? r.name : d.name, email: typeof r.email === "string" ? r.email : d.email, phone: typeof r.phone === "string" ? r.phone : d.phone };
+}

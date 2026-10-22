@@ -1,5 +1,7 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
+import { getInvitationContactSettings } from "@/lib/briitely/client-settings";
+import { formatPhoneNumber } from "@/lib/format/phone";
 
 export async function generateAuthActionLink(input:{kind:"invite"|"recovery";email:string;redirectTo:string;firstName?:string|null;lastName?:string|null}) {
   const service=createServiceClient();
@@ -43,6 +45,8 @@ function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
 export async function sendAuthEmail(input:{kind:"invite"|"recovery";email:string;firstName?:string|null;actionLink:string}) {
   const webhook=process.env.BRIITELY_AUTH_EMAIL_WEBHOOK_URL?.trim();
   if(!webhook) throw new Error("BRIITELY_AUTH_EMAIL_WEBHOOK_URL is not configured.");
+  // The Invitation Contact from Users & Access, for the email template's "need help signing in?" block.
+  const support=await getInvitationContactSettings().catch(()=>({name:"",email:"",phone:""}));
   const response=await fetch(webhook,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -52,6 +56,9 @@ export async function sendAuthEmail(input:{kind:"invite"|"recovery";email:string
       email:input.email,
       first_name:input.firstName??"",
       action_link:wrapActionLink(input.kind,input.actionLink),
+      support_name:support.name,
+      support_email:support.email,
+      support_phone:formatPhoneNumber(support.phone),
     }),
     cache:"no-store",
   });

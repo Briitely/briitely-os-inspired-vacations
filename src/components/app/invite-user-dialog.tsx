@@ -55,13 +55,16 @@ export function InviteUserDialog({ isSuperAdmin, onClose, onInvited }: InviteUse
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-24" onClick={onClose}>
+      <Card className="w-full max-w-md rounded-xl border-0 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <CardContent className="p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Invite User</h3>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-              <X className="h-5 w-5" />
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">User access</p>
+              <h3 className="mt-1 text-xl font-semibold text-foreground">Invite User</h3>
+            </div>
+            <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
+              <X className="h-4 w-4" />
             </button>
           </div>
 

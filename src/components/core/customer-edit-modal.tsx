@@ -87,11 +87,12 @@ export function CustomerEditModal({ customer, isDeceased=false, onDeceasedChange
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
-      <div className="max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border bg-background shadow-xl" role="dialog" aria-modal="true" aria-labelledby="customer-edit-title">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-24" role="presentation">
+      <div className="max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl bg-background shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="customer-edit-title">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 id="customer-edit-title" className="text-xl font-semibold">Update Client</h2>
+            <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">Client</p>
+            <h2 id="customer-edit-title" className="mt-1 text-xl font-semibold">Update Client</h2>
             <p className="mt-1 text-sm text-muted-foreground">Update this client without leaving your workflow.</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} disabled={saving} aria-label="Close">

@@ -11,6 +11,7 @@ export interface DisplayProfile {
   status: UserStatus;
   ghlUserId: string;
   ghlLabel: string;
+  lastSignInAt?: string | null;
   isSelf: boolean;
   canEdit: boolean;
   canToggleActive: boolean;
