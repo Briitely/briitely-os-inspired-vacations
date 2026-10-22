@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { BriitelyEmailSample } from "@/components/app/briitely-email-sample";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, CircleAlert, CircleDashed } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/supabase/auth";
@@ -161,10 +160,6 @@ export default async function SystemStatusPage() {
 
         <WorkspaceSection eyebrow="Briitely" title="Integrations" description="The Briitely connection and the email workflows and webhooks the dashboard relies on.">
           <StatusList items={integrations} />
-        </WorkspaceSection>
-
-        <WorkspaceSection eyebrow="Email" title="Briitely Email Workflow" description="Sends a sample invitation to the standard Briitely email workflow so its Inbound Webhook trigger can map the fields.">
-          <BriitelyEmailSample defaultEmail={superAdmin.user.email} enabled={hasEnv("BRIITELY_EMAIL_WEBHOOK_URL")} />
         </WorkspaceSection>
 
         <WorkspaceSection eyebrow="Automations" title="Scheduled Jobs" description="Daily jobs and the default owners used when no advisor is assigned yet.">

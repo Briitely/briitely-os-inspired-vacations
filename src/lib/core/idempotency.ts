@@ -32,20 +32,38 @@ export interface IdempotencyStore<T> {
   release?(fingerprint: string): Promise<void>;
 }
 
+/** Thrown by runIdempotent when the same request is still being saved (a simultaneous double click). */
+export class IdempotencyInProgressError extends Error {
+  constructor() { super("This is already being saved. Please wait a moment, then refresh the page."); this.name = "IdempotencyInProgressError"; }
+}
+
+/**
+ * Runs `execute` once per fingerprint. A repeat after it finished gets the saved
+ * value back (replayed); a repeat while it is still running throws
+ * IdempotencyInProgressError (send a 409). A failure frees the fingerprint so the
+ * same attempt can be retried. Stores without claim() fall back to check-then-run.
+ */
 export async function runIdempotent<T>(options: {
   fingerprint: string;
   store: IdempotencyStore<T>;
   execute: () => Promise<T>;
   ttlMs?: number;
 }): Promise<{ value: T; replayed: boolean }> {
-  const existing = await options.store.get(options.fingerprint);
-  if (existing !== null) return { value: existing, replayed: true };
-
-  const value = await options.execute();
-  await options.store.set(
-    options.fingerprint,
-    value,
-    new Date(Date.now() + (options.ttlMs ?? 24 * 60 * 60 * 1000))
-  );
+  const ttl = options.ttlMs ?? 24 * 60 * 60 * 1000;
+  const claim = options.store.claim ? await options.store.claim(options.fingerprint, new Date(Date.now() + 2 * 60 * 1000)) : { state: "unavailable" as const };
+  if (claim.state === "completed") return { value: claim.value, replayed: true };
+  if (claim.state === "in_progress") throw new IdempotencyInProgressError();
+  if (claim.state === "unavailable") {
+    const existing = await options.store.get(options.fingerprint);
+    if (existing !== null) return { value: existing, replayed: true };
+  }
+  let value: T;
+  try {
+    value = await options.execute();
+  } catch (error) {
+    if (claim.state === "claimed") await options.store.release?.(options.fingerprint);
+    throw error;
+  }
+  await options.store.set(options.fingerprint, value, new Date(Date.now() + ttl));
   return { value, replayed: false };
 }
