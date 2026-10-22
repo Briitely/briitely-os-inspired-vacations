@@ -69,6 +69,7 @@ export async function POST(
       kind: "recovery",
       email: profile.email,
       firstName: profile.first_name,
+      lastName: profile.last_name,
       actionLink,
     });
 

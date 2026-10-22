@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       kind = "recovery";
       ({ actionLink } = await generateAuthActionLink({ kind, email, redirectTo: origin + "/auth/callback?next=/reset-password", firstName: profile.first_name }));
     }
-    await sendAuthEmail({ kind, email, firstName: profile.first_name, actionLink });
+    await sendAuthEmail({ kind, email, firstName: profile.first_name, lastName: profile.last_name, actionLink });
     await logActivity(user.id, { action: "user.invite_resent", entityType: "user", externalId: profile.id, metadata: { invitedEmail: email, kind } });
     return NextResponse.json({ success: true, message: `Invitation resent to ${email}` });
   } catch (error) {

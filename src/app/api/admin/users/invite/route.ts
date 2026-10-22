@@ -173,6 +173,7 @@ export async function POST(request: Request) {
       kind: "invite",
       email,
       firstName,
+      lastName,
       actionLink,
     });
 
