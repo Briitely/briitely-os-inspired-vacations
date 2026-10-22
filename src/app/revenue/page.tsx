@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { can } from "@/lib/auth/permissions";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
@@ -12,6 +13,7 @@ export default async function RevenuePage() {
   if (error || !user) {
     redirect("/login");
   }
+  if (!can(user.role, "revenue.view")) redirect("/dashboard");
 
   return (
     <div className="min-h-screen bg-background">

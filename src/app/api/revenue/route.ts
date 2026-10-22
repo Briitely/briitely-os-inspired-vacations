@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { can } from "@/lib/auth/permissions";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { getRevenueData } from "@/lib/revenue/getRevenueData";
 import { clientConfig } from "@/config/client.config";
@@ -12,6 +13,7 @@ export async function GET() {
       { status: 401 }
     );
   }
+  if (!can(user.role, "revenue.view")) return NextResponse.json({ error: "Revenue is available to Admins only." }, { status: 403 });
 
   if (!clientConfig.revenue?.enabled) {
     return NextResponse.json(
