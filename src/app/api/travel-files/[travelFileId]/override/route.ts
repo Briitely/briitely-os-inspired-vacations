@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
-import { phaseForStage, prepareManualWorkflowEntry } from "@/lib/travel/workflow-entry";
+import { phaseForStage, prepareManualWorkflowEntry, retainerConfirmationForEntry } from "@/lib/travel/workflow-entry";
 
-interface OverrideBody {actionCode:string;responsibleUserId?:string|null;dueAt?:string|null;}
+interface OverrideBody {actionCode:string;responsibleUserId?:string|null;dueAt?:string|null;retainerAgreementConfirmed?:boolean;}
 const OPTIONS:{stage:string;actionCode:string;title:string;responsibleType:"client"|"internal"|"system"}[]=[
 {stage:"new_inquiry",actionCode:"book_initial_consultation",title:"Book Initial Consultation",responsibleType:"client"},
 {stage:"consult_booked",actionCode:"complete_initial_consultation",title:"Complete Initial Consultation",responsibleType:"internal"},
@@ -30,6 +30,8 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  try{body=await request.json() as OverrideBody}catch{return NextResponse.json({error:"Invalid request body."},{status:400})}
  const option=OPTIONS.find(x=>x.actionCode===body.actionCode);
  if(!option)return NextResponse.json({error:"Invalid workflow step."},{status:400});
+ const retainerConfirmation=retainerConfirmationForEntry(option.actionCode,body.retainerAgreementConfirmed,user.id,new Date().toISOString());
+ if(retainerConfirmation.error)return NextResponse.json({error:retainerConfirmation.error},{status:400});
  if(option.responsibleType==="internal"&&!body.responsibleUserId)return NextResponse.json({error:"Responsible user is required for this workflow step."},{status:400});
  const supabase=await createClient();
  if(option.responsibleType==="internal"){
@@ -41,7 +43,7 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  const file=rawFile as{id:string;stage:string;current_action_id:string|null;current_action:{id:string;action_code:string;status:string}|null};
  const now=new Date().toISOString(),previousStage=file.stage,previousActionCode=file.current_action?.action_code??null;
  if(file.current_action_id)await supabase.from("travel_actions").update({status:"skipped",completion_source:"portal",completed_at:now,completed_by:user.id}).eq("id",file.current_action_id);
- const metadata:Record<string,unknown>={createdByOverride:true};if(option.actionCode==="check_proposal_status")metadata.follow_up_number=1;
+ const metadata:Record<string,unknown>={createdByOverride:true,...retainerConfirmation.metadata};if(option.actionCode==="check_proposal_status")metadata.follow_up_number=1;
  const{data:newAction,error:actionError}=await supabase.from("travel_actions").insert({
   travel_file_id:travelFileId,action_code:option.actionCode,title:option.title,action_role:option.actionCode==="waiting_for_travel"?"supporting":"blocking",
   responsible_type:option.responsibleType,responsible_user_id:option.responsibleType==="internal"?body.responsibleUserId:null,status:"active",
@@ -51,6 +53,6 @@ export async function POST(request:Request,{params}:{params:Promise<{travelFileI
  const{error:fileUpdateError}=await supabase.from("travel_files").update({stage:option.stage,phase:phaseForStage(option.stage),stage_changed_at:now,current_action_id:newAction.id}).eq("id",travelFileId);
  if(fileUpdateError){await supabase.from("travel_actions").delete().eq("id",newAction.id);return NextResponse.json({error:"Failed to update Travel File stage."},{status:500})}
  const{error:setupError}=await prepareManualWorkflowEntry(supabase,{travelFileId,actionCode:option.actionCode,responsibleUserId:body.responsibleUserId??null,userId:user.id});if(setupError)console.error("WORKFLOW_OVERRIDE_SETUP_FAILED",setupError);
- await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"workflow_override",summary:`Workflow manually moved to ${option.title}.`,actor_type:"internal",actor_user_id:user.id,action_id:newAction.id,previous_stage:previousStage as never,new_stage:option.stage as never,metadata:{previousStage,newStage:option.stage,previousActionCode,newActionCode:option.actionCode,createdByOverride:true,responsible_user_id:body.responsibleUserId??null}});
+ await supabase.from("travel_activity").insert({travel_file_id:travelFileId,event_type:"workflow_override",summary:`Workflow manually moved to ${option.title}.${retainerConfirmation.metadata.retainer_agreement_confirmed_externally?" Retainer Agreement marked as confirmed outside the dashboard.":""}`,actor_type:"internal",actor_user_id:user.id,action_id:newAction.id,previous_stage:previousStage as never,new_stage:option.stage as never,metadata:{previousStage,newStage:option.stage,previousActionCode,newActionCode:option.actionCode,createdByOverride:true,responsible_user_id:body.responsibleUserId??null,...retainerConfirmation.metadata}});
  return NextResponse.json({success:true,stage:option.stage,actionId:newAction.id});
 }

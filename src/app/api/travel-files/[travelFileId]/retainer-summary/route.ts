@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { externalRetainerConfirmedAt, reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
 
 export async function GET(
   _request: Request,
@@ -20,7 +20,7 @@ export async function GET(
   const db = await createClient();
   const { data: file, error } = await db
     .from("travel_files")
-    .select("id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status)")
+    .select("id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status,metadata)")
     .eq("id", travelFileId)
     .maybeSingle();
 
@@ -37,7 +37,7 @@ export async function GET(
   const {data:terms,error:termsError}=await service.from("travel_group_retainers").select("recipient_party_member_id,retainer_amount").eq("travel_file_id",travelFileId);
   if(termsError)return NextResponse.json({error:termsError.message},{status:500});
   if(terms?.length){
-    try{await reconcileGroupRetainerPayments(travelFileId)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
+    try{await reconcileGroupRetainerPayments(travelFileId,{confirmedExternallyAt:externalRetainerConfirmedAt(current.metadata)})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
     const [{data:links,error:linksError},{data:party,error:partyError}]=await Promise.all([service.from("travel_group_retainer_payments").select("recipient_party_member_id,payment_id").eq("travel_file_id",travelFileId),service.from("travel_file_travellers").select("id,traveller_profiles:traveller_profile_id(first_name,last_name)").eq("travel_file_id",travelFileId)]);
     if(linksError||partyError)return NextResponse.json({error:(linksError||partyError)?.message},{status:500});
     const paymentIds=(links??[]).map(l=>l.payment_id);

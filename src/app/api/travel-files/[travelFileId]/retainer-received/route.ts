@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { syncPaymentBatchTask } from "@/lib/travel/payment-tasks";
 import { ensurePrimaryPaymentGroup } from "@/lib/travel/payment-groups";
 import { createServiceClient } from "@/lib/supabase/service";
-import { reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
+import { externalRetainerConfirmedAt, reconcileGroupRetainerPayments } from "@/lib/travel/group-retainer-payments";
 import { addBusinessDays } from "@/lib/travel/due-date";
 import { withIdempotency } from "@/lib/core/idempotent-route";
 import { ActionGuardError, withActionGuards } from "@/lib/core/action-guards";
@@ -22,7 +22,7 @@ async function markRetainerReceived(request: Request,{params}:{params:Promise<{t
   const supabase=await createClient();
   const{data:file,error:fileError}=await supabase
     .from("travel_files")
-    .select("id,stage,current_action_id,assigned_advisor_id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status,responsible_user_id)")
+    .select("id,stage,current_action_id,assigned_advisor_id,tmf_amount,current_action:travel_actions!current_action_id(id,action_code,status,responsible_user_id,metadata)")
     .eq("id",travelFileId)
     .maybeSingle();
   if(fileError||!file)return NextResponse.json({error:"Travel File not found."},{status:404});
@@ -44,7 +44,7 @@ async function markRetainerReceived(request: Request,{params}:{params:Promise<{t
   const {data:terms,error:termsError}=await service.from("travel_group_retainers").select("recipient_party_member_id").eq("travel_file_id",travelFileId);
   if(termsError)return NextResponse.json({error:termsError.message},{status:500});
   if(terms?.length){
-    try{await reconcileGroupRetainerPayments(travelFileId)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
+    try{await reconcileGroupRetainerPayments(travelFileId,{confirmedExternallyAt:externalRetainerConfirmedAt(action.metadata)})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not reconcile retainer payments."},{status:500})}
     const body=await request.json().catch(()=>({})) as {recipientIds?:string[]};
     const requested=Array.isArray(body.recipientIds)?body.recipientIds:[];
     const required=new Set(terms.map(t=>t.recipient_party_member_id));

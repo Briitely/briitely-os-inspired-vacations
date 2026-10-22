@@ -11,6 +11,23 @@ export function phaseForStage(stage: string): TravelPhase {
 }
 
 /**
+ * Collect Retainer Payment normally requires each Travel Group to have signed the
+ * Retainer Agreement online. A manual jump there must say the agreement was confirmed
+ * outside the dashboard; that confirmation is stored on the action so Collect Retainer
+ * Payment can create payment records for groups without an online signature.
+ */
+export function retainerConfirmationForEntry(
+  actionCode: string,
+  confirmed: unknown,
+  userId: string,
+  now: string,
+): { error: string | null; metadata: { retainer_agreement_confirmed_externally?: { confirmed_at: string; confirmed_by: string } } } {
+  if (actionCode !== "collect_tmf_payment") return { error: null, metadata: {} };
+  if (confirmed !== true) return { error: "Confirm the Retainer Agreement was completed outside the dashboard, or move to Prepare Retainer Email to send it.", metadata: {} };
+  return { error: null, metadata: { retainer_agreement_confirmed_externally: { confirmed_at: now, confirmed_by: userId } } };
+}
+
+/**
  * Setup the normal workflow performs when a stage is entered, which a manual jump
  * (Override, Reopen) would otherwise skip. Add a case here whenever a stage's
  * completion depends on records created by the step before it.
