@@ -38,7 +38,7 @@ export function PaymentsSection({ travelFileId }: { travelFileId: string }) {
               className="justify-start"
               onClick={() => setGroupsOpen(true)}
             >
-              Create / Edit Booking Groups
+              <Plus className="h-4 w-4" />Create / Edit Booking Groups
             </Button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, CreditCard, Edit3, Eye, Loader2, Send } from "lucide-react";
+import { ArrowLeft, CreditCard, Eye, Pencil, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
@@ -72,7 +72,7 @@ export function InvoiceActions({ customer, invoice, commissionSale = false, onBa
         {message && <p className="text-sm text-muted-foreground" role="status">{message}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           {showReceivePayment && <Button onClick={onReceivePayment}><CreditCard className="h-4 w-4" />Receive Payment</Button>}
-          {canEdit ? <Button variant="outline" onClick={onEdit}><Edit3 className="h-4 w-4" />Edit Invoice</Button> : <Button variant="outline" disabled title={editDisabledMessage}><Edit3 className="h-4 w-4" />Edit Invoice</Button>}
+          {canEdit ? <Button variant="outline" onClick={onEdit}><Pencil className="h-4 w-4" />Edit Invoice</Button> : <Button variant="outline" disabled title={editDisabledMessage}><Pencil className="h-4 w-4" />Edit Invoice</Button>}
           {showSendButton && <Button variant="outline" onClick={handleSend} disabled={sending}>{sending ? <><Loader2 className="h-4 w-4 animate-spin" />Sending...</> : <><Send className="h-4 w-4" />{sendLabel}</>}</Button>}
           <Button variant="outline" onClick={handlePrint}><Eye className="h-4 w-4" />View / Print</Button>
         </div>

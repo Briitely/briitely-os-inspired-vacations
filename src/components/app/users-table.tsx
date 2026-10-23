@@ -8,11 +8,11 @@ import { Button } from "@/components/core/ui/button";
 import { WorkspaceSection } from "@/components/core/workspace-section";
 import { Loader2, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/core/ui/os-dialog";
+import { rowAction } from "@/components/core/ui/row-action";
 
 type Profile = UsersTableProps["profiles"][number];
 
 // Row actions in lists are compact text buttons, no icons (same as High Q).
-const rowAction = "rounded-md px-2 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50";
 
 function roleLabel(role: string) { return role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : "Staff"; }
 

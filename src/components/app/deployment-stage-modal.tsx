@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Loader2, Route, X } from "lucide-react";
+import { Loader2, Plus, Route, X } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/core/ui/card";
 import { Input } from "@/components/core/ui/input";
@@ -75,7 +75,7 @@ export function DeploymentStageModal({ isOpen, submitting, error, onClose, onCon
         </div>
         <div className="shrink-0 flex justify-end gap-3 border-t bg-background p-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          <Button type="button" onClick={confirm} disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 animate-spin" />}Create at This Stage</Button>
+          <Button type="button" onClick={confirm} disabled={submitting}>{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}Create at This Stage</Button>
         </div>
       </Card>
     </div>
