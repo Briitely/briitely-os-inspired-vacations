@@ -12,7 +12,8 @@ import { activeHref, isActive, type VisibleNavItem } from "@/lib/navigation-acti
  *
  * 1024px and wider: a row of sections; a section with sub-pages opens a
  * dropdown on click or tap (never hover, which tablets can't do), and the
- * user block is a small menu on the right.
+ * user block is a small menu on the right (just the initial under 1280px, to
+ * leave room for seven sections on a tablet held sideways).
  * Under 1024px: a "Menu" button opens a panel from the left with the sections
  * as accordions (the current one open) and the user block at the bottom.
  * Styles: os-nav-* in src/styles/briitely-os.css.
@@ -104,7 +105,7 @@ export function AppNav({ items, user, onSignOut }: { items: VisibleNavItem[]; us
       <div ref={rowRef} className="hidden min-w-0 flex-1 items-center justify-between gap-3 lg:flex">
         <nav aria-label="Main" className="min-w-0">
           <ul className="flex items-center gap-0.5">
-            {items.map((item) => {
+            {items.map((item, index) => {
               if (!item.children) {
                 return <li key={item.label}><Link href={item.href} className="os-nav-link" aria-current={current(item.href)}>{item.label}</Link></li>;
               }
@@ -124,7 +125,8 @@ export function AppNav({ items, user, onSignOut }: { items: VisibleNavItem[]; us
                     {item.label}<ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
                   </button>
                   {open && (
-                    <ul id={id} className="os-nav-dropdown">
+                    // The last sections open toward the left so they stay on screen.
+                    <ul id={id} className={index >= items.length - 2 ? "os-nav-dropdown os-nav-dropdown-right" : "os-nav-dropdown"}>
                       {item.children.map((child) => (
                         <li key={child.href + child.label}>
                           <Link href={child.href} className="os-nav-dropdown-link" aria-current={current(child.href)} onClick={() => setOpenMenu(null)}>{child.label}</Link>
@@ -149,7 +151,7 @@ export function AppNav({ items, user, onSignOut }: { items: VisibleNavItem[]; us
             onClick={() => setOpenMenu(openMenu === "__user" ? null : "__user")}
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground" aria-hidden="true">{initial}</span>
-            <span className="max-w-[8rem] truncate">{firstName}</span>
+            <span className="hidden max-w-[8rem] truncate xl:inline">{firstName}</span>
             <ChevronDown className={`h-4 w-4 transition-transform ${openMenu === "__user" ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
           {openMenu === "__user" && (

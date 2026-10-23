@@ -62,7 +62,7 @@ button:is([aria-busy="true"], [data-os-busy]):not(:has(.animate-spin))::before {
  * wrapper (e.g. lg:hidden), not a utility on the same element.
  */
 :where(.os-header) { @apply sticky top-0 z-40 border-b border-border bg-card; }
-.os-nav-link { @apply inline-flex h-11 items-center gap-1 whitespace-nowrap rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
+.os-nav-link { @apply inline-flex h-11 min-w-11 items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 text-sm xl:px-2.5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
 .os-nav-link:is([aria-current="page"], [data-active]) { @apply bg-primary/10 font-semibold text-primary; }
 :where(.os-nav-dropdown) { @apply absolute left-0 top-full z-50 mt-1 min-w-[13rem] rounded-lg border border-border bg-card p-1 shadow-lg; }
 :where(.os-nav-dropdown-right) { @apply left-auto right-0; }
