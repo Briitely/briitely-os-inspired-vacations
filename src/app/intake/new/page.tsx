@@ -23,12 +23,14 @@ export default async function IntakeNewPage({ searchParams }: { searchParams: Pr
         role={user.role}
       />
       <main className="workspace-shell space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href={customerId ? `/customers/${encodeURIComponent(customerId)}` : "/dashboard"} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            <span>{customerId ? "Back to Client File" : "Back to Dashboard"}</span>
-          </Link>
-        </div>
+        {customerId && (
+          <div className="flex items-center gap-4">
+            <Link href={`/customers/${encodeURIComponent(customerId)}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Client File</span>
+            </Link>
+          </div>
+        )}
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-foreground">New Inquiry</h2>
           <p className="text-muted-foreground">

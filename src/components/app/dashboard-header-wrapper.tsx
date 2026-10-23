@@ -1,5 +1,6 @@
 import { getBusinessSettings } from "@/lib/briitely/client-settings";
 import { DashboardHeader } from "@/components/app/dashboard-header";
+import { visibleNavigation } from "@/lib/navigation";
 
 interface DashboardHeaderWrapperProps {
   fullName: string;
@@ -16,6 +17,8 @@ export async function DashboardHeaderWrapper({ fullName, email, role }: Dashboar
       role={role}
       logoUrl={business.logoUrl}
       businessName={business.businessName}
+      // Filtered here, on the server, so the browser only gets what this person may see.
+      navigation={visibleNavigation(role)}
     />
   );
 }

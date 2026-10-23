@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
@@ -26,7 +26,6 @@ export default async function MyProfilePage() {
     <div className="min-h-screen bg-background">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
       <main className="workspace-shell space-y-6">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to Dashboard</Link>
         <div>
           <p className="eyebrow">Account</p>
           <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">My Profile</h1>

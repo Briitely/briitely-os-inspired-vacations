@@ -51,3 +51,29 @@ button[aria-busy="true"], button[data-os-busy] { cursor: progress; pointer-event
 button:is([aria-busy="true"], [data-os-busy]):not(:has(.animate-spin))::before { content: ""; display: inline-block; vertical-align: -0.15em; margin-inline-end: 0.35em; width: 1em; height: 1em; flex-shrink: 0; box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 9999px; animation: os-spin 0.7s linear infinite; }
 @keyframes os-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .os-progress-bar { animation-duration: 0s; width: 60%; } }
+
+/*
+ * Navigation menu (docs/navigation-menu.md), drawn by components/core/app-nav.tsx.
+ * 1024px and wider: one row of sections in the sticky header, dropdowns open on
+ * click or tap. Under 1024px: a Menu button and a panel that slides in from the left.
+ * Every tap target is at least 44px; rows in the panel are 48px.
+ * The link and button classes are not in :where(): they style <button>s too,
+ * and the browser's button reset would otherwise win. Show or hide them with a
+ * wrapper (e.g. lg:hidden), not a utility on the same element.
+ */
+:where(.os-header) { @apply sticky top-0 z-40 border-b border-border bg-card; }
+.os-nav-link { @apply inline-flex h-11 items-center gap-1 whitespace-nowrap rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
+.os-nav-link:is([aria-current="page"], [data-active]) { @apply bg-primary/10 font-semibold text-primary; }
+:where(.os-nav-dropdown) { @apply absolute left-0 top-full z-50 mt-1 min-w-[13rem] rounded-lg border border-border bg-card p-1 shadow-lg; }
+:where(.os-nav-dropdown-right) { @apply left-auto right-0; }
+.os-nav-dropdown-link { @apply flex h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
+.os-nav-dropdown-link[aria-current="page"] { @apply bg-primary/10 font-semibold text-primary; }
+.os-nav-menu-button { @apply inline-flex h-11 items-center gap-2 rounded-md border border-input bg-card px-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring; }
+:where(.os-nav-backdrop) { @apply fixed inset-0 z-50 bg-black/40; }
+:where(.os-nav-panel) { @apply fixed inset-y-0 left-0 z-50 flex w-full max-w-xs flex-col bg-card shadow-xl; animation: os-nav-slide-in 0.2s ease-out; }
+.os-nav-panel-link { @apply flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left text-base text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring; }
+.os-nav-panel-link:is([aria-current="page"], [data-active]) { @apply font-semibold text-primary; }
+.os-nav-panel-link[aria-current="page"] { @apply bg-primary/10; }
+.os-nav-panel-link.os-nav-panel-sub { @apply pl-8 text-sm; }
+@keyframes os-nav-slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .os-nav-panel { animation: none; } }

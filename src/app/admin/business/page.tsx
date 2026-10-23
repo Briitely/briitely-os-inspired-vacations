@@ -21,9 +21,9 @@ export default async function AdminBusinessPage() {
         <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
         <main className="workspace-shell space-y-8">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="h-4 w-4" />
-              <span>Back to Dashboard</span>
+              <span>Back to Admin</span>
             </Link>
           </div>
           <Card>

@@ -1,9 +1,51 @@
 "use client";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/core/ui/button";
-import { Badge } from "@/components/core/ui/badge";
-import { LogOut, Building2, ListTodo, UserRound } from "lucide-react";
-interface DashboardHeaderProps {fullName:string;email:string;role:"super_admin"|"admin"|"staff";logoUrl?:string;businessName?:string;}
-export function DashboardHeader({fullName,email,role,logoUrl,businessName}:DashboardHeaderProps){const router=useRouter();async function handleLogout(){const supabase=createClient();await supabase.auth.signOut();router.push("/login");router.refresh()}return <header className="border-b border-border bg-card"><div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8"><div className="flex items-center justify-between h-20"><Link href="/" aria-label="Go to dashboard" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:opacity-85 transition-opacity">{logoUrl?<img src={logoUrl} alt={businessName||"Business"} className="h-11 w-auto max-w-[180px] object-contain rounded-lg"/>:<div className="flex items-center justify-center h-11 w-11 rounded-lg bg-primary text-primary-foreground"><Building2 className="h-6 w-6"/></div>}<div><h1 className="text-lg font-bold text-foreground leading-tight">{businessName||"Business Dashboard"}</h1><p className="text-xs text-muted-foreground">Business Dashboard</p></div></Link><div className="flex items-center gap-2 sm:gap-4"><div className="text-right hidden sm:block"><div className="flex items-center gap-2 justify-end"><p className="text-sm font-medium text-foreground">{fullName||email}</p>{role==="super_admin"&&<Badge className="text-xs">Super Admin</Badge>}{role==="admin"&&<Badge className="text-xs">Admin</Badge>}</div><p className="text-xs text-muted-foreground capitalize">{role}</p></div><Button asChild variant="outline" size="default" className="h-10"><Link href="/tasks"><ListTodo className="h-4 w-4 sm:mr-2"/><span className="hidden sm:inline">My Tasks</span></Link></Button><Button asChild variant="ghost" size="default" className="h-10"><Link href="/account" title="My Profile"><UserRound className="h-4 w-4 sm:mr-2"/><span className="hidden lg:inline">My Profile</span></Link></Button><Button variant="outline" size="default" onClick={handleLogout} className="h-10"><LogOut className="h-4 w-4 sm:mr-2"/><span className="hidden sm:inline">Sign Out</span></Button></div></div></div></header>}
+import { Building2 } from "lucide-react";
+import { AppNav } from "@/components/core/app-nav";
+import { ROLE_LABELS } from "@/lib/auth/permissions";
+import type { VisibleNavItem } from "@/lib/navigation-active";
+
+interface DashboardHeaderProps {
+  fullName: string;
+  email: string;
+  role: "super_admin" | "admin" | "staff";
+  logoUrl?: string;
+  businessName?: string;
+  navigation: VisibleNavItem[];
+}
+
+/** The sticky header on every signed-in page: logo (home), the menu, and the user block. */
+export function DashboardHeader({ fullName, email, role, logoUrl, businessName, navigation }: DashboardHeaderProps) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
+  return (
+    <header className="os-header">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-20 items-center justify-between gap-4">
+          <Link href="/dashboard" className="flex min-w-0 shrink-0 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Go to Dashboard">
+            {logoUrl ? (
+              <img src={logoUrl} alt={businessName || "Business"} className="h-11 w-auto max-w-[140px] shrink-0 rounded-lg object-contain xl:max-w-[180px]" />
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Building2 className="h-6 w-6" /></div>
+            )}
+            <div className="min-w-0 max-w-[11rem] sm:max-w-[16rem] lg:max-w-[9rem] xl:max-w-[14rem]">
+              <p className="truncate text-lg font-bold leading-tight text-foreground">{businessName || "Business Dashboard"}</p>
+              <p className="truncate text-xs text-muted-foreground">Business Dashboard</p>
+            </div>
+          </Link>
+          <AppNav items={navigation} user={{ name: fullName, email, roleLabel: ROLE_LABELS[role] }} onSignOut={handleLogout} />
+        </div>
+      </div>
+    </header>
+  );
+}

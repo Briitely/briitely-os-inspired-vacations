@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { Card, CardContent } from "@/components/core/ui/card";
-import { Users, Settings, BarChart3, Activity, ArrowLeft, Lock, Mail } from "lucide-react";
+import { Users, Settings, BarChart3, Activity, Lock, Mail } from "lucide-react";
 
 export default async function AdminHomePage() {
   const { user, error } = await getAuthenticatedUser();
@@ -19,10 +19,6 @@ export default async function AdminHomePage() {
         <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
         <main className="workspace-shell space-y-8">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to Dashboard</span>
-            </Link>
           </div>
           <Card>
             <CardContent className="py-12 text-center space-y-3">
@@ -81,10 +77,6 @@ export default async function AdminHomePage() {
 
       <main className="workspace-shell space-y-8">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </Link>
         </div>
 
         <div className="space-y-2">
