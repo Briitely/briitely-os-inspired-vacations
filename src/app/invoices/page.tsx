@@ -26,7 +26,7 @@ export default async function InvoicesPage() {
           <div>
             <p className="eyebrow">Invoices</p>
             <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">Create Invoice</h1>
-            <p className="mt-1 text-muted-foreground">Choose products for this customer.</p>
+            <p className="mt-1 text-muted-foreground">Choose products for this client.</p>
           </div>
         </div>
         <InvoiceFlow />

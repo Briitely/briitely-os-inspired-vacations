@@ -48,18 +48,18 @@ export function InvoiceConfirmation({ customer, invoice, onBackToDashboard, onRe
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600"><CheckCircle2 className="h-7 w-7" /></div>
         <div>
           <h2 className="text-3xl font-bold tracking-tight">{sent ? "Invoice Sent" : "Invoice Created"}</h2>
-          <p className="mt-1 text-muted-foreground">{sent ? "The invoice has been sent to the customer." : "The invoice is ready to send."}</p>
+          <p className="mt-1 text-muted-foreground">{sent ? "The invoice has been sent to the client." : "The invoice is ready to send."}</p>
         </div>
       </div>
       <Card>
         <CardContent className="space-y-4 p-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p><p className="mt-1 font-medium">{customer.companyName || customer.name || "—"}</p></div>
+            <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client</p><p className="mt-1 font-medium">{customer.companyName || customer.name || "—"}</p></div>
             <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice Number</p><p className="mt-1 font-medium">{invoice.number}</p></div>
             <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</p><p className="mt-1 text-2xl font-bold text-primary">{formatCurrency(invoice.total, invoice.currency)}</p></div>
             <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-medium capitalize">{displayStatus}</p></div>
           </div>
-          {sent && <p className="border-t pt-4 text-sm text-muted-foreground">The invoice has been sent to the customer.</p>}
+          {sent && <p className="border-t pt-4 text-sm text-muted-foreground">The invoice has been sent to the client.</p>}
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         </CardContent>
       </Card>

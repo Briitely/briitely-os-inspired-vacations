@@ -53,7 +53,7 @@ export function InvoiceActionsFlow({ invoiceId }: { invoiceId: string }) {
         const inv = data.invoice;
         const id = inv.id ?? inv._id ?? "";
         const customerId = inv.contactId ?? inv.contactDetails?.id ?? "";
-        if (!customerId) throw new Error("We couldn't identify the customer for this invoice.");
+        if (!customerId) throw new Error("We couldn't identify the client for this invoice.");
         if (active) {
           setInvoice({
             id,
@@ -82,11 +82,11 @@ export function InvoiceActionsFlow({ invoiceId }: { invoiceId: string }) {
     fetch(`/api/customers/${encodeURIComponent(invoice.customerId)}`)
       .then(async (response) => {
         const data = (await response.json()) as { customer?: BriitelyCustomer; error?: string };
-        if (!response.ok || !data.customer) throw new Error(data.error || "We couldn't load the customer.");
+        if (!response.ok || !data.customer) throw new Error(data.error || "We couldn't load the client.");
         if (active) setCustomer(data.customer);
       })
       .catch((loadError: unknown) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : "We couldn't load the customer.");
+        if (active) setError(loadError instanceof Error ? loadError.message : "We couldn't load the client.");
       });
     return () => { active = false; };
   }, [invoice]);
@@ -100,12 +100,12 @@ export function InvoiceActionsFlow({ invoiceId }: { invoiceId: string }) {
     return <InvoiceEditFlow customer={customer} invoiceId={invoice.id} onBack={() => setView("actions")} onSaved={() => setView("actions")} />;
   }
 
-  if (!customer) return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6" /><span className="ml-3 text-muted-foreground">Loading customer...</span></div>;
+  if (!customer) return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6" /><span className="ml-3 text-muted-foreground">Loading client...</span></div>;
 
   return (
     <div className="space-y-4">
       <Button variant="ghost" className="-ml-3" onClick={() => router.push(invoice.customerId ? `/customers/${encodeURIComponent(invoice.customerId)}` : "/dashboard")}>
-        <ArrowLeft className="h-4 w-4" />Back to Customer
+        <ArrowLeft className="h-4 w-4" />Back to Client
       </Button>
       <InvoiceActions
         customer={customer}

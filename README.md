@@ -103,3 +103,7 @@ Every Briitely OS dashboard uses the same button language, so staff never have t
 - **Pop-ups** use the branded `osConfirm` / `OsDialog`, never the browser's `window.confirm`.
 
 `npm run check:ui` checks the button rules across every screen and lists anything that doesn't follow them. It also runs first in `npm run lint`.
+
+### Find the client first (the standard)
+
+New Inquiry opens on **Step 1 of 2 · Find the Client** (`FindCustomerStep` from `components/app/customer-first.tsx`, shared with Core). Staff pick the client or create them right there; creating never leaves the inquiry. The inquiry form is then a stack of split cards (`FormSectionCard`): Client (name linked to the client file, phone · email, **Change Client**), Client Fit, Intake Method, Trip Details, Travel Interests & Season, How They Heard About Us (only for a client created in step 1, and optional), and Additional Information. Contact details are edited on the client file, not in the inquiry; if the client has no email or phone, the form says so and links to the file.

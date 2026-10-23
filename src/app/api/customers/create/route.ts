@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
   if (authError || !user) {
     return NextResponse.json(
-      { error: "You must be signed in to create a customer." },
+      { error: "You must be signed in to create a client." },
       { status: 401 }
     );
   }

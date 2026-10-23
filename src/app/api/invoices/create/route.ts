@@ -54,7 +54,7 @@ async function createInvoiceFromRequest(request: Request) {
   const lines = body.lines ?? [];
 
   if (!customer?.id) {
-    return NextResponse.json({ error: "Customer is required." }, { status: 400 });
+    return NextResponse.json({ error: "Client is required." }, { status: 400 });
   }
 
   const validLines = lines.filter(

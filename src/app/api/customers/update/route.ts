@@ -24,7 +24,7 @@ function validate(body: UpdateRequestBody): { input?: BriitelyContactUpdateInput
   const phone = text(body.phone);
   const state = text(body.state).toUpperCase();
 
-  if (!text(body.contactId)) return { error: "We couldn't update the customer. Please try again." };
+  if (!text(body.contactId)) return { error: "We couldn't update the client. Please try again." };
   if (!firstName) return { error: "First name is required." };
   if (!lastName) return { error: "Last name is required." };
   if (!EMAIL_PATTERN.test(email)) return { error: "Please enter a valid email address." };
@@ -50,13 +50,13 @@ function validate(body: UpdateRequestBody): { input?: BriitelyContactUpdateInput
 
 export async function POST(request: Request) {
   const { user, error: authError } = await getAuthenticatedUser();
-  if (authError || !user) return NextResponse.json({ error: "You must be signed in to update a customer." }, { status: 401 });
+  if (authError || !user) return NextResponse.json({ error: "You must be signed in to update a client." }, { status: 401 });
 
   let body: UpdateRequestBody;
   try {
     body = (await request.json()) as UpdateRequestBody;
   } catch {
-    return NextResponse.json({ error: "We couldn't update the customer. Please try again." }, { status: 400 });
+    return NextResponse.json({ error: "We couldn't update the client. Please try again." }, { status: 400 });
   }
 
   const validation = validate(body);
@@ -86,6 +86,6 @@ export async function POST(request: Request) {
       errorCode: error instanceof BriitelyApiError ? error.code : "BRIITELY_UNKNOWN_ERROR",
       completedAt: new Date().toISOString(),
     }).catch(() => {});
-    return NextResponse.json({ error: "We couldn't update the customer. Please try again." }, { status: 502 });
+    return NextResponse.json({ error: "We couldn't update the client. Please try again." }, { status: 502 });
   }
 }
