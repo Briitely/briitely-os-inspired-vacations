@@ -33,6 +33,8 @@ export async function getBookingFormSession(token: string) {
   if (error) throw new Error(error.message);
   if (!session) return null;
   if (session.revoked_at) return null;
+  // A submitted form is permanently closed; staff must issue a new link for corrections.
+  if (session.completed_at) return null;
   if (new Date(session.expires_at).getTime() < Date.now()) return null;
   return session;
 }
