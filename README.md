@@ -83,3 +83,11 @@ npm run dev
 ```bash
 npm run build
 ```
+
+### Showing the system is thinking (the standard)
+
+Every click gets a visible response, with no extra code per page:
+
+- **Top bar.** A thin bar across the top starts the moment someone clicks a link or code moves to another page (`router.push`), and while anything a click started is still saving or sending. It finishes when the work is done. `ActivityIndicator` in `components/core/activity-indicator.tsx`, mounted once in `app/layout.tsx`.
+- **Busy button.** The button that was clicked shows a spinning wheel while it's disabled waiting on its work. Other buttons (like Cancel) don't spin. To show it directly, use `<Button loading={saving}>`.
+- **Page spinner.** `app/loading.tsx` shows the standard `Spinner` while a slow page loads. Use `<Spinner label="Loading orders…" />` for sections that load on their own.

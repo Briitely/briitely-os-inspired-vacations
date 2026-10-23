@@ -35,3 +35,19 @@
 :where(.os-detail-group-label) { @apply border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground; }
 :where(.os-detail-grid) { @apply grid gap-x-8 gap-y-5 pt-3 sm:grid-cols-2 lg:grid-cols-3; }
 :where(.os-detail-value) { @apply mt-1 break-words text-sm font-medium text-foreground; }
+
+/*
+ * Waiting: show that the system is thinking.
+ * .os-progress is the bar across the top while a page loads or a click's work
+ * runs (components/core/activity-indicator.tsx). A busy button (aria-busy="true",
+ * or data-os-busy set by the activity indicator) gets a spinning wheel and can't
+ * be clicked again; buttons that already show their own spinner are left alone.
+ */
+.os-progress { position: fixed; inset: 0 0 auto 0; z-index: 9999; height: 3px; pointer-events: none; }
+.os-progress-bar { height: 100%; width: 0; background: hsl(var(--primary)); box-shadow: 0 0 8px hsl(var(--primary) / 0.5); animation: os-progress-trickle 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards; }
+.os-progress[data-state="done"] .os-progress-bar { width: 100%; animation: none; opacity: 0; transition: width 0.2s ease, opacity 0.3s ease 0.1s; }
+@keyframes os-progress-trickle { 0% { width: 0; } 10% { width: 30%; } 100% { width: 90%; } }
+button[aria-busy="true"], button[data-os-busy] { cursor: progress; pointer-events: none; }
+button:is([aria-busy="true"], [data-os-busy]):not(:has(.animate-spin))::before { content: ""; display: inline-block; vertical-align: -0.15em; margin-inline-end: 0.35em; width: 1em; height: 1em; flex-shrink: 0; box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 9999px; animation: os-spin 0.7s linear infinite; }
+@keyframes os-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .os-progress-bar { animation-duration: 0s; width: 60%; } }
