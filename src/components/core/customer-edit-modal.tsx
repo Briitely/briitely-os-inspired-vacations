@@ -70,7 +70,8 @@ export function CustomerEditModal({ customer, isDeceased=false, onDeceasedChange
       const data = (await response.json()) as { customer?: BriitelyCustomer; error?: string };
 
       if (!response.ok || !data.customer) {
-        setError("We couldn't update the customer. Please try again.");
+        // Show the server's reason (such as a phone or email already on another record).
+        setError(data.error || "We couldn't update the customer. Please try again.");
         return;
       }
 

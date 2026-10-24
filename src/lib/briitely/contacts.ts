@@ -44,3 +44,41 @@ export async function getContact(contactId: string): Promise<BriitelyCustomer> {
 export async function addContactTag(contactId: string, tag: string): Promise<{ succeeded: boolean; httpStatus: number | null; alreadyPresent: boolean; errorStage: string | null; }> { try { const getResponse = await briitelyRequest<{ contact?: HighLevelContact }>({ method: "GET", path: `/contacts/${encodeURIComponent(contactId)}` }); const existingTags: string[] = getResponse.contact?.tags ?? []; if (existingTags.includes(tag)) return { succeeded: true, httpStatus: 200, alreadyPresent: true, errorStage: null }; const addResponse = await briitelyRequest<{ contact?: HighLevelContact }>({ method: "PUT", path: `/contacts/${encodeURIComponent(contactId)}`, body: { tags: [...existingTags, tag] } }); const updatedTags: string[] = addResponse.contact?.tags ?? []; return { succeeded: updatedTags.includes(tag), httpStatus: 200, alreadyPresent: false, errorStage: updatedTags.includes(tag) ? null : "tag_not_confirmed" }; } catch (err) { const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : null; return { succeeded: false, httpStatus: status, alreadyPresent: false, errorStage: "api_error" }; } }
 export async function removeContactTag(contactId: string, tag: string): Promise<{ succeeded: boolean; httpStatus: number | null; alreadyAbsent: boolean; errorStage: string | null; }> { try { const getResponse = await briitelyRequest<{ contact?: HighLevelContact }>({ method: "GET", path: `/contacts/${encodeURIComponent(contactId)}` }); const existingTags: string[] = getResponse.contact?.tags ?? []; if (!existingTags.includes(tag)) return { succeeded: true, httpStatus: 200, alreadyAbsent: true, errorStage: null }; const nextTags = existingTags.filter((existingTag) => existingTag !== tag); const response = await briitelyRequest<{ contact?: HighLevelContact }>({ method: "PUT", path: `/contacts/${encodeURIComponent(contactId)}`, body: { tags: nextTags } }); const updatedTags: string[] = response.contact?.tags ?? nextTags; return { succeeded: !updatedTags.includes(tag), httpStatus: 200, alreadyAbsent: false, errorStage: updatedTags.includes(tag) ? "tag_not_removed" : null }; } catch (err) { const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : null; return { succeeded: false, httpStatus: status, alreadyAbsent: false, errorStage: "api_error" }; } }
 export async function findContactByEmailOrPhone(email?: string, phone?: string): Promise<BriitelyCustomer | null> { const locationId = getLocationId(); const searches: Array<Promise<HighLevelSearchResponse>> = []; if (email) searches.push(briitelyRequest<HighLevelSearchResponse>({ method: "POST", path: "/contacts/search", body: buildContactSearchBody(email.toLowerCase(), locationId, "email") })); if (phone) searches.push(briitelyRequest<HighLevelSearchResponse>({ method: "POST", path: "/contacts/search", body: buildContactSearchBody(normalizePhone(phone), locationId, "phone") })); if (searches.length === 0) return null; const settled = await Promise.allSettled(searches); for (const result of settled) if (result.status === "fulfilled" && (result.value.contacts ?? []).length > 0) return mapHighLevelContact(result.value.contacts[0]); return null; }
+
+/**
+ * Another contact (not `contactId`) that already has this email or phone, and
+ * which one matched. Used before saving a contact's details, because GHL
+ * refuses a phone or email that's already on another contact. Exact matches
+ * only; if the search itself fails it returns null and the save goes ahead.
+ */
+export async function findOtherContactWithEmailOrPhone(
+  contactId: string,
+  email?: string,
+  phone?: string
+): Promise<{ field: "email" | "phone"; customer: BriitelyCustomer } | null> {
+  const locationId = getLocationId();
+  const checks: Array<{ field: "email" | "phone"; value: string }> = [];
+  if (email) checks.push({ field: "email", value: email.trim().toLowerCase() });
+  if (phone) checks.push({ field: "phone", value: normalizePhone(phone) });
+
+  for (const check of checks) {
+    try {
+      const result = await briitelyRequest<HighLevelSearchResponse>({
+        method: "POST",
+        path: "/contacts/search",
+        body: buildContactSearchBody(check.value, locationId, check.field),
+      });
+      for (const contact of result.contacts ?? []) {
+        if (contact.id === contactId) continue;
+        const other = mapHighLevelContact(contact);
+        const same = check.field === "email"
+          ? other.email.trim().toLowerCase() === check.value
+          : Boolean(other.phone) && normalizePhone(other.phone) === check.value;
+        if (same) return { field: check.field, customer: other };
+      }
+    } catch {
+      // Can't check right now: let the save try, and GHL will still refuse a duplicate.
+    }
+  }
+  return null;
+}
