@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     travelInterests:Array.isArray(body.travelInterests)?body.travelInterests.map(String):[],travelSeasons:Array.isArray(body.travelSeasons)?body.travelSeasons.map(String):[],lastTravelDestination:null,lastTravelDate:null,
     referralSource:String(body.referralSource??""),referralDetail:body.referralDetail?String(body.referralDetail):null,eventDetail:body.eventDetail?String(body.eventDetail):null,specialConsiderations:body.specialConsiderations?String(body.specialConsiderations):null,
     consent:Boolean(body.consent??true),intakeSource:"staff",intakeMethod:String(body.intakeMethod??"staff"),staffNotes:body.staffNotes?String(body.staffNotes):null,staffUserId:auth.user.id,
-    isFit:body.isFit==="yes"||body.isFit==="no"?body.isFit:"",markDnb:Boolean(body.markDnb),lostReason:body.lostReason?String(body.lostReason):null,deployment,
+    newClient:body.newClient===true,isFit:body.isFit==="yes"||body.isFit==="no"?body.isFit:"",markDnb:Boolean(body.markDnb),lostReason:body.lostReason?String(body.lostReason):null,deployment,
   };
   const validation=validateIntake(input);if(!validation.valid)return NextResponse.json({error:validation.errors.join(" ")},{status:400});
   const result=await processIntake(input);if(!result.success)return NextResponse.json({error:result.error??"Submission failed."},{status:500});

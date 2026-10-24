@@ -31,11 +31,10 @@ export default async function IntakeNewPage({ searchParams }: { searchParams: Pr
             </Link>
           </div>
         )}
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">New Inquiry</h2>
-          <p className="text-muted-foreground">
-            Enter a new travel inquiry from a phone call, email, referral, or walk-in.
-          </p>
+        <div>
+          <p className="eyebrow">Travel Files</p>
+          <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">New Inquiry</h1>
+          <p className="mt-1 text-muted-foreground">Enter a new travel inquiry from a phone call, email, referral, or walk-in.</p>
         </div>
         <StaffIntakeForm initialCustomerId={customerId} />
       </main>

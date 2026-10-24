@@ -1,4 +1,4 @@
-export type QueryType = "email" | "text";
+export type QueryType = "email" | "phone" | "text";
 
 export interface QueryClassification {
   type: QueryType;
@@ -12,6 +12,11 @@ export function classifyQuery(raw: string): QueryClassification {
 
   if (EMAIL_PATTERN.test(trimmed)) {
     return { type: "email", normalized: trimmed.toLowerCase() };
+  }
+
+  const phoneDigits = trimmed.replace(/\D/g, "");
+  if (phoneDigits.length >= 7) {
+    return { type: "phone", normalized: normalizePhone(trimmed) };
   }
 
   return { type: "text", normalized: trimmed };

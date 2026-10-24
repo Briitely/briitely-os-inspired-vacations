@@ -98,8 +98,8 @@ export default async function DashboardPage() {
           />
           <WorkflowCard
             icon={<UserSearch className="h-7 w-7" />}
-            title="Find or Create Customer"
-            description="Look up an existing customer or add a new one to your records."
+            title="Find or Create Client"
+            description="Look up an existing client or add a new one to your records."
             href="/customers"
             enabled
           />

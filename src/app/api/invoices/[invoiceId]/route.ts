@@ -65,7 +65,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ invo
   }
 
   if (!body.customer?.id || !body.lines?.length) {
-    return NextResponse.json({ error: "Customer and invoice items are required." }, { status: 400 });
+    return NextResponse.json({ error: "Client and invoice items are required." }, { status: 400 });
   }
 
   const lines = body.lines.filter((line) => line.productId && line.priceId && line.quantity > 0 && line.unitPrice >= 0);

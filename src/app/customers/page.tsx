@@ -26,7 +26,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       <main className="workspace-shell space-y-8">
         <div className="space-y-5">
           <div>
-            <p className="eyebrow">Customers</p>
+            <p className="eyebrow">Clients</p>
             <h1 className="mt-1 font-display text-3xl font-medium tracking-tight">Find or Create Client</h1>
             <p className="mt-1 text-muted-foreground">Search by name, business, or email.</p>
           </div>

@@ -45,7 +45,7 @@ async function createTravelFile(request: Request) {
   } = body;
 
   if (!briitelyContactId) {
-    return NextResponse.json({ error: "Customer is required." }, { status: 400 });
+    return NextResponse.json({ error: "Client is required." }, { status: 400 });
   }
   if (!clientName || !clientName.trim()) {
     return NextResponse.json({ error: "Client name is required." }, { status: 400 });

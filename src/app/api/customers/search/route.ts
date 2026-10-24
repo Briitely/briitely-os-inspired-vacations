@@ -11,7 +11,7 @@ const hasDnbTag = (tags?: string[]) => (tags ?? []).some((tag) => tag.trim().toL
 
 export async function GET(request: Request) {
   const { user, error: authError } = await getAuthenticatedUser();
-  if (authError || !user) return NextResponse.json({ error: "You must be signed in to search customers." }, { status: 401 });
+  if (authError || !user) return NextResponse.json({ error: "You must be signed in to search clients." }, { status: 401 });
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim() ?? "";
   if (query.length < MIN_QUERY_LENGTH) return NextResponse.json({ customers: [], total: 0, queryType: "text", searchCount: 0 });

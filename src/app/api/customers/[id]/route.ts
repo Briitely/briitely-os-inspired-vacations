@@ -12,7 +12,7 @@ export async function GET(
 
   if (authError || !user) {
     return NextResponse.json(
-      { error: "You must be signed in to view a customer." },
+      { error: "You must be signed in to view a client." },
       { status: 401 }
     );
   }
@@ -20,7 +20,7 @@ export async function GET(
   const { id } = await params;
   if (!id) {
     return NextResponse.json(
-      { error: "Customer ID is required." },
+      { error: "Client ID is required." },
       { status: 400 }
     );
   }

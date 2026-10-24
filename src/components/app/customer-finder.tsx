@@ -88,16 +88,16 @@ function prepopulateForm(query: string): CreateFormData {
   const classification = classifyQuery(query);
   const form = { ...EMPTY_FORM };
 
+  // What staff searched for carries into the new client: most clients are
+  // individuals, so a name fills First / Last name, never Business Name.
   if (classification.type === "email") {
     form.email = classification.normalized;
+  } else if (classification.type === "phone") {
+    form.phone = formatPhoneNumber(query);
   } else {
     const parts = splitNameParts(classification.normalized);
-    if (parts.firstName && parts.lastName) {
-      form.firstName = parts.firstName;
-      form.lastName = parts.lastName;
-    } else if (parts.firstName) {
-      form.companyName = parts.firstName;
-    }
+    form.firstName = parts.firstName;
+    form.lastName = parts.lastName;
   }
 
   return form;
@@ -106,7 +106,8 @@ function prepopulateForm(query: string): CreateFormData {
 type View = "search" | "create" | "duplicate";
 
 interface CustomerFinderProps {
-  onCustomerSelected?: (customer: BriitelyCustomer) => void;
+  /** Called with the chosen customer; `created` is true when they were just created here. */
+  onCustomerSelected?: (customer: BriitelyCustomer, details?: { created: boolean }) => void;
   initialCustomerId?: string;
 }
 
@@ -178,9 +179,9 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
     }
   }
 
-  async function handleSelectCustomer(customer: SearchCustomer) {
+  async function handleSelectCustomer(customer: SearchCustomer, created = false) {
     if (onCustomerSelected) {
-      onCustomerSelected(customer);
+      onCustomerSelected(customer, { created });
       return;
     }
     handleNavigateToCustomer(customer.id);
@@ -224,7 +225,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       }
 
       if (data.customer) {
-        handleNavigateToCustomer(data.customer.id);
+        void handleSelectCustomer(data.customer, true);
       }
     } catch (createError) {
       setCreateError(
@@ -252,7 +253,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       }
 
       if (data.customer) {
-        handleNavigateToCustomer(data.customer.id);
+        void handleSelectCustomer(data.customer, true);
       }
     } catch (createError) {
       setCreateError(
@@ -432,7 +433,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search by name, business, or email"
                 className="h-12 pl-10"
-                aria-label="Search customers"
+                aria-label="Search clients"
               />
             </div>
             <Button type="submit" size="lg" disabled={loading} className="sm:min-w-32">
@@ -443,7 +444,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
           {loading && (
             <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Searching customers...
+              Searching clients...
             </p>
           )}
           {error && <p className="mt-3 text-sm text-destructive" role="alert">{error}</p>}
@@ -452,7 +453,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
 
       {searched && !loading && customers.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{customers.length} customer{customers.length === 1 ? "" : "s"} found</p>
+          <p className="text-sm text-muted-foreground">{customers.length} client{customers.length === 1 ? "" : "s"} found</p>
           {customers.map((customer) => <CustomerCard key={customer.id} customer={customer} onSelect={handleSelectCustomer} />)}
           <div className="pt-2">
             <Button variant="outline" onClick={handleStartCreate}>
@@ -467,8 +468,8 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground"><Building2 className="h-6 w-6" /></div>
-            <h2 className="text-lg font-semibold">No customer found.</h2>
-            <p className="max-w-sm text-sm text-muted-foreground">We couldn&apos;t find a matching customer. Create a new one to get started.</p>
+            <h2 className="text-lg font-semibold">No client found.</h2>
+            <p className="max-w-sm text-sm text-muted-foreground">We couldn&apos;t find a matching client. Create a new one to get started.</p>
             <Button onClick={handleStartCreate}>
               <Plus className="h-4 w-4" />
               Create New Client

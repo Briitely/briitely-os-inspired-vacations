@@ -83,7 +83,7 @@ export function DeleteTravelFileDialog({
             This permanently deletes this Travel File and its related operational records (actions, payments, consultations, and activity history).
           </p>
           <p className="text-sm font-medium text-foreground">
-            The Briitely customer/contact will NOT be deleted.
+            The Briitely client/contact will NOT be deleted.
           </p>
 
           <div className="space-y-2">

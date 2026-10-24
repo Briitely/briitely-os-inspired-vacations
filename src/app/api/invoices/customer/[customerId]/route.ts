@@ -22,6 +22,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ cust
     return NextResponse.json({ invoices: filterInvoicesByGoLiveDate(invoices, clientConfig.invoiceGoLiveDate) });
   } catch (error) {
     const apiError = error instanceof BriitelyApiError ? error : null;
-    return NextResponse.json({ error: apiError?.status && apiError.status < 500 ? apiError.message : "We couldn't load this customer's invoices." }, { status: apiError?.status && apiError.status >= 400 && apiError.status < 500 ? apiError.status : 502 });
+    return NextResponse.json({ error: apiError?.status && apiError.status < 500 ? apiError.message : "We couldn't load this client's invoices." }, { status: apiError?.status && apiError.status >= 400 && apiError.status < 500 ? apiError.status : 502 });
   }
 }
