@@ -7,6 +7,8 @@ import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrappe
 import { SharedFooter } from "@/components/app/shared-footer";
 import { CustomerWorkspace } from "@/components/app/customer-workspace";
 import { DeleteClientButton } from "@/components/app/delete-client-button";
+import { CustomerMoreDetailsCard } from "@/components/core/customer-more-details-card";
+import { getCustomerFileFields } from "@/lib/briitely/client-settings";
 import { can } from "@/lib/auth/permissions";
 import { isHidden } from "@/lib/customers/hidden";
 import { Button } from "@/components/core/ui/button";
@@ -33,6 +35,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
     loadError = "We couldn't load this client. Please try again.";
   }
 
+  const fileFields = await getCustomerFileFields();
   return (
     <div className="min-h-screen bg-[#f7f4ff]">
       <DashboardHeaderWrapper fullName={user.fullName} email={user.email} role={user.role} />
@@ -58,6 +61,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
         )}
 
         {customer && <CustomerWorkspace initialCustomer={customer} />}
+        {customer && fileFields.fields.length > 0 && <CustomerMoreDetailsCard customerId={customer.id} />}
         {customer && can(user.role, "records.delete") && <DeleteClientButton clientId={customer.id} clientName={customer.name || customer.companyName || "this client"} hidden={isHidden(customer.tags)} />}
       </main>
       <SharedFooter />

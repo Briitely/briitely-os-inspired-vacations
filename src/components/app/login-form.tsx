@@ -7,10 +7,10 @@ import { Button } from "@/components/core/ui/button";
 import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/core/ui/card";
-import { Loader2, LogIn } from "lucide-react";
+import { FlaskConical, Loader2, LogIn } from "lucide-react";
 import Link from "next/link";
 
-export function LoginForm() {
+export function LoginForm({ testSignIn = false }: { testSignIn?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/dashboard";
@@ -107,6 +107,22 @@ export function LoginForm() {
     }
   }
 
+  async function handleTestSignIn() {
+    setError(null);
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auth/test-sign-in", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(data.error || "We couldn't sign in for testing."); return; }
+      router.push(redirectPath);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <Card className="border-border shadow-md">
       <CardHeader className="space-y-1 pb-4">
@@ -176,6 +192,14 @@ export function LoginForm() {
             )}
           </Button>
         </form>
+        {testSignIn && (
+          <div className="mt-5 border-t border-border pt-5">
+            <Button type="button" variant="outline" size="lg" className="w-full text-sm" disabled={loading} onClick={() => void handleTestSignIn()}>
+              <FlaskConical className="mr-2 h-4 w-4" />Sign In for Testing
+            </Button>
+            <p className="mt-2 text-center text-xs text-muted-foreground">Test environment only: signs in as the test account.</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

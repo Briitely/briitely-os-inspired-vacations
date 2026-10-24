@@ -22,7 +22,7 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
   const isAuthPage = pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname === "/accept-invite" || pathname === "/auth/continue" || pathname === "/auth/callback";
-  const isPublicAuthRoute = pathname === "/api/auth/forgot-password" || pathname === "/api/auth/continue";
+  const isPublicAuthRoute = pathname === "/api/auth/forgot-password" || pathname === "/api/auth/continue" || pathname === "/api/auth/test-sign-in";
   const isTrustedWebhook = pathname === "/api/integrations/briitely/inquiry" || pathname === "/api/integrations/briitely/consultation-booked" || pathname === "/api/integrations/briitely/consultation-cancelled" || pathname === "/api/integrations/briitely/travel-inquiry";
   const isPublicBookingForm = pathname.startsWith("/booking/") || pathname.startsWith("/api/booking/");
   // Vercel Cron requests are authenticated inside the cron route with CRON_SECRET.

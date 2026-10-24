@@ -7,12 +7,12 @@ import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import { SectionIntro as OsSectionIntro, DetailItem } from "@/components/core/workspace-section";
 import { Loader2, CheckCircle2, AlertCircle, Pencil } from "lucide-react";
-import type { BusinessSettings, RegionalSettings, BrandingSettings } from "@/lib/briitely/client-settings";
+import type { BusinessSettings, RegionalSettings, BrandingSettings, CustomerFileFieldsSettings } from "@/lib/briitely/client-settings";
 import { formatPhoneNumber } from "@/lib/format/phone";
 import { orDash } from "@/lib/format/empty";
 
-interface BusinessSettingsFormProps { business: BusinessSettings; regional: RegionalSettings; goLiveDate: string; branding: BrandingSettings; }
-type Section = "business" | "branding" | "regional" | "golive" | null;
+interface BusinessSettingsFormProps { business: BusinessSettings; regional: RegionalSettings; goLiveDate: string; branding: BrandingSettings; customerFileFields: CustomerFileFieldsSettings; }
+type Section = "business" | "fields" | "branding" | "regional" | "golive" | null;
 
 const TIMEZONE_OPTIONS = [
   ["America/St_Johns", "Newfoundland — St. John's"],
@@ -47,22 +47,30 @@ function ColorDetail({ label, color }: { label: string; color: string }) {
   return <div><p className="detail-label">{label}</p><div className="mt-1 flex items-center gap-2"><span className="h-5 w-5 shrink-0 rounded-full border border-border" style={{ backgroundColor: color }} /><span className="text-sm font-medium text-foreground">{color}</span></div></div>;
 }
 
-export function BusinessSettingsForm({ business, regional, goLiveDate: initialGoLiveDate, branding: initialBranding }: BusinessSettingsFormProps) {
+export function BusinessSettingsForm({ business, regional, goLiveDate: initialGoLiveDate, branding: initialBranding, customerFileFields: initialFileFields }: BusinessSettingsFormProps) {
   const router = useRouter();
   const [biz, setBiz] = useState(business); const [savedBiz, setSavedBiz] = useState(business);
   const [reg, setReg] = useState(regional); const [savedReg, setSavedReg] = useState(regional);
   const [goLiveDate, setGoLiveDate] = useState(initialGoLiveDate); const [savedGoLiveDate, setSavedGoLiveDate] = useState(initialGoLiveDate);
   const [branding, setBranding] = useState(initialBranding); const [savedBranding, setSavedBranding] = useState(initialBranding);
+  const [fileFields, setFileFields] = useState(initialFileFields.fields); const [savedFileFields, setSavedFileFields] = useState(initialFileFields.fields); const [availableFields, setAvailableFields] = useState<Array<{ id: string; name: string; dataType: string }> | null>(null);
   const [editing, setEditing] = useState<Section>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null); const [success, setSuccess] = useState(false); const [confirmGoLive, setConfirmGoLive] = useState(false);
 
   function cancel(section: Section) {
+    if (section === "fields") setFileFields(savedFileFields);
     if (section === "business") setBiz(savedBiz);
     if (section === "branding") setBranding(savedBranding);
     if (section === "regional") setReg(savedReg);
     if (section === "golive") { setGoLiveDate(savedGoLiveDate); setConfirmGoLive(false); }
     setEditing(null); setError(null);
   }
-  function toggle(section: Exclude<Section, null>) { if (editing === section) cancel(section); else { setEditing(section); setError(null); } }
+  function toggle(section: Exclude<Section, null>) { if (editing === section) cancel(section); else { setEditing(section); setError(null); if (section === "fields" && !availableFields) void loadAvailableFields(); } }
+  async function loadAvailableFields() {
+    try { const res = await fetch("/api/admin/customer-fields", { cache: "no-store" }); const data = await res.json(); if (!res.ok) throw new Error(data.error); setAvailableFields(data.fields ?? []); }
+    catch (e) { setAvailableFields([]); setError(e instanceof Error && e.message ? e.message : "We couldn't load the custom fields from Briitely."); }
+  }
+  function toggleFileField(field: { id: string; name: string }, on: boolean) { setFileFields((current) => on ? [...current.filter((item) => item.id !== field.id), { id: field.id, name: field.name }] : current.filter((item) => item.id !== field.id)); }
+  async function handleFileFieldsSubmit(e: React.FormEvent) { e.preventDefault(); if (await saveSettings("customerFileFields", { fields: fileFields }, "Briitely custom fields shown on the client file")) { setSavedFileFields(fileFields); setEditing(null); } }
 
   async function saveSettings(key: string, value: unknown, description?: string, requireConfirm = false) {
     setError(null); setSuccess(false);
@@ -89,6 +97,11 @@ export function BusinessSettingsForm({ business, regional, goLiveDate: initialGo
     <section className="os-section"><div className="os-section-grid">
       <SectionIntro eyebrow="Business" title="Business Identity" description="Your company contact and mailing information used throughout the dashboard." editing={editing === "business"} onEdit={() => toggle("business")} disabled={loading} />
       {editing !== "business" ? <div><p className="detail-label border-b border-border pb-2">Business & Address</p><div className="grid gap-x-8 gap-y-5 pt-3 sm:grid-cols-2 lg:grid-cols-3"><Detail label="Business Name" value={valueOrNotProvided(savedBiz.businessName)} /><Detail label="Phone" value={valueOrNotProvided(formatPhoneNumber(savedBiz.phone))} /><Detail label="Website" value={valueOrNotProvided(savedBiz.website)} /><Detail label="Email" value={valueOrNotProvided(savedBiz.email)} /><Detail label="Street Address" value={valueOrNotProvided(savedBiz.address.street)} /><Detail label="City" value={valueOrNotProvided(savedBiz.address.city)} /><Detail label="Province/State" value={valueOrNotProvided(savedBiz.address.province)} /><Detail label="Postal Code" value={valueOrNotProvided(savedBiz.address.postalCode)} /><Detail label="Country" value={valueOrNotProvided(savedBiz.address.country)} /></div></div> : <form onSubmit={handleBusinessSubmit} className="space-y-4"><div className="space-y-2"><Label htmlFor="biz-name">Business Name</Label><Input id="biz-name" value={biz.businessName} onChange={(e) => setBiz({ ...biz, businessName: e.target.value })} disabled={loading} /></div><div className="grid sm:grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="biz-phone">Phone</Label><Input id="biz-phone" type="tel" value={biz.phone} onChange={(e) => setBiz({ ...biz, phone: e.target.value })} disabled={loading} /></div><div className="space-y-2"><Label htmlFor="biz-website">Website</Label><Input id="biz-website" value={biz.website} onChange={(e) => setBiz({ ...biz, website: e.target.value })} disabled={loading} /></div></div><div className="space-y-2"><Label htmlFor="biz-email">Email</Label><Input id="biz-email" type="email" value={biz.email} onChange={(e) => setBiz({ ...biz, email: e.target.value })} disabled={loading} /></div><div className="space-y-2"><Label htmlFor="biz-street">Street Address</Label><Input id="biz-street" value={biz.address.street} onChange={(e) => setBiz({ ...biz, address: { ...biz.address, street: e.target.value } })} disabled={loading} /></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-4"><div className="space-y-2"><Label htmlFor="biz-city">City</Label><Input id="biz-city" value={biz.address.city} onChange={(e) => setBiz({ ...biz, address: { ...biz.address, city: e.target.value } })} disabled={loading} /></div><div className="space-y-2"><Label htmlFor="biz-province">Province/State</Label><Input id="biz-province" value={biz.address.province} onChange={(e) => setBiz({ ...biz, address: { ...biz.address, province: e.target.value } })} disabled={loading} /></div><div className="space-y-2"><Label htmlFor="biz-postal">Postal Code</Label><Input id="biz-postal" value={biz.address.postalCode} onChange={(e) => setBiz({ ...biz, address: { ...biz.address, postalCode: e.target.value } })} disabled={loading} /></div></div><div className="space-y-2"><Label htmlFor="biz-country">Country</Label><Input id="biz-country" value={biz.address.country} onChange={(e) => setBiz({ ...biz, address: { ...biz.address, country: e.target.value } })} disabled={loading} /></div><div className="flex justify-end"><Button type="submit" disabled={loading}>{loading && <Loader2 className="h-4 w-4 animate-spin" />}Save Business Identity</Button></div></form>}
+    </div></section>
+
+    <section className="os-section"><div className="os-section-grid">
+      <SectionIntro eyebrow="Clients" title="Client File Fields" description="Choose which of your Briitely custom fields show on each client file, under More Details. Staff can edit them there." editing={editing === "fields"} onEdit={() => toggle("fields")} disabled={loading} />
+      {editing !== "fields" ? <div><p className="detail-label border-b border-border pb-2">Shown on the Client File</p><div className="pt-3">{savedFileFields.length ? <ol className="list-decimal space-y-1 pl-5 text-sm font-medium text-foreground">{savedFileFields.map((field) => <li key={field.id}>{field.name}</li>)}</ol> : <p className="text-sm text-muted-foreground">None yet. Client files show only the standard details.</p>}</div></div> : <form onSubmit={handleFileFieldsSubmit} className="space-y-4">{!availableFields ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading your Briitely custom fields...</p> : availableFields.length === 0 ? <p className="text-sm text-muted-foreground">No contact custom fields found in Briitely.</p> : <fieldset><legend className="detail-label">Briitely custom fields</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{availableFields.map((field) => <label key={field.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={fileFields.some((item) => item.id === field.id)} onChange={(e) => toggleFileField(field, e.target.checked)} disabled={loading} />{field.name}</label>)}</div></fieldset>}<p className="text-xs leading-relaxed text-muted-foreground">Fields show in the order you tick them. File uploads and signatures show but are edited in Briitely.</p><div className="flex justify-end"><Button type="submit" disabled={loading || !availableFields}>{loading && <Loader2 className="h-4 w-4 animate-spin" />}Save Client File Fields</Button></div></form>}
     </div></section>
 
     <section className="os-section"><div className="os-section-grid">

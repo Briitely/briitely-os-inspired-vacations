@@ -54,6 +54,8 @@ export const clientConfig = {
   taxConfig: clientTaxConfig,
   features: {
     authentication: { enabled: true },
+    // Off until IV's Briitely TEST sub-account is connected to Vercel → Preview (docs: Core new-client-setup.md).
+    briitelyTestLock: { enabled: false },
     usersAccess: { enabled: true },
     businessSettings: { enabled: true },
     customerSearch: { enabled: true, label: "Find or Create Customer" },

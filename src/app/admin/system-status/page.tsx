@@ -7,6 +7,8 @@ import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrappe
 import { SharedFooter } from "@/components/app/shared-footer";
 import { WorkspaceSection, DetailGroup, DetailItem } from "@/components/core/workspace-section";
 import { Badge } from "@/components/core/ui/badge";
+import { SampleCustomersButton } from "@/components/app/sample-customers-button";
+import { isBriitelyTestAccount, isBriitelyTestLockOn, isLiveEnvironment } from "@/lib/environment";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runUserDirectoryChecks } from "@/lib/briitely/user-directory-diagnostics";
 
@@ -153,6 +155,19 @@ export default async function SystemStatusPage() {
             {attentionCount > 0 ? ` ${attentionCount} ${attentionCount === 1 ? "item needs" : "items need"} attention.` : " Everything required is configured."}
           </p>
         </div>
+
+        <WorkspaceSection eyebrow="Platform" title="Test or Live" description="Live is the site the team uses. Test builds (Vercel previews) use the Supabase development branch and fake data.">
+          <DetailGroup label="This Build" columns={2}>
+            <DetailItem label="Environment" value={isLiveEnvironment() ? "Live" : "Test"} />
+            <DetailItem label="Briitely Account" value={isLiveEnvironment() ? "Live sub-account" : isBriitelyTestAccount() ? "Test sub-account" : isBriitelyTestLockOn() ? "Read-only (not connected to a test account)" : "Not locked: changes reach the Briitely account Vercel → Preview uses"} />
+          </DetailGroup>
+          {!isLiveEnvironment() && isBriitelyTestAccount() && (
+            <div className="mt-6 space-y-2">
+              <p className="text-sm text-muted-foreground">Adds six fake clients to the Briitely test sub-account, tagged Sample Data. Safe to run again.</p>
+              <SampleCustomersButton />
+            </div>
+          )}
+        </WorkspaceSection>
 
         <WorkspaceSection eyebrow="Platform" title="Environment" description={`Runtime: ${process.env.NODE_ENV ?? "unknown"}. The app, database and saved settings.`}>
           <StatusList items={platform} />
