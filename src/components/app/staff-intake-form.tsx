@@ -9,7 +9,7 @@ import { Input } from "@/components/core/ui/input";
 import { Label } from "@/components/core/ui/label";
 import { osConfirm } from "@/components/core/ui/os-dialog";
 import { DeploymentStageModal, type DeploymentChoice } from "@/components/app/deployment-stage-modal";
-import { FindCustomerStep, SelectedCustomer } from "@/components/app/customer-first";
+import { CompleteCustomerDetails, FindCustomerStep, SelectedCustomer } from "@/components/app/customer-first";
 import { FormSectionCard } from "@/components/app/form-section-card";
 import type { BriitelyCustomer } from "@/lib/briitely/types";
 import { travelInterestOptions, travelSeasonOptions, referralSourceOptions, tripTypeOptions, budgetRangeOptions, intakeMethodOptions } from "@/lib/travel/tag-mappings";
@@ -45,6 +45,8 @@ export function StaffIntakeForm({ initialCustomerId }: { initialCustomerId?: str
   // True when the client was created in step 1, so the referral question shows.
   const [createdNow, setCreatedNow] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(Boolean(initialCustomerId));
+  // A chosen client missing the email or phone the inquiry needs: complete their details first.
+  const [completing, setCompleting] = useState<{ customer: BriitelyCustomer; isDnb: boolean; created: boolean } | null>(null);
   const [destination, setDestination] = useState("");
   const [tripType, setTripType] = useState("");
   const [travelTimeframe, setTravelTimeframe] = useState("");
@@ -92,7 +94,19 @@ export function StaffIntakeForm({ initialCustomerId }: { initialCustomerId?: str
         isDnb = r.ok ? Boolean((await r.json()).profile?.is_dnb) : false;
       } catch { isDnb = false; }
     }
-    await select({ ...toClient(customer), isDnb }, created);
+    await openClient({ ...customer, isDnb }, created);
+  }
+
+  // Goes into the inquiry, or first to Complete the Client's Details when the email or phone is missing.
+  async function openClient(customer: BriitelyCustomer & { isDnb: boolean }, created = false) {
+    if (customer.email && customer.phone) return select(toClient(customer), created);
+    let full: BriitelyCustomer = customer;
+    try {
+      const r = await fetch(`/api/customers/${encodeURIComponent(customer.id)}`), d = await r.json();
+      if (r.ok && d.customer) full = d.customer;
+    } catch { /* fill in from what search returned */ }
+    setError(null);
+    setCompleting({ customer: full, isDnb: customer.isDnb, created });
   }
 
   // Started from a client file: open the form for that client straight away.
@@ -104,7 +118,7 @@ export function StaffIntakeForm({ initialCustomerId }: { initialCustomerId?: str
         const [r, p] = await Promise.all([fetch(`/api/customers/${encodeURIComponent(initialCustomerId)}`), fetch(`/api/customers/${encodeURIComponent(initialCustomerId)}/traveller-profile`)]);
         const d = await r.json(), pd = p.ok ? await p.json() : {};
         if (!r.ok || !d.customer) throw new Error(d.error || "Could not load this client.");
-        if (active) await select({ ...toClient(d.customer), isDnb: Boolean(pd.profile?.is_dnb) });
+        if (active) await openClient({ ...d.customer, isDnb: Boolean(pd.profile?.is_dnb) });
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : "Could not load this client.");
       } finally {
@@ -170,6 +184,20 @@ export function StaffIntakeForm({ initialCustomerId }: { initialCustomerId?: str
   }
 
   if (loadingInitial) return <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading client...</div>;
+
+  if (completing) {
+    const missing = (["email", "phone"] as const).filter((key) => !completing.customer[key]);
+    return (
+      <CompleteCustomerDetails
+        noun="client"
+        recordLabel="inquiry"
+        customer={completing.customer}
+        missing={[...missing]}
+        onSaved={(saved) => { const { isDnb, created } = completing; setCompleting(null); void select({ ...toClient(saved), isDnb }, created); }}
+        onCancel={() => setCompleting(null)}
+      />
+    );
+  }
 
   if (!client) {
     return (
