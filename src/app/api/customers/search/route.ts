@@ -5,6 +5,8 @@ import { logActivity } from "@/lib/logging/activity";
 import { logIntegration } from "@/lib/logging/integration";
 import { getContact, searchContacts } from "@/lib/briitely/contacts";
 import { toSafeUserMessage, BriitelyApiError } from "@/lib/briitely/errors";
+import { can } from "@/lib/auth/permissions";
+import { isHidden } from "@/lib/customers/hidden";
 
 const MIN_QUERY_LENGTH = 2;
 const hasDnbTag = (tags?: string[]) => (tags ?? []).some((tag) => tag.trim().toLowerCase() === "dnb");
@@ -14,6 +16,8 @@ export async function GET(request: Request) {
   if (authError || !user) return NextResponse.json({ error: "You must be signed in to search clients." }, { status: 401 });
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim() ?? "";
+  // Hidden clients are left out, unless an Admin ticks "Show hidden clients".
+  const includeHidden = url.searchParams.get("includeHidden") === "1" && can(user.role, "records.delete");
   if (query.length < MIN_QUERY_LENGTH) return NextResponse.json({ customers: [], total: 0, queryType: "text", searchCount: 0 });
 
   try {
@@ -40,7 +44,8 @@ export async function GET(request: Request) {
       ...customer,
       isDnb: hasDnbTag(customer.tags),
       dnbReason: reasonById.get(customer.id) ?? null,
-    }));
+      isHidden: isHidden(customer.tags),
+    })).filter((customer) => includeHidden || !customer.isHidden);
 
     const dnbCustomers = enrichedCustomers.filter((customer) => customer.isDnb);
     if (dnbCustomers.length) {
@@ -58,7 +63,7 @@ export async function GET(request: Request) {
       }));
     }
 
-    const enrichedResult = { ...result, customers: enrichedCustomers };
+    const enrichedResult = { ...result, customers: enrichedCustomers, total: enrichedCustomers.length };
     await Promise.allSettled([
       logActivity(user.id, { action: "customer.searched", entityType: "customer", metadata: { queryLength: query.length, queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length } }),
       logIntegration({ provider: "briitely", operation: "contacts.search", status: "success", metadata: { queryType: result.queryType, numberOfApiSearches: result.searchCount, resultCount: result.customers.length }, completedAt: new Date().toISOString() }),

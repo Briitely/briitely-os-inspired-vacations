@@ -22,7 +22,7 @@ import type { BriitelyCustomer } from "@/lib/briitely/types";
 import { classifyQuery, splitNameParts } from "@/lib/briitely/query";
 import { formatPhoneNumber } from "@/lib/format/phone";
 
-type SearchCustomer = BriitelyCustomer & { isDnb?: boolean };
+type SearchCustomer = BriitelyCustomer & { isDnb?: boolean; isHidden?: boolean };
 
 interface SearchResponse {
   customers?: SearchCustomer[];
@@ -71,6 +71,7 @@ function CustomerCard({ customer, onSelect }: { customer: SearchCustomer; onSele
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{customer.companyName || customer.name || "Unnamed client"}</h2>
             {customer.isDnb && <Badge variant="destructive">DNB</Badge>}
+            {customer.isHidden && <Badge variant="secondary">Hidden</Badge>}
             {customer.companyName && customer.name && <Badge variant="secondary">{customer.name}</Badge>}
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
@@ -109,11 +110,14 @@ interface CustomerFinderProps {
   /** Called with the chosen customer; `created` is true when they were just created here. */
   onCustomerSelected?: (customer: BriitelyCustomer, details?: { created: boolean }) => void;
   initialCustomerId?: string;
+  /** Admins on Find or Create Client: offer "Show hidden clients". */
+  showHiddenOption?: boolean;
 }
 
-export function CustomerFinder({ onCustomerSelected, initialCustomerId }: CustomerFinderProps) {
+export function CustomerFinder({ onCustomerSelected, initialCustomerId, showHiddenOption = false }: CustomerFinderProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [includeHidden, setIncludeHidden] = useState(false);
   const [customers, setCustomers] = useState<SearchCustomer[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(Boolean(initialCustomerId));
@@ -163,7 +167,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
     setError(null);
     setView("search");
     try {
-      const response = await fetch(`/api/customers/search?q=${encodeURIComponent(trimmedQuery)}`);
+      const response = await fetch(`/api/customers/search?q=${encodeURIComponent(trimmedQuery)}${includeHidden ? "&includeHidden=1" : ""}`);
       const data = (await response.json()) as SearchResponse;
       if (!response.ok) {
         throw new Error(data.error || "We couldn't complete that search.");
@@ -441,6 +445,12 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
               Search
             </Button>
           </form>
+          {showHiddenOption && (
+            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={includeHidden} onChange={(e) => setIncludeHidden(e.target.checked)} />
+              Show hidden clients
+            </label>
+          )}
           {loading && (
             <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
