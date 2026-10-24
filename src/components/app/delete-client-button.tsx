@@ -2,21 +2,24 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { EyeOff, Eye, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { OsDialog } from "@/components/core/ui/os-dialog";
 
 /**
- * Admin-only Delete Client button at the bottom of the client file. Every
- * note is in the pop-up: a duplicate with nothing attached gets a confirmation;
- * a client with attached records is told it can't be deleted.
+ * Admin-only buttons at the bottom of the client file. Delete Client: a
+ * duplicate with nothing attached gets a confirmation; a client with attached
+ * records is told it can't be deleted and offered Hide Client instead (a
+ * "Hidden" tag in Briitely; searches leave them out). A hidden client gets
+ * Unhide Client.
  */
-export function DeleteClientButton({ clientId, clientName }: { clientId: string; clientName: string }) {
+export function DeleteClientButton({ clientId, clientName, hidden = false }: { clientId: string; clientName: string; hidden?: boolean }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"confirm" | "blocked" | null>(null);
   const [attached, setAttached] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [hiding, setHiding] = useState(false);
   const [error, setError] = useState("");
   const url = `/api/customers/${encodeURIComponent(clientId)}/delete`;
 
@@ -54,13 +57,34 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
     }
   }
 
+  async function setHidden(hide: boolean) {
+    setHiding(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/customers/${encodeURIComponent(clientId)}/hide`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hidden: hide }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `We couldn't ${hide ? "hide" : "unhide"} this client. Please try again.`);
+      setDialog(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `We couldn't ${hide ? "hide" : "unhide"} this client. Please try again.`);
+    } finally {
+      setHiding(false);
+    }
+  }
+
   const close = () => { setDialog(null); setError(""); };
   return (
-    <div className="border-t border-border pt-6">
-      <Button type="button" variant="outline" size="sm" className="text-destructive" disabled={checking} onClick={() => void start()}>
+    <div className="flex flex-wrap gap-3 border-t border-border pt-6">
+      <Button type="button" variant="outline" size="sm" className="text-destructive" disabled={checking || hiding} onClick={() => void start()}>
         {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}Delete Client
       </Button>
-      {error && !dialog && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
+      {hidden && (
+        <Button type="button" variant="outline" size="sm" disabled={hiding} onClick={() => void setHidden(false)}>
+          {hiding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}Unhide Client
+        </Button>
+      )}
+      {error && !dialog && <p role="alert" className="w-full text-sm text-destructive">{error}</p>}
 
       <OsDialog
         open={dialog === "confirm"}
@@ -83,10 +107,18 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
         onClose={close}
         eyebrow="Delete Client"
         title={`${clientName} can't be deleted`}
-        footer={<Button onClick={close}>Close</Button>}
+        busy={hiding}
+        footer={<>
+          <Button variant="outline" onClick={close} disabled={hiding}>Close</Button>
+          {!hidden && <Button onClick={() => void setHidden(true)} disabled={hiding}>{hiding ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}Hide Client</Button>}
+        </>}
       >
         <p className="text-muted-foreground">This client can&apos;t be deleted because it has attached records:</p>
         <ul className="list-disc space-y-1 pl-5">{attached.map((item) => <li key={item}>{item}</li>)}</ul>
+        {hidden
+          ? <p className="text-muted-foreground">This client is already hidden.</p>
+          : <p className="text-muted-foreground">You can hide them instead. Hidden clients are left out of client searches and New Inquiry, and are tagged Hidden in Briitely. Their travel files and history stay as they are, and an Admin can unhide them any time.</p>}
+        {error && <p role="alert" className="text-destructive">{error}</p>}
       </OsDialog>
     </div>
   );

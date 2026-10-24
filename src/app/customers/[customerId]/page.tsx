@@ -8,6 +8,7 @@ import { SharedFooter } from "@/components/app/shared-footer";
 import { CustomerWorkspace } from "@/components/app/customer-workspace";
 import { DeleteClientButton } from "@/components/app/delete-client-button";
 import { can } from "@/lib/auth/permissions";
+import { isHidden } from "@/lib/customers/hidden";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent } from "@/components/core/ui/card";
 import Link from "next/link";
@@ -43,7 +44,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
           {customer && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary/60">Client file</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">{customer.name || customer.companyName || "Client"}</h1>
+              <h1 className="mt-1 flex flex-wrap items-center gap-3 text-3xl font-semibold tracking-tight">{customer.name || customer.companyName || "Client"}{isHidden(customer.tags) && <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hidden</span>}</h1>
               {customer.companyName && customer.companyName !== customer.name && <p className="mt-1 text-sm text-muted-foreground">{customer.companyName}</p>}
             </div>
           )}
@@ -57,7 +58,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
         )}
 
         {customer && <CustomerWorkspace initialCustomer={customer} />}
-        {customer && can(user.role, "records.delete") && <DeleteClientButton clientId={customer.id} clientName={customer.name || customer.companyName || "this client"} />}
+        {customer && can(user.role, "records.delete") && <DeleteClientButton clientId={customer.id} clientName={customer.name || customer.companyName || "this client"} hidden={isHidden(customer.tags)} />}
       </main>
       <SharedFooter />
     </div>

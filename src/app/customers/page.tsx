@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { CustomerFinder } from "@/components/app/customer-finder";
+import { can } from "@/lib/auth/permissions";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { Button } from "@/components/core/ui/button";
@@ -32,7 +33,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           </div>
         </div>
         {params.deleted && <p role="status" className="rounded-lg border border-border bg-card px-4 py-3 text-sm">Deleted {params.deleted}. They&apos;re gone from the dashboard and from Briitely.</p>}
-        <CustomerFinder initialCustomerId={params.customerId} />
+        <CustomerFinder initialCustomerId={params.customerId} showHiddenOption={can(user.role, "records.delete")} />
       </main>
       <SharedFooter />
     </div>
