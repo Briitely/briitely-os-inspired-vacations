@@ -64,15 +64,18 @@ const EMPTY_FORM: CreateFormData = {
 };
 
 function CustomerCard({ customer, onSelect }: { customer: SearchCustomer; onSelect: (customer: SearchCustomer) => void }) {
+  // Contact name first, business second: most clients are individuals.
+  const contactName = customer.name?.trim() || [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim();
+  const businessName = customer.companyName?.trim();
   return (
     <Card className="transition-shadow hover:shadow-md">
       <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{customer.companyName || customer.name || "Unnamed client"}</h2>
+            <h2 className="text-lg font-semibold">{contactName || businessName || "Unnamed client"}</h2>
             {customer.isDnb && <Badge variant="destructive">DNB</Badge>}
             {customer.isHidden && <Badge variant="secondary">Hidden</Badge>}
-            {customer.companyName && customer.name && <Badge variant="secondary">{customer.name}</Badge>}
+            {contactName && businessName && businessName !== contactName && <Badge variant="secondary">{businessName}</Badge>}
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             {customer.phone && <span className="inline-flex items-center gap-1.5"><Phone className="h-4 w-4" />{formatPhoneNumber(customer.phone)}</span>}
