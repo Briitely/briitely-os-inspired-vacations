@@ -43,11 +43,12 @@ const DateInput = React.forwardRef<HTMLInputElement, InputProps>(
           {...props}
           ref={ref}
           id={id}
-          name={name}
           type="text"
           inputMode="numeric"
           autoComplete="off"
           placeholder="MM/DD/YYYY"
+          pattern="\d{2}/\d{2}/\d{4}"
+          title="Enter the date as MM/DD/YYYY"
           aria-label={props["aria-label"] ?? "Date (month/day/year)"}
           className={cn(inputClasses, "pr-11", className)}
           value={draft}
@@ -56,6 +57,8 @@ const DateInput = React.forwardRef<HTMLInputElement, InputProps>(
           onChange={event => changeText(event.target.value)}
           onBlur={event => { if (draft && !parseDate(draft)) setDraft(displayDate(iso)); onBlur?.(event); }}
         />
+        {/* Forms that read their fields on submit (FormData) get YYYY-MM-DD, never the typed MM/DD/YYYY. */}
+        {name && <input type="hidden" name={name} value={parseDate(draft) ?? ""} disabled={disabled} />}
         <input
           ref={pickerRef}
           type="date"
