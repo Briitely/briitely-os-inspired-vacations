@@ -11,6 +11,7 @@ import {
   Search,
   UserPlus,
   AlertTriangle,
+  Plus,
 } from "lucide-react";
 import { Badge } from "@/components/core/ui/badge";
 import { Button } from "@/components/core/ui/button";
@@ -374,7 +375,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
 
               <div className="flex gap-3">
                 <Button type="submit" disabled={creating}>
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   {creating ? "Creating..." : "Create Client"}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleCancelCreate} disabled={creating}>
@@ -405,7 +406,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
             <CustomerCard customer={duplicateMatch} onSelect={handleSelectCustomer} />
             <div className="flex gap-3">
               <Button onClick={handleForceCreate} disabled={creating}>
-                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Create New Anyway
               </Button>
               <Button variant="outline" onClick={handleCancelCreate} disabled={creating}>
@@ -455,7 +456,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
           {customers.map((customer) => <CustomerCard key={customer.id} customer={customer} onSelect={handleSelectCustomer} />)}
           <div className="pt-2">
             <Button variant="outline" onClick={handleStartCreate}>
-              <UserPlus className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Create New Client
             </Button>
           </div>
@@ -469,7 +470,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
             <h2 className="text-lg font-semibold">No customer found.</h2>
             <p className="max-w-sm text-sm text-muted-foreground">We couldn&apos;t find a matching customer. Create a new one to get started.</p>
             <Button onClick={handleStartCreate}>
-              <UserPlus className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Create New Client
             </Button>
           </CardContent>
@@ -479,7 +480,7 @@ export function CustomerFinder({ onCustomerSelected, initialCustomerId }: Custom
       {!searched && !loading && (
         <div className="pt-2">
           <Button variant="outline" onClick={handleStartCreate}>
-            <UserPlus className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Create New Client
           </Button>
         </div>

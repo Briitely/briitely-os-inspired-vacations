@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, FileText, Pencil, CreditCard } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, CreditCard } from "lucide-react";
 import { Button } from "@/components/core/ui/button";
 import { CustomerEditModal } from "@/components/core/customer-edit-modal";
 import { getProvinceName } from "@/lib/briitely/provinces";
@@ -36,7 +36,7 @@ export function CustomerDetailsCard({ customer, isDeceased, onDeceasedChange, on
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Core contact and mailing information synced with Briitely.</p>
           <div className="mt-3 flex w-full flex-col gap-2">
             <Button variant="outline" size="sm" onClick={()=>setEditing(true)} className="justify-start"><Pencil className="h-4 w-4"/>Edit Contact Details</Button>
-            {onCreateInvoice&&<Button variant="outline" size="sm" onClick={onCreateInvoice} className="justify-start"><FileText className="h-4 w-4"/>Create Invoice</Button>}
+            {onCreateInvoice&&<Button variant="outline" size="sm" onClick={onCreateInvoice} className="justify-start"><Plus className="h-4 w-4"/>Create Invoice</Button>}
             {onReceivePayment&&<Button variant="outline" size="sm" onClick={onReceivePayment} className="justify-start"><CreditCard className="h-4 w-4"/>Receive Payment</Button>}
             {showChangeCustomer&&onChangeCustomer&&<Button variant="outline" size="sm" onClick={onChangeCustomer} className="justify-start">Change Customer</Button>}
           </div>

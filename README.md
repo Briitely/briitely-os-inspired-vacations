@@ -91,3 +91,15 @@ Every click gets a visible response, with no extra code per page:
 - **Top bar.** A thin bar across the top starts the moment someone clicks a link or code moves to another page (`router.push`), and while anything a click started is still saving or sending. It finishes when the work is done. `ActivityIndicator` in `components/core/activity-indicator.tsx`, mounted once in `app/layout.tsx`.
 - **Busy button.** The button that was clicked shows a spinning wheel while it's disabled waiting on its work. Other buttons (like Cancel) don't spin. To show it directly, use `<Button loading={saving}>`.
 - **Page spinner.** `app/loading.tsx` shows the standard `Spinner` while a slow page loads. Use `<Spinner label="Loading orders…" />` for sections that load on their own.
+
+### Buttons and icons (the standard)
+
+Every Briitely OS dashboard uses the same button language, so staff never have to guess:
+
+- **Add, Create and New buttons** show the **Plus** icon (`<Plus className="h-4 w-4" />` from `lucide-react`) before the label. Never type a "+".
+- **Edit buttons** show the **Pencil** icon and name what they edit: "Edit Trip Details", never just "Edit".
+- **List row actions** (Edit User, Remove inside a list) are small and text-only, so rows line up. Use `rowAction` / `rowActionDestructive` from `components/core/ui/row-action.ts`.
+- **Dates** show as "Oct 13, 2026", never 2026-10-13. **Missing values** show a dash (—).
+- **Pop-ups** use the branded `osConfirm` / `OsDialog`, never the browser's `window.confirm`.
+
+`npm run check:ui` checks the button rules across every screen and lists anything that doesn't follow them. It also runs first in `npm run lint`.
