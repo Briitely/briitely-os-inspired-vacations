@@ -31,7 +31,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
             <p className="mt-1 text-muted-foreground">Search by name, business, or email.</p>
           </div>
         </div>
-        {params.deleted && <p role="status" className="rounded-lg border border-border bg-card px-4 py-3 text-sm">Deleted {params.deleted}. They&apos;re gone from the dashboard and from GHL.</p>}
+        {params.deleted && <p role="status" className="rounded-lg border border-border bg-card px-4 py-3 text-sm">Deleted {params.deleted}. They&apos;re gone from the dashboard and from Briitely.</p>}
         <CustomerFinder initialCustomerId={params.customerId} />
       </main>
       <SharedFooter />

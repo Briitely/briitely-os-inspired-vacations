@@ -53,7 +53,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "We couldn't check what's attached to this client. Nothing was deleted." }, { status: 500 });
   }
   if (check.attached.length) {
-    return NextResponse.json({ error: `This client can't be deleted because they have ${check.attached.join(", ")}.`, attached: check.attached }, { status: 409 });
+    return NextResponse.json({ error: "This client can't be deleted because it has attached records.", attached: check.attached }, { status: 409 });
   }
 
   const name = await getContact(id).then((c) => c.name || c.companyName || "").catch(() => "");
@@ -63,7 +63,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     // Already gone from GHL: carry on and tidy the dashboard.
     if (!(error instanceof BriitelyApiError && error.status === 404)) {
       await logIntegration({ provider: "briitely", operation: "contacts.delete", entityType: "customer", externalId: id, status: "failed", errorCode: error instanceof BriitelyApiError ? error.code : "BRIITELY_UNKNOWN_ERROR", completedAt: new Date().toISOString() }).catch(() => {});
-      return NextResponse.json({ error: "GHL didn't delete the client, so nothing was deleted. Please try again." }, { status: 502 });
+      return NextResponse.json({ error: "Briitely didn't delete the client, so nothing was deleted. Please try again." }, { status: 502 });
     }
   }
 

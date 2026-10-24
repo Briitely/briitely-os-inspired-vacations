@@ -6,7 +6,7 @@ import { getContact } from "@/lib/briitely/contacts";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { CustomerWorkspace } from "@/components/app/customer-workspace";
-import { DeleteClientCard } from "@/components/app/delete-client-card";
+import { DeleteClientButton } from "@/components/app/delete-client-button";
 import { can } from "@/lib/auth/permissions";
 import { Button } from "@/components/core/ui/button";
 import { Card, CardContent } from "@/components/core/ui/card";
@@ -57,7 +57,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ custo
         )}
 
         {customer && <CustomerWorkspace initialCustomer={customer} />}
-        {customer && can(user.role, "records.delete") && <DeleteClientCard clientId={customer.id} clientName={customer.name || customer.companyName || "this client"} />}
+        {customer && can(user.role, "records.delete") && <DeleteClientButton clientId={customer.id} clientName={customer.name || customer.companyName || "this client"} />}
       </main>
       <SharedFooter />
     </div>
