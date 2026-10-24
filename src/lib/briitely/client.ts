@@ -1,6 +1,7 @@
 import "server-only";
 
 import { BriitelyApiError } from "./errors";
+import { canChangeBriitely } from "@/lib/environment";
 
 const BRIITELY_API_BASE = "https://services.leadconnectorhq.com";
 const HIGHLEVEL_VERSION = "2021-07-28";
@@ -103,6 +104,18 @@ function buildUrl(
 export async function briitelyRequest<T>(
   options: BriitelyRequestOptions
 ): Promise<T> {
+  // Test builds only change Briitely when connected to a test sub-account
+  // (lib/environment.ts). Searches are POSTs but only read.
+  const isRead = options.method === "GET" || (options.method === "POST" && options.path.split("?")[0].endsWith("/search"));
+  if (!isRead && !canChangeBriitely()) {
+    console.warn("BRIITELY_TEST_LOCK", { method: options.method, path: options.path });
+    throw new BriitelyApiError({
+      message: "This is the test environment and it isn't connected to a Briitely test account, so nothing was changed in Briitely.",
+      status: 423,
+      code: "BRIITELY_TEST_LOCKED",
+    });
+  }
+
   const token = getPrivateToken();
 
   const headers: Record<string, string> = {

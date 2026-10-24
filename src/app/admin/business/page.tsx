@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { DashboardHeaderWrapper } from "@/components/app/dashboard-header-wrapper";
 import { SharedFooter } from "@/components/app/shared-footer";
 import { BusinessSettingsForm } from "@/components/app/business-settings-form";
-import { getBusinessSettings, getRegionalSettings, getGoLiveDate, getBrandingSettings } from "@/lib/briitely/client-settings";
+import { getBusinessSettings, getRegionalSettings, getGoLiveDate, getBrandingSettings, getCustomerFileFields } from "@/lib/briitely/client-settings";
 import { Card, CardContent } from "@/components/core/ui/card";
 import { ArrowLeft, Lock } from "lucide-react";
 
@@ -37,11 +37,12 @@ export default async function AdminBusinessPage() {
     );
   }
 
-  const [business, regional, goLiveDate, branding] = await Promise.all([
+  const [business, regional, goLiveDate, branding, customerFileFields] = await Promise.all([
     getBusinessSettings(),
     getRegionalSettings(),
     getGoLiveDate(),
     getBrandingSettings(),
+    getCustomerFileFields(),
   ]);
 
   return (
@@ -67,6 +68,7 @@ export default async function AdminBusinessPage() {
           regional={regional}
           goLiveDate={goLiveDate}
           branding={branding}
+          customerFileFields={customerFileFields}
         />
       </main>
 

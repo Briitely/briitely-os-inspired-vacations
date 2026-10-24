@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/app/login-form";
+import { isTestSignInAvailable } from "@/lib/environment";
 import { getBrandingSettings, getBusinessSettings } from "@/lib/briitely/client-settings";
 
 export const metadata: Metadata = {
@@ -34,7 +35,7 @@ export default async function LoginPage() {
         </div>
 
         <Suspense fallback={null}>
-          <LoginForm />
+          <LoginForm testSignIn={isTestSignInAvailable()} />
         </Suspense>
       </div>
     </div>

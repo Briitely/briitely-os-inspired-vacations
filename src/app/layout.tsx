@@ -5,6 +5,7 @@ import "@/styles/briitely-os.css";
 import { BrandingStyles } from "@/components/core/branding-styles";
 import { ActivityIndicator } from "@/components/core/activity-indicator";
 import { ConfirmHost } from "@/components/core/ui/os-dialog";
+import { TestEnvironmentBanner } from "@/components/core/test-environment-banner";
 import { getBrandingSettings } from "@/lib/briitely/client-settings";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ActivityIndicator />
         <ConfirmHost />
         <BrandingStyles />
+        <TestEnvironmentBanner />
         {children}
       </body>
     </html>

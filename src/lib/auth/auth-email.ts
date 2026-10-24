@@ -2,6 +2,12 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getBrandingSettings, getBusinessSettings, getInvitationContactSettings } from "@/lib/briitely/client-settings";
 import { formatPhoneNumber } from "@/lib/format/phone";
+import { canChangeBriitely } from "@/lib/environment";
+
+/** The Briitely email workflow URL, unless this test build may not use Briitely (lib/environment.ts). */
+function emailWebhookUrl(): string | undefined {
+  return canChangeBriitely() ? process.env.BRIITELY_EMAIL_WEBHOOK_URL?.trim() : undefined;
+}
 
 export async function generateAuthActionLink(input:{kind:"invite"|"recovery";email:string;redirectTo:string;firstName?:string|null;lastName?:string|null}) {
   const service=createServiceClient();
@@ -44,7 +50,7 @@ function wrapActionLink(kind:"invite"|"recovery", actionLink:string) {
 
 /** The standard Briitely email workflow (same as every Briitely OS dashboard). */
 export function isStandardEmailWorkflowEnabled(): boolean {
-  return Boolean(process.env.BRIITELY_EMAIL_WEBHOOK_URL?.trim());
+  return Boolean(emailWebhookUrl());
 }
 
 function escapeHtml(value: string): string {
@@ -86,7 +92,7 @@ async function postJson(webhook: string, payload: Record<string, unknown>) {
 export async function sendAuthEmail(input: { kind: "invite" | "recovery"; email: string; firstName?: string | null; lastName?: string | null; actionLink: string }) {
   const link = wrapActionLink(input.kind, input.actionLink);
   const emailType = input.kind === "invite" ? "dashboard_invitation" : "password_reset";
-  const standard = process.env.BRIITELY_EMAIL_WEBHOOK_URL?.trim();
+  const standard = emailWebhookUrl();
   if (standard) {
     const { subject, html } = await renderAuthEmail(input.kind, input.firstName ?? "", link);
     await postJson(standard, { event: "dashboard_auth_email", email_type: emailType, to: input.email, cc: "", first_name: input.firstName ?? "", last_name: input.lastName ?? "", subject, body_html: html, email: input.email, email_subject: subject, email_html: html, contact_name: input.firstName ?? "", action_link: link });
@@ -99,7 +105,7 @@ export async function sendAuthEmail(input: { kind: "invite" | "recovery"; email:
 
 /** Sends a sample invitation (your own email, placeholder link) so the workflow trigger can map the fields. */
 export async function sendSampleAuthEmail(input: { email: string; firstName: string; lastName: string; origin: string }) {
-  const webhook = process.env.BRIITELY_EMAIL_WEBHOOK_URL?.trim();
+  const webhook = emailWebhookUrl();
   if (!webhook) throw new Error("Add BRIITELY_EMAIL_WEBHOOK_URL in Vercel first.");
   const link = new URL("/auth/continue?kind=invite&token_hash=sample-token", input.origin).toString();
   const { subject, html } = await renderAuthEmail("invite", input.firstName, link);

@@ -232,3 +232,11 @@ export async function getInvitationContactSettings(): Promise<InvitationContactS
   const r = raw as Record<string, unknown>;
   return { name: typeof r.name === "string" ? r.name : d.name, email: typeof r.email === "string" ? r.email : d.email, phone: typeof r.phone === "string" ? r.phone : d.phone };
 }
+
+/** Briitely custom fields shown on the client file, in order (Business Settings → Client File Fields). */
+export interface CustomerFileFieldsSettings { fields: Array<{ id: string; name: string }>; }
+export async function getCustomerFileFields(): Promise<CustomerFileFieldsSettings> {
+  const raw = await getClientSetting("customerFileFields");
+  if (!isObject(raw) || !Array.isArray(raw.fields)) return { fields: [] };
+  return { fields: raw.fields.filter((field): field is { id: string; name: string } => isObject(field) && typeof field.id === "string" && typeof field.name === "string") };
+}
