@@ -161,10 +161,10 @@ export default async function SystemStatusPage() {
             <DetailItem label="Environment" value={isLiveEnvironment() ? "Live" : "Test"} />
             <DetailItem label="Briitely Account" value={isLiveEnvironment() ? "Live sub-account" : isBriitelyTestAccount() ? "Test sub-account" : isBriitelyTestLockOn() ? "Read-only (not connected to a test account)" : "Not locked: changes reach the Briitely account Vercel → Preview uses"} />
           </DetailGroup>
-          {!isLiveEnvironment() && isBriitelyTestAccount() && (
+          {!isLiveEnvironment() && (
             <div className="mt-6 space-y-2">
               <p className="text-sm text-muted-foreground">Adds six fake clients to the Briitely test sub-account, tagged Sample Data. Safe to run again.</p>
-              <SampleCustomersButton />
+              <SampleCustomersButton ready={isBriitelyTestAccount()} />
             </div>
           )}
         </WorkspaceSection>
