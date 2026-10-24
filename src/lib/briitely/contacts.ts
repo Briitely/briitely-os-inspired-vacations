@@ -11,7 +11,7 @@ type SearchField = "firstName" | "lastName" | "companyName" | "email" | "phone";
 interface HighLevelFilter { field: SearchField; operator: "contains"; value: string; }
 interface HighLevelContactSearchBody { locationId: string; page: number; pageLimit: number; filters: HighLevelFilter[]; }
 export function buildContactSearchBody(query: string, locationId: string, field: SearchField): HighLevelContactSearchBody { return { locationId, page: 1, pageLimit: MAX_RESULTS, filters: [{ field, operator: "contains", value: query }] }; }
-function pickSearchFields(classification: QueryClassification): SearchField[] { switch (classification.type) { case "email": return ["email"]; case "phone": return ["phone"]; case "text": return ["firstName", "lastName", "companyName"]; } }
+function pickSearchFields(classification: QueryClassification): SearchField[] { switch (classification.type) { case "email": return ["email"]; case "phone": return ["phone"]; case "text": return ["firstName", "lastName", "companyName", "email"]; } }
 interface FieldSearchOutcome { field: SearchField; status: "fulfilled" | "rejected"; contacts?: HighLevelContact[]; errorStatus?: number; errorBody?: string; }
 export async function searchContacts(query: string): Promise<BriitelyContactSearchResult> {
   const trimmed = query.trim(); if (trimmed.length < MIN_QUERY_LENGTH) return { customers: [], total: 0, queryType: "text", searchCount: 0 };
