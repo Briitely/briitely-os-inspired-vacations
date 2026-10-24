@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { logActivity } from "@/lib/logging/activity";
 import { logIntegration } from "@/lib/logging/integration";
-import { updateContact, getContact, type BriitelyContactUpdateInput } from "@/lib/briitely/contacts";
+import { updateContact, getContact, findOtherContactWithEmailOrPhone, type BriitelyContactUpdateInput } from "@/lib/briitely/contacts";
 import { BriitelyApiError } from "@/lib/briitely/errors";
 import { validatePhone } from "@/lib/briitely/query";
 
@@ -62,6 +62,17 @@ export async function POST(request: Request) {
   const validation = validate(body);
   if (validation.error || !validation.input) return NextResponse.json({ error: validation.error }, { status: 400 });
 
+  // GHL refuses a phone or email that's already on another contact; say which one, and whose.
+  const duplicate = await findOtherContactWithEmailOrPhone(text(body.contactId), validation.input.email, validation.input.phone);
+  if (duplicate) {
+    const what = duplicate.field === "email" ? "email address" : "phone number";
+    const who = duplicate.customer.name || [duplicate.customer.firstName, duplicate.customer.lastName].filter(Boolean).join(" ") || duplicate.customer.companyName || "another client";
+    return NextResponse.json(
+      { error: `This ${what} is already on another client record: ${who}. Use that client, or enter a different ${what}.`, duplicate: { field: duplicate.field, id: duplicate.customer.id, name: who } },
+      { status: 409 }
+    );
+  }
+
   try {
     const customer = await updateContact(text(body.contactId), validation.input);
     await Promise.allSettled([
@@ -86,6 +97,10 @@ export async function POST(request: Request) {
       errorCode: error instanceof BriitelyApiError ? error.code : "BRIITELY_UNKNOWN_ERROR",
       completedAt: new Date().toISOString(),
     }).catch(() => {});
+    // A duplicate the check above couldn't see (GHL is the final word).
+    if (error instanceof BriitelyApiError && /duplicat/i.test(`${error.message} ${error.responseBody ?? ""}`)) {
+      return NextResponse.json({ error: "This phone number or email address is already on another client record. Use that client, or enter a different one." }, { status: 409 });
+    }
     return NextResponse.json({ error: "We couldn't update the client. Please try again." }, { status: 502 });
   }
 }
