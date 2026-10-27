@@ -1,6 +1,7 @@
 import { ActiveBookingSummary, InquiryPlanningSummary, RetainerRevisionSummary } from "@/components/app/active-booking-summary";
 import { ClientReferralSummary } from "@/components/app/client-referral-summary";
 import { ResendProposalEmailButton } from "@/components/app/resend-proposal-email-button";
+import { RetainerPaidToggle } from "@/components/app/retainer-paid-toggle";
 import { TravelFileAside as Aside, TravelFileInfo as Info, TravelFilePanel as Panel, TravelFileSectionTitle as SectionTitle } from "@/components/app/travel-file-display";
 import { formatBoolean, formatCurrency, formatDateOnly, formatReadableDate, formatReadableDateTime, formatOptionLabel } from "@/lib/travel/format";
 import type { TravelFile } from "@/lib/travel/types";
@@ -18,7 +19,7 @@ export function BookingPlanningSection({ file, edit }: { file: FileWithAdvisor; 
 
 export function RetainerDetailsSection({ file }: { file: FileWithAdvisor }) {
   if (file.tmf_amount == null && file.revisions_included == null) return null;
-  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="Consultation" title="Retainer details" text="Consultation outcome and Retainer details."/><div><SectionTitle>Retainer</SectionTitle><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client fit" value="Yes"/><Info label="Retainer amount" value={formatCurrency(file.tmf_amount)}/><Info label="Assigned advisor" value={file.assigned_advisor?.full_name ?? "Unassigned"}/><RetainerRevisionSummary travelFileId={file.id}/></div></div></div></Panel>;
+  return <Panel><div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]"><Aside eyebrow="Consultation" title="Retainer details" text="Consultation outcome and Retainer details."/><div><SectionTitle>Retainer</SectionTitle><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Info label="Client fit" value="Yes"/><Info label="Retainer amount" value={formatCurrency(file.tmf_amount)}/><RetainerPaidToggle travelFileId={file.id}/><Info label="Assigned advisor" value={file.assigned_advisor?.full_name ?? "Unassigned"}/><RetainerRevisionSummary travelFileId={file.id}/></div></div></div></Panel>;
 }
 
 export function InquiryDetailsSection({ file, edit }: { file: FileWithAdvisor; edit: EditSection }) {
